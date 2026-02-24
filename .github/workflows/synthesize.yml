@@ -8,6 +8,12 @@
 # actions/checkout when the old Debian Stretch container is used as the
 # job container directly.
 #
+# The program burned into ROM is selectable at synthesis time:
+#   - On a push to main the default program is used (examples/infinite_counter.asm)
+#   - For a manual run (Actions → "Run workflow") pick any .asm from examples/
+#     in the "Program" dropdown.  The assembler runs first; no pre-built
+#     program.hex needs to be committed.
+#
 # Outputs:
 #   - cpu_fpga.sof  (SRAM programming, volatile)
 #   - cpu_fpga.pof  (flash programming, permanent) — if Quartus generates it
@@ -21,14 +27,17 @@
 name: Quartus Synthesis
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'rtl/**'
-      - 'quartus/**'
-      - '.github/workflows/synthesize.yml'
-  workflow_dispatch:   # also allow manual trigger from the Actions UI
+  workflow_dispatch:   # manual trigger only
+    inputs:
+      program:
+        description: "Assembly source to burn into ROM (relative to repo root)"
+        required: true
+        default: "examples/infinite_counter.asm"
+        type: choice
+        options:
+          - examples/infinite_counter.asm
+          - examples/count_to_9.asm
+          - examples/fibonacci.asm
 
 jobs:
   synthesis:
@@ -43,7 +52,27 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
-      # 2. Run Quartus inside the raetro/quartus:21.1 container via docker run.
+      # 2. Assemble the selected program into quartus/program.hex
+      #
+      # On a push trigger ${{ inputs.program }} is empty; fall back to the
+      # default program via the shell expression.
+      # -----------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Assemble program into quartus/program.hex
+        run: |
+          PROGRAM="${{ inputs.program }}"
+          PROGRAM="${PROGRAM:-examples/infinite_counter.asm}"
+          echo "Building ROM from: $PROGRAM"
+          python3 tools/assembler.py -o quartus/program.hex "$PROGRAM"
+          echo "--- quartus/program.hex ---"
+          cat quartus/program.hex
+
+      # -----------------------------------------------------------------------
+      # 3. Run Quartus inside the raetro/quartus:21.1 container via docker run.
       #
       # Why not use `container:` at the job level?
       #   raetro/quartus:21.1 is Debian Stretch (glibc 2.24).  GitHub Actions
@@ -62,7 +91,7 @@ jobs:
             bash -c "cd /workspace/quartus && quartus_sh --flow compile cpu_fpga"
 
       # -----------------------------------------------------------------------
-      # 3. Show a quick summary of what was built
+      # 4. Show a quick summary of what was built
       # -----------------------------------------------------------------------
       - name: Show flow summary
         if: always()
@@ -74,7 +103,7 @@ jobs:
           ls -lh quartus/output_files/ || echo "(no output files)"
 
       # -----------------------------------------------------------------------
-      # 4. Upload the output files as a downloadable artifact
+      # 5. Upload the output files as a downloadable artifact
       #
       # Retention: 30 days.  Download from:
       #   Actions tab → this run → Artifacts → quartus-output
