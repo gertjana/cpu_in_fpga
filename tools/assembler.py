@@ -211,35 +211,35 @@ def encode_addi(operands, symbols, filename, lineno) -> int:
 
 
 def encode_ldi(operands, symbols, filename, lineno) -> int:
-    # LDI Rd, imm8   → 0010 ddd x iiiiiiii
+    # LDI Rd, imm6   → 0010 000 ddd iiiiii
+    # Decoder: sub=MEM_LDI in f_rd [11:9], dest=f_ra [8:6], imm=f_imm6 [5:0]
     if len(operands) != 2:
-        raise AsmError("LDI requires 2 operands: Rd, imm8", filename, lineno)
+        raise AsmError("LDI requires 2 operands: Rd, imm6", filename, lineno)
     rd  = parse_reg(operands[0], filename, lineno)
-    imm = parse_imm(operands[1], symbols, filename, lineno, bits=8)
-    return (GRP_MEM << 12) | (rd << 9) | imm
+    imm = parse_imm(operands[1], symbols, filename, lineno, bits=6)
+    return (GRP_MEM << 12) | (MEM_LDI << 9) | (rd << 6) | imm
 
 
 def encode_ld(operands, symbols, filename, lineno) -> int:
-    # LD Rd, [Ra]   → 0010 ddd aaa 001 00000
+    # LD Rd, [Ra]   → 0010 001 ddd aaa 000
+    # Decoder: sub=MEM_LD in f_rd [11:9], dest=f_ra [8:6], addr=f_rb [5:3]
     if len(operands) != 2:
         raise AsmError("LD requires 2 operands: Rd, [Ra]", filename, lineno)
     rd = parse_reg(operands[0], filename, lineno)
     ra_tok = operands[1].strip().lstrip("[").rstrip("]")
     ra = parse_reg(ra_tok, filename, lineno)
-    # sub-opcode 001 goes in bits [8:6] (the Ra field of the generic encoding)
-    # Encoding: 0010 ddd aaa 001 00000
-    # bits [11:9]=Rd  bits[8:6]=Ra  bits[5:3]=001  bits[2:0]=0
-    return (GRP_MEM << 12) | (rd << 9) | (ra << 6) | (MEM_LD << 3)
+    return (GRP_MEM << 12) | (MEM_LD << 9) | (rd << 6) | (ra << 3)
 
 
 def encode_st(operands, symbols, filename, lineno) -> int:
-    # ST [Ra], Rb   → 0010 010 aaa bbb 00000  (sub=010 in Rd field)
+    # ST [Ra], Rb   → 0010 010 xxx aaa bbb
+    # Decoder: sub=MEM_ST in f_rd [11:9], addr=f_rb [5:3], data=f_sub [2:0]
     if len(operands) != 2:
         raise AsmError("ST requires 2 operands: [Ra], Rb", filename, lineno)
     ra_tok = operands[0].strip().lstrip("[").rstrip("]")
     ra = parse_reg(ra_tok, filename, lineno)
     rb = parse_reg(operands[1], filename, lineno)
-    return (GRP_MEM << 12) | (MEM_ST << 9) | (ra << 6) | (rb << 3)
+    return (GRP_MEM << 12) | (MEM_ST << 9) | (ra << 3) | rb
 
 
 def encode_mov(operands, symbols, filename, lineno) -> int:

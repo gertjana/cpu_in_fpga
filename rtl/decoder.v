@@ -10,7 +10,10 @@
 // Groups:
 //   4'h0  ALU reg-reg    sub-op in [2:0]
 //   4'h1  ADDI           Rd = Ra + imm6   (I-format)
-//   4'h2  Mem            sub-op in [8:6]  (mixed)
+//   4'h2  Mem            sub-op in [11:9] (mixed)
+//          LDI: 0010 000 ddd iiiiii  (I-format: dest in Ra field [8:6], imm6)
+//          LD:  0010 001 ddd aaa xxx (R-format: dest in Ra field [8:6])
+//          ST:  0010 010 xxx aaa bbb (R-format: addr in Rb [5:3], data in sub [2:0])
 //   4'h3  MOV            Rd = Ra          (R-format)
 //   4'h4  Jump/Branch    sub-op in [11:9] (I8/R)
 //   4'h5  Stack/Call     sub-op in [11:9] (I8/R)
@@ -208,9 +211,9 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 2: Memory — sub-op in Rd field [11:9]
-        //   LDI: 0010 000 ddd x iiiiiiii  Rd in Ra field [8:6], imm8 in [7:0]
-        //   LD:  0010 001 ddd aaa xxxxxx  Rd in Ra field, addr in Rb field [5:3]
-        //   ST:  0010 010 xxx aaa bbb xxx addr in Rb field [5:3], data in [2:0]
+        //   LDI: 0010 000 ddd iiiiii  Rd in Ra field [8:6], imm6 in [5:0]
+        //   LD:  0010 001 ddd aaa xxx  Rd in Ra field [8:6], addr in Rb field [5:3]
+        //   ST:  0010 010 xxx aaa bbb  addr in Rb field [5:3], data in sub field [2:0]
         // ------------------------------------------------------------------
         GRP_MEM: begin
             case (f_rd)   // sub-opcode in Rd field [11:9]

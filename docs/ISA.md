@@ -54,7 +54,7 @@ Used where a full 8-bit constant is needed and Ra is not required:
 [7:0]    imm8   — 8-bit immediate
 ```
 
-Used by: **LDI**, **JMP/Jcc**, **CALL**.
+Used by: **JMP/Jcc**, **CALL**.
 
 ---
 
@@ -88,11 +88,16 @@ Flags updated: Z C N V
 
 Sub-opcode in `Rd` field bits `[11:9]`:
 
-| Sub | Format | Mnemonic | Encoding                   | Operation          |
-|-----|--------|----------|----------------------------|--------------------|
-| 000 | I8     | LDI      | `0010 ddd x iiiiiiii`      | Rd = imm8          |
-| 001 | R      | LD       | `0010 ddd aaa xxx xxxxx`   | Rd = MEM[Ra]       |
-| 010 | R      | ST       | `0010 xxx aaa bbb xxxxx`   | MEM[Ra] = Rb       |
+| Sub | Format | Mnemonic | Encoding                    | Operation          |
+|-----|--------|----------|-----------------------------|--------------------|
+| 000 | I      | LDI      | `0010 000 ddd iiiiii`       | Rd = imm6 (0–63)   |
+| 001 | R      | LD       | `0010 001 ddd aaa xxx`      | Rd = MEM[Ra]       |
+| 010 | R      | ST       | `0010 010 xxx aaa bbb`      | MEM[Ra] = Rb       |
+
+Notes:
+- **LDI**: destination register in bits `[8:6]`, 6-bit immediate in bits `[5:0]` (range 0–63)
+- **LD**: destination register in bits `[8:6]`, address register in bits `[5:3]`
+- **ST**: address register in bits `[5:3]`, data register in bits `[2:0]`
 
 ### Group 3 — MOV  `4'h3`
 
@@ -203,8 +208,8 @@ Stack is implemented as a dedicated internal LIFO (16 entries), separate from da
 ; R1 = limit (10)
 ; Loop until R0 == R1, then halt
 
-        LDI  R0, 0       ; 0010 000 x 00000000
-        LDI  R1, 10      ; 0010 001 x 00001010
+        LDI  R0, 0       ; 0010 000 000 000000  (R0, imm6=0)
+        LDI  R1, 10      ; 0010 000 001 001010  (R1, imm6=10)
 loop:
         ADDI R0, R0, 1   ; 0001 000 000 000001   (imm6 = 1)
         CMP  R0, R1      ; 0110 xxx 000 001 xxx
@@ -227,9 +232,9 @@ loop:
 | SHL  Rd, Ra      | `0000 ddd aaa xxx 110`                      |
 | SHR  Rd, Ra      | `0000 ddd aaa xxx 111`                      |
 | ADDI Rd, Ra, imm6| `0001 ddd aaa iiiiii`                       |
-| LDI  Rd, imm8    | `0010 ddd x iiiiiiii`                       |
-| LD   Rd, [Ra]    | `0010 ddd aaa 001 xxxxx` *(sub in Ra field)*|
-| ST   [Ra], Rb    | `0010 xxx aaa 010 bbb xx` *(sub in Ra)*     |
+| LDI  Rd, imm6    | `0010 000 ddd iiiiii`                       |
+| LD   Rd, [Ra]    | `0010 001 ddd aaa xxx`                      |
+| ST   [Ra], Rb    | `0010 010 xxx aaa bbb`                      |
 | MOV  Rd, Ra      | `0011 ddd aaa xxxxxxxxx`                    |
 | JMP  addr8       | `0100 000 x iiiiiiii`                       |
 | JZ   addr8       | `0100 001 x iiiiiiii`                       |

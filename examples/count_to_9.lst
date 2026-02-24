@@ -12,7 +12,7 @@ Addr  Word  Source
             .equ LIMIT, 10
             
 0000  2000          LDI  R0, 0          ; R0 = 0  (counter)
-0001  220A          LDI  R1, LIMIT      ; R1 = 10 (loop bound)
+0001  204A          LDI  R1, LIMIT      ; R1 = 10 (loop bound)
             loop:
 0002  1001          ADDI R0, R0, 1      ; R0++
 0003  6008          CMP  R0, R1         ; set flags: R0 - R1

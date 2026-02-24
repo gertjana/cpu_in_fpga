@@ -110,43 +110,46 @@ class TestADDI:
 
 class TestMemory:
     def test_ldi_zero(self):
-        # LDI R0, 0  → 0010 000 0 00000000 = 0x2000
+        # LDI R0, 0  → 0010 000 000 000000 = 0x2000
+        # group=2, sub=MEM_LDI=0 in [11:9], Rd=0 in [8:6], imm6=0 in [5:0]
         assert asm1("LDI R0, 0") == 0x2000
 
     def test_ldi_max(self):
-        # LDI R0, 255  → 0010 000 0 11111111 = 0x20FF
-        assert asm1("LDI R0, 255") == 0x20FF
-
-    def test_ldi_hex(self):
-        assert asm1("LDI R1, 0xFE") == 0x22FE
+        # LDI R0, 63  → 0010 000 000 111111 = 0x203F
+        # max 6-bit immediate = 63
+        assert asm1("LDI R0, 63") == 0x203F
 
     def test_ldi_r1_10(self):
-        # LDI R1, 10  → 0010 001 0 00001010 = 0x220A
-        assert asm1("LDI R1, 10") == 0x220A
+        # LDI R1, 10  → 0010 000 001 001010 = 0x204A
+        # group=2, sub=0 in [11:9], Rd=1 in [8:6], imm6=10 in [5:0]
+        assert asm1("LDI R1, 10") == 0x204A
+
+    def test_ldi_hex(self):
+        # LDI R1, 0x3E  → same as LDI R1, 62 → 0x207E ... wait
+        # 0x2000 | (1<<6) | 0x3E = 0x2000 | 0x40 | 0x3E = 0x207E
+        assert asm1("LDI R1, 0x3E") == 0x207E
 
     def test_ldi_imm_overflow(self):
         with pytest.raises(AsmError, match="out of range"):
-            asm1("LDI R0, 256")
+            asm1("LDI R0, 64")
 
     def test_ld(self):
-        # LD R1, [R2]  → 0010 001 010 001 00000
-        # group=2, rd=1, ra=2, sub(in bits[5:3])=001, rest=0
-        # = 0010_0010_1000_1000 = 0x2288
-        assert asm1("LD R1, [R2]") == 0x2288
+        # LD R1, [R2]  → 0010 001 001 010 000 = 0x2250
+        # group=2, sub=MEM_LD=1 in [11:9], Rd=1 in [8:6], Ra=2 in [5:3]
+        assert asm1("LD R1, [R2]") == 0x2250
 
     def test_ld_no_brackets(self):
-        # Also accept without brackets for flexibility? No — be strict.
-        # But let's test with brackets explicitly
-        assert asm1("LD R0, [R0]") == 0x2008  # rd=0, ra=0, sub=001
+        # LD R0, [R0]  → 0010 001 000 000 000 = 0x2200
+        # group=2, sub=MEM_LD=1 in [11:9], Rd=0 in [8:6], Ra=0 in [5:3]
+        assert asm1("LD R0, [R0]") == 0x2200
 
     def test_st(self):
-        # ST [R3], R4  → 0010 010 011 100 00000
-        # group=2, sub=2 in Rd field (bits[11:9]), ra=3, rb=4
-        # = 0010_0100_1110_0000 = 0x24E0
-        assert asm1("ST [R3], R4") == 0x24E0
+        # ST [R3], R4  → 0010 010 000 011 100 = 0x241C
+        # group=2, sub=MEM_ST=2 in [11:9], addr=R3=3 in [5:3], data=R4=4 in [2:0]
+        assert asm1("ST [R3], R4") == 0x241C
 
     def test_st_r0_r0(self):
-        # ST [R0], R0  → 0010 010 000 000 00000 = 0x2400
+        # ST [R0], R0  → 0010 010 000 000 000 = 0x2400
         assert asm1("ST [R0], R0") == 0x2400
 
 
@@ -373,7 +376,7 @@ class TestEqu:
 .equ LIMIT, 10
     LDI R1, LIMIT
 """
-        assert asmn(src) == [0x220A]   # LDI R1, 10
+        assert asmn(src) == [0x204A]   # LDI R1, 10
 
     def test_equ_in_addi(self):
         src = """
@@ -476,9 +479,9 @@ class TestErrors:
 class TestFullProgram:
     def test_counter_loop(self):
         src = """
-; Infinite counter: R0 counts 0..253, compare to 254, loop, restart
+; Counter: R0 counts 0..8, compare to 9, loop, restart
         LDI  R0, 0       ; addr 0
-        LDI  R1, 254     ; addr 1
+        LDI  R1, 9       ; addr 1
 loop:
         ADDI R0, R0, 1   ; addr 2
         CMP  R0, R1      ; addr 3
@@ -486,4 +489,4 @@ loop:
         JMP  0           ; addr 5
 """
         words = asmn(src)
-        assert words == [0x2000, 0x22FE, 0x1001, 0x6008, 0x4402, 0x4000]
+        assert words == [0x2000, 0x2049, 0x1001, 0x6008, 0x4402, 0x4000]
