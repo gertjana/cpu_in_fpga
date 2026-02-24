@@ -31,10 +31,11 @@ jobs:
     name: Synthesise for MAX1000 (MAX 10)
     runs-on: ubuntu-latest
 
-    # Use the raetro/quartus:22.1 container — native x86_64 Linux, no emulation.
-    # This is the same Quartus version as our Dockerfile but runs correctly here.
+    # Use raetro/quartus:21.1 — the newest published tag that supports MAX 10.
+    # (raetro/quartus:22.1 was listed in their README but never actually published.)
+    # Runs natively on GitHub's x86_64 Ubuntu runners — no Rosetta emulation.
     container:
-      image: raetro/quartus:22.1
+      image: raetro/quartus:21.1
 
     steps:
       # -----------------------------------------------------------------------
