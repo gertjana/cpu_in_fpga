@@ -9,6 +9,7 @@ A simple but complete 8-bit CPU designed in Verilog and targeting the **Arrow MA
 - [Architecture Overview](#architecture-overview)
 - [Project Structure](#project-structure)
 - [Simulation](#simulation)
+- [Assembler](#assembler)
 - [Synthesis and Programming the FPGA](#synthesis-and-programming-the-fpga)
 - [Writing Your Own Programs](#writing-your-own-programs)
 - [LED Indicators](#led-indicators)
@@ -99,6 +100,8 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 cpu_in_fpga/
 ├── docs/
 │   └── ISA.md              # Full ISA specification
+├── examples/
+│   └── count_to_9.asm      # Example: count 0–9 then halt
 ├── rtl/
 │   ├── alu.v
 │   ├── cpu.v
@@ -122,6 +125,10 @@ cpu_in_fpga/
 │   ├── cpu_fpga.qsf        # Quartus project + pin assignments
 │   ├── cpu_fpga.sdc        # Timing constraints (12 MHz)
 │   └── program.hex         # Infinite-loop demo program for the FPGA
+├── tools/
+│   ├── assembler.py        # Two-pass assembler (Python 3, no dependencies)
+│   └── tests/
+│       └── test_assembler.py  # pytest unit tests (76 tests)
 └── sim/                    # Compiled simulation binaries (generated)
 ```
 
@@ -164,6 +171,40 @@ vvp sim/tb_cpu
 ```
 
 All 7 testbenches should report `ALL TESTS PASSED` (244 checks total).
+
+---
+
+## Assembler
+
+A two-pass assembler is included at `tools/assembler.py`. It requires **Python 3** and no third-party packages.
+
+### Features
+
+- All ISA instructions (`ADD SUB AND OR XOR NOT SHL SHR ADDI LDI LD ST MOV JMP JZ JNZ JC JNC JN JV JR PUSH POP CALL RET CMP CMPI NOP HALT`)
+- Labels — forward and backward references
+- `.equ NAME, value` — named constants
+- Simple expressions in immediates: `LIMIT-1`, `BASE+4`, `0x10+5`
+- Decimal, hex (`0xFF`) and binary (`0b1010`) literals
+- `;` line comments (inline and full-line)
+- `.org addr` — set the address counter
+- Error messages with `file:line: error:` format and non-zero exit on failure
+- Optional `-l` flag — writes a `.lst` listing alongside the hex
+
+### Usage
+
+```sh
+python3 tools/assembler.py program.asm              # → program.hex
+python3 tools/assembler.py -l program.asm           # → program.hex + program.lst
+python3 tools/assembler.py -o out.hex program.asm   # explicit output path
+```
+
+### Running the assembler tests
+
+```sh
+python3 -m pytest tools/tests/test_assembler.py -v
+```
+
+76 tests covering every instruction, label resolution, `.equ` substitution, expressions, and error cases.
 
 ---
 
@@ -215,50 +256,56 @@ The board programs in a few seconds and the CPU starts running immediately.
 
 ## Writing Your Own Programs
 
-Programs are stored in the ROM as a plain hex file — one 16-bit instruction word per line, big-endian, no prefix.
+Programs are stored in the ROM as a plain hex file — one 16-bit instruction word per line, no prefix. The assembler (`tools/assembler.py`) converts `.asm` source files into this format.
 
 ### Step 1 — Write assembly
 
-Refer to `docs/ISA.md` for the full instruction set. A quick reference is also at the bottom of this file.
+Refer to `docs/ISA.md` for the full instruction set. A quick reference is also at the bottom of this file. Example programs are in `examples/`.
 
-Example — count from 0 to 9, then halt:
+Example — count from 0 to 9, then halt (`examples/count_to_9.asm`):
+
+```asm
+; count_to_9.asm — count from 0 to 9, then halt
+; R0 = counter, R1 = limit
+
+.equ LIMIT, 10
+
+        LDI  R0, 0          ; R0 = 0  (counter)
+        LDI  R1, LIMIT      ; R1 = 10 (loop bound)
+loop:
+        ADDI R0, R0, 1      ; R0++
+        CMP  R0, R1         ; set flags: R0 - R1
+        JNZ  loop           ; repeat while R0 != R1
+        HALT
+```
+
+### Step 2 — Assemble
+
+```sh
+python3 tools/assembler.py examples/count_to_9.asm
+# → examples/count_to_9.hex
+```
+
+Add `-l` to also get a listing with addresses and hex words alongside the source:
+
+```sh
+python3 tools/assembler.py -l examples/count_to_9.asm
+```
+
+Listing output for the example above:
 
 ```
-; R0 = counter
-; R1 = limit (10)
+Addr  Word  Source
+------------------------------------------------------------
+            .equ LIMIT, 10
 
-LDI  R0, 0      ; addr 0
-LDI  R1, 10     ; addr 1
-ADDI R0, R0, 1  ; addr 2  ← loop:
-CMPI R0, 10     ; addr 3
-JNZ  2          ; addr 4  → back to loop
-HALT            ; addr 5
-```
-
-### Step 2 — Encode to hex
-
-There is no assembler tool included; encoding is done by hand using the tables below and in `docs/ISA.md`.
-
-Encoding the example above:
-
-| Addr | Instruction     | Binary                  | Hex    |
-|------|-----------------|-------------------------|--------|
-| 0    | LDI R0, 0       | `0010 000 0 00000000`   | `2000` |
-| 1    | LDI R1, 10      | `0010 001 0 00001010`   | `220A` |
-| 2    | ADDI R0, R0, 1  | `0001 000 000 000001`   | `1001` |
-| 3    | CMPI R0, 10     | `0111 000 000 001010`   | `700A` |
-| 4    | JNZ  2          | `0100 010 0 00000010`   | `4202` |
-| 5    | HALT            | `1111 000 000 000000`   | `F000` |
-
-The resulting `program.hex`:
-
-```
-2000
-220A
-1001
-700A
-4202
-F000
+0000  2000          LDI  R0, 0          ; R0 = 0  (counter)
+0001  220A          LDI  R1, LIMIT      ; R1 = 10 (loop bound)
+            loop:
+0002  1001          ADDI R0, R0, 1      ; R0++
+0003  6008          CMP  R0, R1         ; set flags: R0 - R1
+0004  4402          JNZ  loop           ; repeat while R0 != R1
+0005  F000          HALT
 ```
 
 ### Step 3 — Simulate your program
@@ -266,7 +313,7 @@ F000
 Replace the hex file the CPU testbench loads and recompile:
 
 ```sh
-cp my_program.hex tb/cpu_program.hex
+cp examples/count_to_9.hex tb/cpu_program.hex
 
 iverilog -g2005 -o sim/tb_cpu \
     tb/tb_cpu.v rtl/cpu.v rtl/rom.v rtl/ram.v \
@@ -280,7 +327,7 @@ The testbench checks that `halt_out` is asserted and inspects register values vi
 ### Step 4 — Run on the FPGA
 
 ```sh
-cp my_program.hex program.hex
+cp examples/count_to_9.hex program.hex
 ```
 
 Then recompile in Quartus and reprogram the board as described above. The LEDs will immediately reflect the new program's execution.
@@ -293,14 +340,14 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 
 | LED | Pin | Signal | Meaning |
 |-----|-----|--------|---------|
-| LED[0] | E1 | Flag Z | ON = last ALU result was zero |
-| LED[1] | F2 | Flag C | ON = carry or borrow out |
-| LED[2] | H1 | Flag N | ON = result was negative (bit 7 set) |
-| LED[3] | H2 | Flag V | ON = signed overflow |
-| LED[4] | J1 | Heartbeat / Halt | Blinks ~1.4 Hz while running; solid ON when halted |
-| LED[5] | J2 | PC[2] | Program counter bit 2 |
-| LED[6] | K2 | PC[1] | Program counter bit 1 |
-| LED[7] | K1 | PC[0] | Program counter bit 0 |
+| LED[0] | A8 | Flag Z | ON = last ALU result was zero |
+| LED[1] | A9 | Flag C | ON = carry or borrow out |
+| LED[2] | A11 | Flag N | ON = result was negative (bit 7 set) |
+| LED[3] | A10 | Flag V | ON = signed overflow |
+| LED[4] | B10 | Heartbeat / Halt | Blinks ~1.4 Hz while running; solid ON when halted |
+| LED[5] | C9 | PC[2] | Program counter bit 2 |
+| LED[6] | C10 | PC[1] | Program counter bit 1 |
+| LED[7] | D8 | PC[0] | Program counter bit 0 |
 
 LEDs are **active-low** on the MAX1000 — `led_n=0` illuminates the LED.
 
