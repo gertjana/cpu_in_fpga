@@ -33,11 +33,7 @@ on:
         description: "Assembly source to burn into ROM (relative to repo root)"
         required: true
         default: "examples/infinite_counter.asm"
-        type: choice
-        options:
-          - examples/infinite_counter.asm
-          - examples/count_to_9.asm
-          - examples/fibonacci.asm
+        type: string
 
 jobs:
   synthesis:
