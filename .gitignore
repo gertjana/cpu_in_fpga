@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Quartus generated output
+quartus/output_files/
+quartus/db/
+quartus/.qsys_edit/
+*.jdi
+*.pin
+*.rpt
+*.summary
+*.sof
+*.pof
+*.sld
+*.dpf
+
+# Simulation binaries
+sim/
+
+# macOS
+.DS_Store
