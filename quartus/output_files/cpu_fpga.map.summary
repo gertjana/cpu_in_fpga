@@ -1,0 +1,16 @@
+Analysis & Synthesis Status : Successful - Tue Feb 24 18:00:53 2026
+Quartus Prime Version : 22.1std.2 Build 922 07/20/2023 SC Lite Edition
+Revision Name : cpu_fpga
+Top-level Entity Name : top
+Family : MAX 10
+Total logic elements : 493
+    Total combinational functions : 347
+    Dedicated logic registers : 212
+Total registers : 212
+Total pins : 10
+Total virtual pins : 0
+Total memory bits : 0
+Embedded Multiplier 9-bit elements : 0
+Total PLLs : 0
+UFM blocks : 0
+ADC blocks : 0

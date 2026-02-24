@@ -1,0 +1,88 @@
+# =============================================================================
+# cpu_fpga.qsf  —  Quartus Settings File for the 8-bit CPU on MAX1000
+#
+# Board: Arrow MAX1000 (Intel MAX 10, 10M08SAU169C8G)
+# Toolchain: Quartus Prime (Lite edition is sufficient)
+#
+# Usage:
+#   1. Open Quartus → File → Open Project → select this .qsf
+#      (or: quartus_sh --flow compile quartus/cpu_fpga.qsf)
+#   2. Quartus compiles all RTL listed under SOURCE_FILE below.
+#   3. program.hex must be present in the project directory (copy from
+#      quartus/program.hex to the root, or adjust ROM_INIT in top.v).
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Device & project settings
+# ---------------------------------------------------------------------------
+set_global_assignment -name DEVICE 10M08SAU169C8G
+set_global_assignment -name FAMILY "MAX 10"
+set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+set_global_assignment -name TOP_LEVEL_ENTITY top
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name DEVICE_FILTER_PACKAGE UFBGA
+set_global_assignment -name DEVICE_FILTER_PIN_COUNT 169
+
+# ---------------------------------------------------------------------------
+# Source files (all Verilog)
+# ---------------------------------------------------------------------------
+set_global_assignment -name VERILOG_FILE ../rtl/top.v
+set_global_assignment -name VERILOG_FILE ../rtl/cpu.v
+set_global_assignment -name VERILOG_FILE ../rtl/alu.v
+set_global_assignment -name VERILOG_FILE ../rtl/regfile.v
+set_global_assignment -name VERILOG_FILE ../rtl/pc.v
+set_global_assignment -name VERILOG_FILE ../rtl/decoder.v
+set_global_assignment -name VERILOG_FILE ../rtl/rom.v
+set_global_assignment -name VERILOG_FILE ../rtl/ram.v
+set_global_assignment -name VERILOG_FILE ../rtl/stack.v
+
+# ---------------------------------------------------------------------------
+# Pin assignments — MAX1000 well-known pinout
+# ---------------------------------------------------------------------------
+
+# 12 MHz oscillator
+set_location_assignment PIN_H6 -to clk_12m
+
+# KEY0 reset button (active-low)
+set_location_assignment PIN_C7 -to rst_n
+
+# LEDs (active-low: drive 0 to illuminate)
+#   LED[0] = flag Z   — pin E1
+#   LED[1] = flag C   — pin F2
+#   LED[2] = flag N   — pin H1
+#   LED[3] = flag V   — pin H2
+#   LED[4] = heartbeat / halt indicator — pin J1
+#   LED[5] = PC[2]    — pin J2
+#   LED[6] = PC[1]    — pin K2
+#   LED[7] = PC[0]    — pin K1
+set_location_assignment PIN_E1 -to led_n[0]
+set_location_assignment PIN_F2 -to led_n[1]
+set_location_assignment PIN_H1 -to led_n[2]
+set_location_assignment PIN_H2 -to led_n[3]
+set_location_assignment PIN_J1 -to led_n[4]
+set_location_assignment PIN_J2 -to led_n[5]
+set_location_assignment PIN_K2 -to led_n[6]
+set_location_assignment PIN_K1 -to led_n[7]
+
+# ---------------------------------------------------------------------------
+# I/O standards
+# ---------------------------------------------------------------------------
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_12m
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to rst_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_n[7]
+
+# ---------------------------------------------------------------------------
+# Timing constraints (simple SDC — 12 MHz = 83.33 ns period)
+# ---------------------------------------------------------------------------
+set_global_assignment -name SDC_FILE cpu_fpga.sdc
+
+set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"

@@ -1,0 +1,12 @@
+# =============================================================================
+# cpu_fpga.qpf — Quartus Prime Project File
+#
+# This file is required by `quartus_sh --flow compile <project_name>`.
+# It simply declares the project and points to the settings file (.qsf).
+# All real settings (device, source files, pin assignments) live in cpu_fpga.qsf.
+# =============================================================================
+
+QUARTUS_VERSION = "21.1"
+DATE = "2026-02-24"
+
+PROJECT_REVISION = "cpu_fpga"

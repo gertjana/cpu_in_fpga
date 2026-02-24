@@ -1,0 +1,17 @@
+// FPGA Demo Program — infinite counter loop
+// Counts R0 from 0 to 253, compares to 254, loops back, then restarts.
+// Flags Z/C/N/V update continuously, giving changing LED patterns.
+//
+// Addr  Hex    Assembly
+// 0     2000   LDI  R0, 0        ; R0 = 0  (counter)
+// 1     22FE   LDI  R1, 254      ; R1 = 254 (limit)
+// 2     1001   ADDI R0, R0, 1    ; R0++  (sets Z/C/N/V)
+// 3     6008   CMP  R0, R1       ; flags = R0 - R1
+// 4     4202   JNZ  2            ; loop back if R0 != 254
+// 5     4000   JMP  0            ; restart (truly infinite)
+2000
+22FE
+1001
+6008
+4202
+4000
