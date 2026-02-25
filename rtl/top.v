@@ -2,11 +2,11 @@
 // top.v — MAX1000 top-level for the 8-bit CPU
 //
 // LED mapping (active-low: LED is ON when signal is 0):
-//   LED[0]  — flag Z  (zero)
-//   LED[1]  — flag C  (carry)
-//   LED[2]  — flag N  (negative)
-//   LED[3]  — flag V  (overflow)
-//   LED[4]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
+//   LED[0]  — flag C  (carry)
+//   LED[1]  — flag N  (negative)
+//   LED[2]  — flag V  (overflow)
+//   LED[3]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
+//   LED[4]  — PC[3]
 //   LED[5]  — PC[2]
 //   LED[6]  — PC[1]
 //   LED[7]  — PC[0]
@@ -114,11 +114,11 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 // ---------------------------------------------------------------------------
 wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 
-assign led[0] = dbg_flag_z;
-assign led[1] = dbg_flag_c;
-assign led[2] = dbg_flag_n;
-assign led[3] = dbg_flag_v;
-assign led[4] = hb_or_halt;
+assign led[0] = dbg_flag_c;
+assign led[1] = dbg_flag_n;
+assign led[2] = dbg_flag_v;
+assign led[3] = hb_or_halt;
+assign led[4] = dbg_pc[3];
 assign led[5] = dbg_pc[2];
 assign led[6] = dbg_pc[1];
 assign led[7] = dbg_pc[0];
