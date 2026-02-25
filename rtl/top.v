@@ -7,9 +7,9 @@
 //   LED[2]  — flag N  (negative)
 //   LED[3]  — flag V  (overflow)
 //   LED[4]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
-//   LED[5]  — PC[0]
+//   LED[5]  — PC[2]
 //   LED[6]  — PC[1]
-//   LED[7]  — PC[2]
+//   LED[7]  — PC[0]
 //
 // Clock: 12 MHz oscillator on pin H6.
 // Reset: KEY0 button, active-low (pin C7).
@@ -118,8 +118,8 @@ assign led_n[1] = ~dbg_flag_c;
 assign led_n[2] = ~dbg_flag_n;
 assign led_n[3] = ~dbg_flag_v;
 assign led_n[4] = ~hb_or_halt;
-assign led_n[5] = ~dbg_pc[0];
+assign led_n[5] = ~dbg_pc[2];
 assign led_n[6] = ~dbg_pc[1];
-assign led_n[7] = ~dbg_pc[2];
+assign led_n[7] = ~dbg_pc[0];
 
 endmodule
