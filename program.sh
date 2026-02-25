@@ -18,11 +18,11 @@
 #   ./program.sh --flash      — program internal flash with cpu_fpga.pof (permanent)
 # =============================================================================
 
-set -euo pipefail
+#set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOF_FILE="${SCRIPT_DIR}/quartus/output_files/cpu_fpga.sof"
-POF_FILE="${SCRIPT_DIR}/quartus/output_files/cpu_fpga.pof"
+SOF_FILE="${SCRIPT_DIR}/quartus_output/cpu_fpga.sof"
+POF_FILE="${SCRIPT_DIR}/quartus_output/cpu_fpga.pof"
 
 # Colour helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
@@ -41,20 +41,21 @@ if ! command -v openFPGALoader &>/dev/null; then
     die "openFPGALoader not found.\n\nInstall it with:\n  brew install openfpgaloader\n\nThen re-run this script."
 fi
 
-OFPL_VERSION=$(openFPGALoader --version 2>&1 | head -1)
+OFPL_VERSION=$(openFPGALoader --Version 2>&1 | head -1)
 info "openFPGALoader: ${OFPL_VERSION}"
 
 # ---------------------------------------------------------------------------
 # 2. Detect the MAX1000 / Arrow USB-Blaster
-#    openFPGALoader auto-detects most Intel USB-Blaster compatible cables.
-#    The MAX1000 uses an on-board Arrow USB-Blaster (same VID:PID as Blaster).
+#    The Arrow MAX1000 uses an FTDI FT2232H as its USB-Blaster.
+#    It is not in openFPGALoader's board list, so we always use --cable ft2232.
 # ---------------------------------------------------------------------------
+CABLE_FLAG="--cable ft2232"
+
 info "Scanning for JTAG devices ..."
-if ! openFPGALoader --detect 2>&1 | grep -qi "found"; then
-    warn "No device auto-detected.  Trying anyway with --board arrowmax1000 ..."
-    BOARD_FLAG="--board arrowmax1000"
+if openFPGALoader ${CABLE_FLAG} --detect 2>&1 | grep -qi "10M16S"; then
+    ok "Arrow MAX1000 (10M16SAU169C8G) detected."
 else
-    BOARD_FLAG=""
+    warn "Could not confirm MAX1000 on JTAG chain — attempting to program anyway ..."
 fi
 
 # ---------------------------------------------------------------------------
@@ -68,9 +69,7 @@ if $FLASH_MODE; then
     info "Programming internal flash with: ${POF_FILE}"
     warn "Flash programming takes ~30 s. Do not disconnect the board."
 
-    # openFPGALoader with --write-flash uses the POF / CFG flash on MAX 10.
-    # The --board flag helps it pick the correct flash offset and erase size.
-    openFPGALoader ${BOARD_FLAG} --write-flash "${POF_FILE}"
+    openFPGALoader ${CABLE_FLAG} --write-flash "${POF_FILE}"
     ok "Flash programming complete. Bitstream will survive power-cycles."
 else
     # --- SRAM (volatile, fastest — use during development) ---
@@ -79,7 +78,7 @@ else
 
     info "Programming FPGA SRAM with: ${SOF_FILE}"
 
-    openFPGALoader ${BOARD_FLAG} "${SOF_FILE}"
+    openFPGALoader ${CABLE_FLAG} "${SOF_FILE}"
     ok "SRAM programming complete."
     info "Note: bitstream is volatile — it will be lost on power-cycle."
     info "Use ./program.sh --flash to program the internal flash permanently."

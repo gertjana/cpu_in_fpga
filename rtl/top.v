@@ -14,6 +14,13 @@
 // Clock: 12 MHz oscillator on pin H6.
 // Reset: KEY0 button, active-low (pin C7).
 //
+// CPU clock: divided down from 12 MHz via a prescaler.
+//   CPU_CLK_DIV_BITS selects how many bits of the prescaler counter are used.
+//   The CPU clock is the MSB of the counter, giving:
+//     bits=21 → 12_000_000 / 2^21 ≈ 5.7 Hz  (good for watching flags/PC)
+//     bits=1  → 6 MHz (effectively full speed for synthesis verification)
+//   Change CPU_CLK_DIV_BITS to tune the visible speed.
+//
 // Heartbeat: 26-bit counter on 12 MHz; bit[23] toggles at ~1.43 Hz.
 //   Frozen solid (1) once the CPU halts so it is obvious the CPU stopped.
 // =============================================================================
@@ -51,6 +58,38 @@ end
 wire heartbeat = hb_ctr[23];
 
 // ---------------------------------------------------------------------------
+// CPU clock prescaler — runs the CPU at a human-visible rate.
+//   cpu_clk toggles at 12 MHz / 2^CPU_CLK_DIV_BITS ≈ 1.43 Hz (bits=23).
+//   Increase CPU_CLK_DIV_BITS to slow down further; set to 1 for near
+//   full-speed (6 MHz). This is a simple clock-enable gated on posedge
+//   clk_12m so it is safe for synchronous logic.
+// ---------------------------------------------------------------------------
+parameter CPU_CLK_DIV_BITS = 23;
+
+reg [CPU_CLK_DIV_BITS-1:0] cpu_div_ctr;
+always @(posedge clk_12m) begin
+    if (rst)
+        cpu_div_ctr <= {CPU_CLK_DIV_BITS{1'b0}};
+    else
+        cpu_div_ctr <= cpu_div_ctr + 1'b1;
+end
+
+// cpu_clk_en pulses for one clk_12m cycle every 2^CPU_CLK_DIV_BITS cycles.
+wire cpu_clk_en = (cpu_div_ctr == {CPU_CLK_DIV_BITS{1'b1}});
+
+// Registered clock enable to drive the CPU — this avoids glitchy derived
+// clocks and keeps everything in the clk_12m domain.
+reg cpu_clk_r;
+always @(posedge clk_12m) begin
+    if (rst)
+        cpu_clk_r <= 1'b0;
+    else if (cpu_clk_en)
+        cpu_clk_r <= ~cpu_clk_r;
+end
+
+wire cpu_clk = cpu_clk_r;
+
+// ---------------------------------------------------------------------------
 // CPU instantiation
 // ---------------------------------------------------------------------------
 wire       halt_out;
@@ -58,7 +97,7 @@ wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
-    .clk        (clk_12m),
+    .clk        (cpu_clk),
     .rst        (rst),
     .halt_out   (halt_out),
     .dbg_pc     (dbg_pc),
