@@ -114,13 +114,13 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 // ---------------------------------------------------------------------------
 wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 
-assign led[0] = ~dbg_flag_z;
-assign led[1] = ~dbg_flag_c;
-assign led[2] = ~dbg_flag_n;
-assign led[3] = ~dbg_flag_v;
-assign led[4] = ~hb_or_halt;
-assign led[5] = ~dbg_pc[2];
-assign led[6] = ~dbg_pc[1];
-assign led[7] = ~dbg_pc[0];
+assign led[0] = dbg_flag_z;
+assign led[1] = dbg_flag_c;
+assign led[2] = dbg_flag_n;
+assign led[3] = dbg_flag_v;
+assign led[4] = hb_or_halt;
+assign led[5] = dbg_pc[2];
+assign led[6] = dbg_pc[1];
+assign led[7] = dbg_pc[0];
 
 endmodule
