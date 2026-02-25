@@ -1,7 +1,7 @@
 // =============================================================================
 // top.v — MAX1000 top-level for the 8-bit CPU
 //
-// LED mapping (active-low, all 8 LEDs):
+// LED mapping (active-low: LED is ON when signal is 0):
 //   LED[0]  — flag Z  (zero)
 //   LED[1]  — flag C  (carry)
 //   LED[2]  — flag N  (negative)
@@ -17,7 +17,8 @@
 // CPU clock: divided down from 12 MHz via a prescaler.
 //   CPU_CLK_DIV_BITS selects how many bits of the prescaler counter are used.
 //   The CPU clock is the MSB of the counter, giving:
-//     bits=21 → 12_000_000 / 2^21 ≈ 5.7 Hz  (good for watching flags/PC)
+//     bits=23 → 12_000_000 / 2^23 ≈ 1.43 Hz  (matches heartbeat, one step per blink)
+//     bits=21 → ~5.7 Hz  (faster, good for watching flags/PC)
 //     bits=1  → 6 MHz (effectively full speed for synthesis verification)
 //   Change CPU_CLK_DIV_BITS to tune the visible speed.
 //
@@ -28,7 +29,7 @@
 module top (
     input  wire       clk_12m,   // 12 MHz board clock (pin H6)
     input  wire       rst_n,     // KEY0 active-low reset  (pin C7)
-    output wire [7:0] led_n      // active-low LEDs: LED[0]..LED[7]
+    output wire [7:0] led        // active-low LEDs: LED[0]..LED[7]
 );
 
 // ---------------------------------------------------------------------------
@@ -109,17 +110,17 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 
 // ---------------------------------------------------------------------------
 // LED[4]: heartbeat while running; solid ON once halted.
-// All outputs inverted for active-low LEDs.
+// All signals inverted for active-low LEDs.
 // ---------------------------------------------------------------------------
 wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 
-assign led_n[0] = ~dbg_flag_z;
-assign led_n[1] = ~dbg_flag_c;
-assign led_n[2] = ~dbg_flag_n;
-assign led_n[3] = ~dbg_flag_v;
-assign led_n[4] = ~hb_or_halt;
-assign led_n[5] = ~dbg_pc[2];
-assign led_n[6] = ~dbg_pc[1];
-assign led_n[7] = ~dbg_pc[0];
+assign led[0] = ~dbg_flag_z;
+assign led[1] = ~dbg_flag_c;
+assign led[2] = ~dbg_flag_n;
+assign led[3] = ~dbg_flag_v;
+assign led[4] = ~hb_or_halt;
+assign led[5] = ~dbg_pc[2];
+assign led[6] = ~dbg_pc[1];
+assign led[7] = ~dbg_pc[0];
 
 endmodule

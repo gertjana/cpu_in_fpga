@@ -349,7 +349,7 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 | LED[6] | C10 | PC[1] | Program counter bit 1 |
 | LED[7] | D8 | PC[0] | Program counter bit 0 |
 
-LEDs are **active-low** on the MAX1000 — `led_n=0` illuminates the LED.
+LEDs are **active-low** on the MAX1000 — `led=0` illuminates the LED.
 
 Because the CPU runs at 12 MHz, individual instruction transitions are invisible. The flag LEDs show the most recently committed flag state, and the PC LEDs give a rough indication of which region of the program is executing.
 
