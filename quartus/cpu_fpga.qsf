@@ -1,7 +1,7 @@
 # =============================================================================
 # cpu_fpga.qsf  —  Quartus Settings File for the 8-bit CPU on MAX1000
 #
-# Board: Arrow MAX1000 (Intel MAX 10, 10M08SAU169C8G)
+# Board: Arrow MAX1000 (Intel MAX 10, 10M16SAU169C8G)
 # Toolchain: Quartus Prime (Lite edition is sufficient)
 #
 # Usage:
@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 # Device & project settings
 # ---------------------------------------------------------------------------
-set_global_assignment -name DEVICE 10M08SAU169C8G
+set_global_assignment -name DEVICE 10M16SAU169C8G
 set_global_assignment -name FAMILY "MAX 10"
 set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
 set_global_assignment -name TOP_LEVEL_ENTITY top

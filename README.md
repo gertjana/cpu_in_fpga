@@ -213,7 +213,7 @@ python3 -m pytest tools/tests/test_assembler.py -v
 ### Requirements
 
 - [Intel Quartus Prime](https://www.intel.com/content/www/us/en/products/details/fpga/development-tools/quartus-prime.html) (Lite edition is free and sufficient)
-- Arrow MAX1000 board (Intel MAX 10, `10M08SAU169C8G`)
+- Arrow MAX1000 board (Intel MAX 10, `10M16SAU169C8G`)
 - USB cable for programming
 
 ### Step 1 — Copy the ROM program
