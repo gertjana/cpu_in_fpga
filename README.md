@@ -345,9 +345,9 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 | LED[2] | A11 | Flag N | ON = result was negative (bit 7 set) |
 | LED[3] | A10 | Flag V | ON = signed overflow |
 | LED[4] | B10 | Heartbeat / Halt | Blinks ~1.4 Hz while running; solid ON when halted |
-| LED[5] | C9 | PC[2] | Program counter bit 2 |
+| LED[5] | C9 | PC[0] | Program counter bit 0 |
 | LED[6] | C10 | PC[1] | Program counter bit 1 |
-| LED[7] | D8 | PC[0] | Program counter bit 0 |
+| LED[7] | D8 | PC[2] | Program counter bit 2 |
 
 LEDs are **active-low** on the MAX1000 — `led_n=0` illuminates the LED.
 
