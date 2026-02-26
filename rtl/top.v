@@ -132,7 +132,7 @@ wire btn_released = btn_prev & ~btn_db;
 //   1 = R7 register value
 // Preserved across CPU resets.
 // ---------------------------------------------------------------------------
-reg display_mode;
+reg display_mode = 1'b0;
 always @(posedge clk_12m)
     if (btn_released && !was_long)
         display_mode <= ~display_mode;
