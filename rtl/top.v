@@ -48,18 +48,44 @@ module top (
 );
 
 // ---------------------------------------------------------------------------
-// 2-FF synchroniser — bring the async button into the clock domain.
-// Button pressed (rst_n=0) → btn=1.
+// 2-FF synchroniser — bring raw async button into the clock domain.
+// Button pressed (rst_n=0) → btn_raw=1.
 // ---------------------------------------------------------------------------
-reg btn_meta, btn;
+reg btn_meta, btn_raw;
 always @(posedge clk_12m) begin
     btn_meta <= ~rst_n;
-    btn      <= btn_meta;
+    btn_raw  <= btn_meta;
+end
+
+// ---------------------------------------------------------------------------
+// Debounce filter — only update btn_db after the input has been stable for
+// DEBOUNCE_CYCLES consecutive cycles (~5 ms at 12 MHz = 60000 cycles, fits
+// in 16 bits).  This eliminates spurious edges from contact bounce.
+// ---------------------------------------------------------------------------
+parameter DEBOUNCE_CYCLES = 16'd60_000;
+
+reg [15:0] db_ctr;
+reg        btn_db;   // debounced button level (1 = pressed)
+
+always @(posedge clk_12m) begin
+    if (btn_raw == btn_db) begin
+        // Input matches current debounced level — reset counter.
+        db_ctr <= 16'd0;
+    end else begin
+        // Input differs — count stable cycles.
+        if (db_ctr == DEBOUNCE_CYCLES - 1) begin
+            // Stable long enough: commit new level and reset counter.
+            btn_db <= btn_raw;
+            db_ctr <= 16'd0;
+        end else begin
+            db_ctr <= db_ctr + 1'b1;
+        end
+    end
 end
 
 // ---------------------------------------------------------------------------
 // Hold-duration counter.
-// Counts up while button is held; clears when released.
+// Counts up while debounced button is held; clears when released.
 // Saturates at (2^LONG_PRESS_BITS - 1) — never wraps.
 // At 12 MHz, 2^23 cycles ≈ 0.7 s.
 // ---------------------------------------------------------------------------
@@ -68,7 +94,7 @@ parameter LONG_PRESS_CYCLES = (1 << LONG_PRESS_BITS) - 1;
 
 reg [LONG_PRESS_BITS-1:0] hold_ctr;
 always @(posedge clk_12m) begin
-    if (!btn)
+    if (!btn_db)
         hold_ctr <= {LONG_PRESS_BITS{1'b0}};
     else if (hold_ctr != LONG_PRESS_CYCLES[LONG_PRESS_BITS-1:0])
         hold_ctr <= hold_ctr + 1'b1;
@@ -77,31 +103,30 @@ end
 // ---------------------------------------------------------------------------
 // was_long: latched the moment the threshold is crossed while held.
 // Cleared when the button is released.
-// This lets us know on release whether it was a short or long press,
-// even though rst is de-asserted before the release edge is detected.
+// Checked on release to distinguish short from long press.
 // ---------------------------------------------------------------------------
 reg was_long;
 always @(posedge clk_12m) begin
-    if (!btn)
+    if (!btn_db)
         was_long <= 1'b0;
     else if (hold_ctr == LONG_PRESS_CYCLES[LONG_PRESS_BITS-1:0])
         was_long <= 1'b1;
 end
 
-// CPU reset is active while the long-press threshold is held.
+// CPU reset is active while long-press threshold is held.
 wire rst = was_long;
 
 // ---------------------------------------------------------------------------
-// Release edge detector — one-cycle pulse when button is released.
+// Release edge detector — one-cycle pulse on debounced button release.
 // ---------------------------------------------------------------------------
 reg btn_prev;
 always @(posedge clk_12m)
-    btn_prev <= btn;
+    btn_prev <= btn_db;
 
-wire btn_released = btn_prev & ~btn;
+wire btn_released = btn_prev & ~btn_db;
 
 // ---------------------------------------------------------------------------
-// Display mode toggle — only on short press (was_long still clear at release).
+// Display mode toggle — only on short press (was_long still 0 at release).
 //   0 = flags + PC  (default)
 //   1 = R7 register value
 // Preserved across CPU resets.
