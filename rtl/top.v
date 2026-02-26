@@ -1,8 +1,8 @@
 // =============================================================================
 // top.v — MAX1000 top-level for the 8-bit CPU
 //
-// USER_BTN (pin E6, active-low):
-//   Short press (<0.5 s) → toggles LED display mode, CPU keeps running
+// USER_BTN (pin E6, active-low) — single button, dual function:
+//   Short press (<0.5 s) → toggles LED display mode; CPU keeps running
 //   Long  press (≥0.5 s) → resets the CPU; display mode is preserved
 //
 // Display modes:
@@ -58,48 +58,57 @@ always @(posedge clk_12m) begin
 end
 
 // ---------------------------------------------------------------------------
-// Hold-duration counter — counts 12 MHz cycles while button is held.
-// Saturates at LONG_PRESS_CYCLES so it never wraps.
-// LONG_PRESS_CYCLES = 2^23 - 1 ≈ 0.7 s  (well above the 0.5 s threshold)
+// Hold-duration counter.
+// Counts up while button is held; clears when released.
+// Saturates at (2^LONG_PRESS_BITS - 1) — never wraps.
+// At 12 MHz, 2^23 cycles ≈ 0.7 s.
 // ---------------------------------------------------------------------------
 parameter LONG_PRESS_BITS   = 23;
-parameter LONG_PRESS_CYCLES = (1 << LONG_PRESS_BITS) - 1;  // ~0.7 s
+parameter LONG_PRESS_CYCLES = (1 << LONG_PRESS_BITS) - 1;
 
 reg [LONG_PRESS_BITS-1:0] hold_ctr;
 always @(posedge clk_12m) begin
     if (!btn)
-        hold_ctr <= {LONG_PRESS_BITS{1'b0}};           // reset counter when released
-    else if (hold_ctr != LONG_PRESS_CYCLES)
-        hold_ctr <= hold_ctr + 1'b1;                   // count up, saturate
+        hold_ctr <= {LONG_PRESS_BITS{1'b0}};
+    else if (hold_ctr != LONG_PRESS_CYCLES[LONG_PRESS_BITS-1:0])
+        hold_ctr <= hold_ctr + 1'b1;
 end
 
-// long_press goes high as soon as the threshold is reached (while still held)
-wire long_press = (hold_ctr == LONG_PRESS_CYCLES);
+// ---------------------------------------------------------------------------
+// was_long: latched the moment the threshold is crossed while held.
+// Cleared when the button is released.
+// This lets us know on release whether it was a short or long press,
+// even though rst is de-asserted before the release edge is detected.
+// ---------------------------------------------------------------------------
+reg was_long;
+always @(posedge clk_12m) begin
+    if (!btn)
+        was_long <= 1'b0;
+    else if (hold_ctr == LONG_PRESS_CYCLES[LONG_PRESS_BITS-1:0])
+        was_long <= 1'b1;
+end
+
+// CPU reset is active while the long-press threshold is held.
+wire rst = was_long;
 
 // ---------------------------------------------------------------------------
-// CPU reset — driven by long press.
-// Held high for as long as the button stays held past the threshold.
-// ---------------------------------------------------------------------------
-wire rst = long_press;
-
-// ---------------------------------------------------------------------------
-// Release edge detector — fires one cycle after button is released.
+// Release edge detector — one-cycle pulse when button is released.
 // ---------------------------------------------------------------------------
 reg btn_prev;
 always @(posedge clk_12m)
     btn_prev <= btn;
 
-wire btn_released = btn_prev & ~btn;   // one-cycle pulse on release
+wire btn_released = btn_prev & ~btn;
 
 // ---------------------------------------------------------------------------
-// Display mode toggle — on short press only (released before threshold).
+// Display mode toggle — only on short press (was_long still clear at release).
 //   0 = flags + PC  (default)
 //   1 = R7 register value
-// Display mode is preserved across CPU resets.
+// Preserved across CPU resets.
 // ---------------------------------------------------------------------------
 reg display_mode;
 always @(posedge clk_12m)
-    if (btn_released && !long_press)
+    if (btn_released && !was_long)
         display_mode <= ~display_mode;
 
 // ---------------------------------------------------------------------------
@@ -129,10 +138,8 @@ always @(posedge clk_12m) begin
         cpu_div_ctr <= cpu_div_ctr + 1'b1;
 end
 
-// cpu_clk_en pulses for one clk_12m cycle every 2^CPU_CLK_DIV_BITS cycles.
 wire cpu_clk_en = (cpu_div_ctr == {CPU_CLK_DIV_BITS{1'b1}});
 
-// Registered clock enable to drive the CPU.
 reg cpu_clk_r;
 always @(posedge clk_12m) begin
     if (rst)
@@ -171,7 +178,6 @@ wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 // ---------------------------------------------------------------------------
 // LED mux — mode 0: flags + PC   mode 1: R7
 // Active-low: 0 = LED on, 1 = LED off.
-// Flag/PC bits and R7 bits are all used directly (0 = not set / low bit).
 // ---------------------------------------------------------------------------
 assign led[0] = display_mode ? dbg_r7[7] : dbg_flag_c;
 assign led[1] = display_mode ? dbg_r7[6] : dbg_flag_v;
