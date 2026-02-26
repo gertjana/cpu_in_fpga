@@ -86,6 +86,9 @@ ram ram_dut (
 // Stimulus
 // ---------------------------------------------------------------------------
 initial begin
+    $dumpfile("sim/vcd/tb_mem.vcd");
+    $dumpvars(0, tb_mem);
+
     pass_count = 0;
     fail_count = 0;
     ram_we   = 0;

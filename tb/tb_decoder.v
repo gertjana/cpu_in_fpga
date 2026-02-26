@@ -237,6 +237,9 @@ endfunction
 // Stimulus
 // ---------------------------------------------------------------------------
 initial begin
+    $dumpfile("sim/vcd/tb_decoder.vcd");
+    $dumpvars(0, tb_decoder);
+
     pass_count = 0;
     fail_count = 0;
     flag_z = 0; flag_c = 0; flag_n = 0; flag_v = 0;

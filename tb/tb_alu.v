@@ -67,6 +67,9 @@ endtask
 // Stimulus
 // ---------------------------------------------------------------------------
 initial begin
+    $dumpfile("sim/vcd/tb_alu.vcd");
+    $dumpvars(0, tb_alu);
+
     pass_count = 0;
     fail_count = 0;
 

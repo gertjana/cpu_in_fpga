@@ -98,6 +98,9 @@ task do_rst;
 endtask
 
 initial begin
+    $dumpfile("sim/vcd/tb_stack.vcd");
+    $dumpvars(0, tb_stack);
+
     pass_count = 0;
     fail_count = 0;
     rst = 0; push = 0; pop = 0; data_in = 0;

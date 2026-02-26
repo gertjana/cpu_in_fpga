@@ -29,6 +29,7 @@ reg  rst;
 wire halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
+wire [7:0] dbg_r7;
 
 // ---------------------------------------------------------------------------
 // Clock: 10 ns period (100 MHz)
@@ -47,7 +48,8 @@ cpu #(.ROM_INIT("tb/cpu_program.hex")) u_cpu (
     .dbg_flag_z (dbg_flag_z),
     .dbg_flag_c (dbg_flag_c),
     .dbg_flag_n (dbg_flag_n),
-    .dbg_flag_v (dbg_flag_v)
+    .dbg_flag_v (dbg_flag_v),
+    .dbg_r7     (dbg_r7)
 );
 
 // ---------------------------------------------------------------------------
@@ -77,6 +79,9 @@ endtask
 integer timeout_cyc;
 
 initial begin
+    $dumpfile("sim/vcd/tb_cpu.vcd");
+    $dumpvars(0, tb_cpu);
+
     pass_count = 0;
     fail_count = 0;
 

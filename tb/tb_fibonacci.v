@@ -3,21 +3,26 @@
 //
 // Program: examples/fibonacci.hex
 //
-// Computes fib(0)..fib(9) iteratively, stores each in RAM[0..9],
-// then calls get_result to load RAM[9] into R6, then HALTs.
+// Computes Fibonacci numbers iteratively until the next value would overflow
+// 8 bits (carry flag set).  R7 holds the last valid result.
+// Each fib value is also stored in RAM starting at address 0.
 //
 // Expected final state:
-//   R6 == 34  (fib(9))
-//   RAM[0]  == 0
-//   RAM[1]  == 1
-//   RAM[2]  == 1
-//   RAM[3]  == 2
-//   RAM[4]  == 3
-//   RAM[5]  == 5
-//   RAM[6]  == 8
-//   RAM[7]  == 13
-//   RAM[8]  == 21
-//   RAM[9]  == 34
+//   R7 == 233  (fib(13) — last value fitting in 8 bits)
+//   RAM[0]  ==   0  (fib(0))
+//   RAM[1]  ==   1  (fib(1))
+//   RAM[2]  ==   1  (fib(2))
+//   RAM[3]  ==   2  (fib(3))
+//   RAM[4]  ==   3  (fib(4))
+//   RAM[5]  ==   5  (fib(5))
+//   RAM[6]  ==   8  (fib(6))
+//   RAM[7]  ==  13  (fib(7))
+//   RAM[8]  ==  21  (fib(8))
+//   RAM[9]  ==  34  (fib(9))
+//   RAM[10] ==  55  (fib(10))
+//   RAM[11] ==  89  (fib(11))
+//   RAM[12] == 144  (fib(12))
+//   RAM[13] == 233  (fib(13))
 // =============================================================================
 
 `timescale 1ns/1ps
@@ -32,6 +37,7 @@ reg  rst;
 wire halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
+wire [7:0] dbg_r7;
 
 // ---------------------------------------------------------------------------
 // Clock: 10 ns period
@@ -50,7 +56,8 @@ cpu #(.ROM_INIT("examples/fibonacci.hex")) u_cpu (
     .dbg_flag_z (dbg_flag_z),
     .dbg_flag_c (dbg_flag_c),
     .dbg_flag_n (dbg_flag_n),
-    .dbg_flag_v (dbg_flag_v)
+    .dbg_flag_v (dbg_flag_v),
+    .dbg_r7     (dbg_r7)
 );
 
 // ---------------------------------------------------------------------------
@@ -80,6 +87,9 @@ endtask
 integer timeout_cyc;
 
 initial begin
+    $dumpfile("sim/vcd/tb_fibonacci.vcd");
+    $dumpvars(0, tb_fibonacci);
+
     pass_count = 0;
     fail_count = 0;
 
@@ -91,7 +101,7 @@ initial begin
 
     // ---- Run until halt or timeout ----
     timeout_cyc = 0;
-    while (!halt_out && timeout_cyc < 1000) begin
+    while (!halt_out && timeout_cyc < 2000) begin
         @(posedge clk);
         timeout_cyc = timeout_cyc + 1;
     end
@@ -109,22 +119,26 @@ initial begin
         fail_count = fail_count + 1;
     end
 
-    check(timeout_cyc < 1000 ? 1 : 0, 1, "no timeout");
+    check(timeout_cyc < 2000 ? 1 : 0, 1, "no timeout");
 
-    // ---- Register checks ----
-    check(u_cpu.u_rf.regs[6], 8'd34, "R6 == fib(9) == 34");
+    // ---- Register check: R7 should hold last valid fib ----
+    check(u_cpu.u_rf.regs[7], 8'd233, "R7 == fib(13) == 233");
 
-    // ---- RAM checks: fib sequence ----
-    check(u_cpu.u_ram.mem[0], 8'd0,  "RAM[0] == fib(0) == 0");
-    check(u_cpu.u_ram.mem[1], 8'd1,  "RAM[1] == fib(1) == 1");
-    check(u_cpu.u_ram.mem[2], 8'd1,  "RAM[2] == fib(2) == 1");
-    check(u_cpu.u_ram.mem[3], 8'd2,  "RAM[3] == fib(3) == 2");
-    check(u_cpu.u_ram.mem[4], 8'd3,  "RAM[4] == fib(4) == 3");
-    check(u_cpu.u_ram.mem[5], 8'd5,  "RAM[5] == fib(5) == 5");
-    check(u_cpu.u_ram.mem[6], 8'd8,  "RAM[6] == fib(6) == 8");
-    check(u_cpu.u_ram.mem[7], 8'd13, "RAM[7] == fib(7) == 13");
-    check(u_cpu.u_ram.mem[8], 8'd21, "RAM[8] == fib(8) == 21");
-    check(u_cpu.u_ram.mem[9], 8'd34, "RAM[9] == fib(9) == 34");
+    // ---- RAM checks: full fib sequence ----
+    check(u_cpu.u_ram.mem[0],  8'd0,   "RAM[0]  == fib(0)  ==   0");
+    check(u_cpu.u_ram.mem[1],  8'd1,   "RAM[1]  == fib(1)  ==   1");
+    check(u_cpu.u_ram.mem[2],  8'd1,   "RAM[2]  == fib(2)  ==   1");
+    check(u_cpu.u_ram.mem[3],  8'd2,   "RAM[3]  == fib(3)  ==   2");
+    check(u_cpu.u_ram.mem[4],  8'd3,   "RAM[4]  == fib(4)  ==   3");
+    check(u_cpu.u_ram.mem[5],  8'd5,   "RAM[5]  == fib(5)  ==   5");
+    check(u_cpu.u_ram.mem[6],  8'd8,   "RAM[6]  == fib(6)  ==   8");
+    check(u_cpu.u_ram.mem[7],  8'd13,  "RAM[7]  == fib(7)  ==  13");
+    check(u_cpu.u_ram.mem[8],  8'd21,  "RAM[8]  == fib(8)  ==  21");
+    check(u_cpu.u_ram.mem[9],  8'd34,  "RAM[9]  == fib(9)  ==  34");
+    check(u_cpu.u_ram.mem[10], 8'd55,  "RAM[10] == fib(10) ==  55");
+    check(u_cpu.u_ram.mem[11], 8'd89,  "RAM[11] == fib(11) ==  89");
+    check(u_cpu.u_ram.mem[12], 8'd144, "RAM[12] == fib(12) == 144");
+    check(u_cpu.u_ram.mem[13], 8'd233, "RAM[13] == fib(13) == 233");
 
     // ---- PC frozen after halt ----
     begin : halt_check
@@ -145,7 +159,7 @@ initial begin
 end
 
 initial begin
-    #200000;
+    #400000;
     $display("FATAL: simulation hard timeout");
     $finish;
 end

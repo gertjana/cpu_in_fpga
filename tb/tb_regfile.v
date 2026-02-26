@@ -96,6 +96,9 @@ endtask
 // Stimulus
 // ---------------------------------------------------------------------------
 initial begin
+    $dumpfile("sim/vcd/tb_regfile.vcd");
+    $dumpvars(0, tb_regfile);
+
     pass_count = 0;
     fail_count = 0;
 
