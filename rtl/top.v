@@ -166,7 +166,7 @@ end
 
 wire cpu_clk_en = (cpu_div_ctr == {CPU_CLK_DIV_BITS{1'b1}});
 
-reg cpu_clk_r;
+reg cpu_clk_r = 1'b0;
 always @(posedge clk_12m) begin
     if (rst)
         cpu_clk_r <= 1'b0;
