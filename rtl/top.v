@@ -156,7 +156,7 @@ wire heartbeat = hb_ctr[23];
 // ---------------------------------------------------------------------------
 parameter CPU_CLK_DIV_BITS = 23;
 
-reg [CPU_CLK_DIV_BITS-1:0] cpu_div_ctr;
+reg [CPU_CLK_DIV_BITS-1:0] cpu_div_ctr = {CPU_CLK_DIV_BITS{1'b0}};
 always @(posedge clk_12m) begin
     if (rst)
         cpu_div_ctr <= {CPU_CLK_DIV_BITS{1'b0}};
