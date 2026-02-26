@@ -34,6 +34,7 @@
 // CPU clock: divided down from 12 MHz via a prescaler.
 //   CPU_CLK_DIV_BITS selects how many bits of the prescaler counter are used.
 //     bits=23 → 12_000_000 / 2^23 ≈ 1.43 Hz
+//     bits=22 → ~2.86 Hz
 //     bits=21 → ~5.7 Hz
 //     bits=1  → 6 MHz (near full speed)
 //
@@ -87,9 +88,9 @@ end
 // Hold-duration counter.
 // Counts up while debounced button is held; clears when released.
 // Saturates at (2^LONG_PRESS_BITS - 1) — never wraps.
-// At 12 MHz, 2^23 cycles ≈ 0.7 s.
+// At 12 MHz, 2^22 cycles ≈ 0.35 s.
 // ---------------------------------------------------------------------------
-parameter LONG_PRESS_BITS   = 23;
+parameter LONG_PRESS_BITS   = 22;
 parameter LONG_PRESS_CYCLES = (1 << LONG_PRESS_BITS) - 1;
 
 reg [LONG_PRESS_BITS-1:0] hold_ctr;
