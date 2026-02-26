@@ -21,8 +21,9 @@
 #set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOF_FILE="${SCRIPT_DIR}/quartus_output/cpu_fpga.sof"
-POF_FILE="${SCRIPT_DIR}/quartus_output/cpu_fpga.pof"
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+SOF_FILE="${SCRIPT_DIR}/quartus_output/${BRANCH}/cpu_fpga.sof"
+POF_FILE="${SCRIPT_DIR}/quartus_output/${BRANCH}/cpu_fpga.pof"
 
 # Colour helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'

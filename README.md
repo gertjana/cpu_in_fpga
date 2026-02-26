@@ -1,6 +1,19 @@
 # 8-bit CPU in FPGA
 
-A simple but complete 8-bit CPU designed in Verilog and targeting the **Arrow MAX1000** FPGA board (Intel MAX 10). The project includes the full RTL, a testbench suite, a Quartus project, and an infinite-loop demo program that visualises CPU state on the board's 8 LEDs.
+Three things happened:
+ - I wanted to see how 'goos' LLM's are getting now adays
+ - I was reading a blog about someone creating a basic CPU in C
+ - I wanted to do something with the MAX1000 FPGA I have laying around
+
+ > An FPGA (Field-Programmable Gate Array) is a chip whose internal logic circuitry can be reprogrammed after manufacturing — essentially a blank piece of hardware you configure with code.
+
+ So I asked Claude Sonnet 4.6 via opencode the following
+
+ > Create an 8 Bit CPU with an ALU and 8 registers, start with the specification for the instruction set
+
+ It then asked me a bunch of clarify-ing questions, such what memory model, which model of the chip exactly, wich programming language (VHDL or RTL)
+
+ The result is here.
 
 ---
 
