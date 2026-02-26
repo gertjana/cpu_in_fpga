@@ -17,6 +17,7 @@
 ;   R4 = RAM base address (0x00)
 ;   R5 = N (number of terms)
 ;   R6 = result returned by get_result subroutine
+;   R7 = latest Fibonacci result (updated after every term)
 ;
 ; RAM layout (at base 0x00):
 ;   RAM[0]  = fib(0) =  0
@@ -30,7 +31,7 @@
 ;   RAM[8]  = fib(8) = 21
 ;   RAM[9]  = fib(9) = 34
 ;
-; Final state: R6 = fib(N-1) = fib(9) = 34, CPU halted.
+; Final state: R6 = R7 = fib(N-1) = fib(9) = 34, CPU halted.
 ;
 ; To get fib(5) = 5, change N to 6.
 
@@ -48,8 +49,10 @@
 
         MOV  R3, R4         ; R3 = address pointer = BASE
         ST   [R3], R1       ; RAM[0] = 0
+        MOV  R7, R1         ; R7 = fib(0) = 0
         ADDI R3, R3, 1      ; R3 = BASE+1
         ST   [R3], R2       ; RAM[1] = 1
+        MOV  R7, R2         ; R7 = fib(1) = 1
 
         LDI  R0, 2          ; i = 2  (first index to compute)
 
@@ -60,6 +63,7 @@ loop:
         JZ   done           ; yes → exit loop
 
         ADD  R3, R1, R2     ; next = a + b  (R3 = fib(i))
+        MOV  R7, R3         ; R7 = latest Fibonacci result
 
         ; store at RAM[i]:  address = BASE + i = R4 + R0
         ADD  R6, R4, R0     ; R6 = BASE + i

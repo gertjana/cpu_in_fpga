@@ -340,18 +340,18 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 
 | LED | Pin | Signal | Meaning |
 |-----|-----|--------|---------|
-| LED[0] | A8 | Flag C | ON = carry or borrow out |
-| LED[1] | A9 | Flag N | ON = result was negative (bit 7 set) |
-| LED[2] | A11 | Flag V | ON = signed overflow |
-| LED[3] | A10 | Heartbeat / Halt | Blinks ~1.4 Hz while running; solid ON when halted |
-| LED[4] | B10 | PC[3] | Program counter bit 3 |
-| LED[5] | C9 | PC[2] | Program counter bit 2 |
-| LED[6] | C10 | PC[1] | Program counter bit 1 |
-| LED[7] | D8 | PC[0] | Program counter bit 0 |
+| LED[0] | A8  | Flag C           | ON = carry or borrow out |
+| LED[1] | A9  | Flag V           | ON = signed overflow |
+| LED[2] | A11 | Heartbeat / Halt | Blinks ~1.4 Hz while running; solid ON when halted |
+| LED[3] | A10 | PC[4]            | Program counter bit 4 |
+| LED[4] | B10 | PC[3]            | Program counter bit 3 |
+| LED[5] | C9  | PC[2]            | Program counter bit 2 |
+| LED[6] | C10 | PC[1]            | Program counter bit 1 |
+| LED[7] | D8  | PC[0]            | Program counter bit 0 |
 
 LEDs are **active-low** on the MAX1000 — `led=0` illuminates the LED.
 
-Because the CPU runs at 12 MHz, individual instruction transitions are invisible. The flag LEDs show the most recently committed flag state, and the PC LEDs give a rough indication of which region of the program is executing.
+LED[3]–LED[7] display PC[4:0], giving 5 bits of program counter visibility (addresses 0–31). The flag LEDs show the most recently committed carry and overflow state.
 
 ---
 
