@@ -48,15 +48,15 @@ set_location_assignment PIN_H6 -to clk_12m
 # USER_BTN button (active-low, pin E6, Schmitt trigger)
 set_location_assignment PIN_E6 -to rst_n
 
-# LEDs (active-high: drive 1 to illuminate)
-#   LED[0] = flag Z   — pin A8
-#   LED[1] = flag C   — pin A9
-#   LED[2] = flag N   — pin A11
-#   LED[3] = flag V   — pin A10
-#   LED[4] = heartbeat / halt indicator — pin B10
-#   LED[5] = PC[2]    — pin C9
-#   LED[6] = PC[1]    — pin C10
-#   LED[7] = PC[0]    — pin D8
+# LEDs (active-low: drive 0 to illuminate)
+#   LED[0] = flag C (carry)          — pin A8
+#   LED[1] = flag V (overflow)       — pin A9
+#   LED[2] = heartbeat / halt        — pin A11
+#   LED[3] = PC[4]                   — pin A10
+#   LED[4] = PC[3]                   — pin B10
+#   LED[5] = PC[2]                   — pin C9
+#   LED[6] = PC[1]                   — pin C10
+#   LED[7] = PC[0]                   — pin D8
 set_location_assignment PIN_A8  -to led[0]
 set_location_assignment PIN_A9  -to led[1]
 set_location_assignment PIN_A11 -to led[2]

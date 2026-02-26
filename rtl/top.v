@@ -3,9 +3,9 @@
 //
 // LED mapping (active-low: LED is ON when signal is 0):
 //   LED[0]  — flag C  (carry)
-//   LED[1]  — flag N  (negative)
-//   LED[2]  — flag V  (overflow)
-//   LED[3]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
+//   LED[1]  — flag V  (overflow)
+//   LED[2]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
+//   LED[3]  — PC[4]
 //   LED[4]  — PC[3]
 //   LED[5]  — PC[2]
 //   LED[6]  — PC[1]
@@ -109,15 +109,15 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 );
 
 // ---------------------------------------------------------------------------
-// LED[4]: heartbeat while running; solid ON once halted.
+// LED[2]: heartbeat while running; solid ON once halted.
 // All signals inverted for active-low LEDs.
 // ---------------------------------------------------------------------------
 wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 
 assign led[0] = dbg_flag_c;
-assign led[1] = dbg_flag_n;
-assign led[2] = dbg_flag_v;
-assign led[3] = hb_or_halt;
+assign led[1] = dbg_flag_v;
+assign led[2] = hb_or_halt;
+assign led[3] = dbg_pc[4];
 assign led[4] = dbg_pc[3];
 assign led[5] = dbg_pc[2];
 assign led[6] = dbg_pc[1];
