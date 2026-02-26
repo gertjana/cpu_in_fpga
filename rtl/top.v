@@ -120,7 +120,7 @@ wire rst = was_long;
 // ---------------------------------------------------------------------------
 // Release edge detector — one-cycle pulse on debounced button release.
 // ---------------------------------------------------------------------------
-reg btn_prev;
+reg btn_prev = 1'b0;
 always @(posedge clk_12m)
     btn_prev <= btn_db;
 
