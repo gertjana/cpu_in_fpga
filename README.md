@@ -338,6 +338,10 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 
 ## LED Indicators
 
+The USER_BTN (pin E6) toggles between two display modes each time it is pressed.
+
+### Mode 0 — Flags + PC (default)
+
 | LED | Pin | Signal | Meaning |
 |-----|-----|--------|---------|
 | LED[0] | A8  | Flag C           | ON = carry or borrow out |
@@ -349,9 +353,24 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 | LED[6] | C10 | PC[1]            | Program counter bit 1 |
 | LED[7] | D8  | PC[0]            | Program counter bit 0 |
 
+### Mode 1 — R7 register value
+
+| LED | Pin | Signal | Meaning |
+|-----|-----|--------|---------|
+| LED[0] | A8  | R7[7] | MSB of register R7 |
+| LED[1] | A9  | R7[6] | |
+| LED[2] | A11 | R7[5] | |
+| LED[3] | A10 | R7[4] | |
+| LED[4] | B10 | R7[3] | |
+| LED[5] | C9  | R7[2] | |
+| LED[6] | C10 | R7[1] | |
+| LED[7] | D8  | R7[0] | LSB of register R7 |
+
 LEDs are **active-low** on the MAX1000 — `led=0` illuminates the LED.
 
-LED[3]–LED[7] display PC[4:0], giving 5 bits of program counter visibility (addresses 0–31). The flag LEDs show the most recently committed carry and overflow state.
+LED[3]–LED[7] in mode 0 display PC[4:0], giving 5 bits of program counter visibility (addresses 0–31). Mode 1 shows the full 8-bit value of R7, useful for inspecting the latest Fibonacci result during execution.
+
+> **Note:** The USER_BTN is no longer wired as a CPU reset. The CPU resets only at power-on.
 
 ---
 

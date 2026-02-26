@@ -45,8 +45,8 @@ set_global_assignment -name VERILOG_FILE ../rtl/stack.v
 # 12 MHz oscillator
 set_location_assignment PIN_H6 -to clk_12m
 
-# USER_BTN button (active-low, pin E6, Schmitt trigger)
-set_location_assignment PIN_E6 -to rst_n
+# USER_BTN button (active-low, pin E6, Schmitt trigger) — toggles display mode
+set_location_assignment PIN_E6 -to btn_n
 
 # LEDs (active-low: drive 0 to illuminate)
 #   LED[0] = flag C (carry)          — pin A8
@@ -70,7 +70,7 @@ set_location_assignment PIN_D8  -to led[7]
 # I/O standards
 # ---------------------------------------------------------------------------
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_12m
-set_instance_assignment -name IO_STANDARD "3.3 V Schmitt Trigger" -to rst_n
+set_instance_assignment -name IO_STANDARD "3.3 V Schmitt Trigger" -to btn_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[0]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[1]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[2]

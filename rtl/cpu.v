@@ -29,7 +29,8 @@ module cpu #(
     output wire       dbg_flag_z,
     output wire       dbg_flag_c,
     output wire       dbg_flag_n,
-    output wire       dbg_flag_v
+    output wire       dbg_flag_v,
+    output wire [7:0] dbg_r7
 );
 
 // ---------------------------------------------------------------------------
@@ -164,7 +165,8 @@ regfile u_rf (
     .rb_addr (dec_rb_addr),
     .rd_data (wb_data),
     .ra_data (ra_data),
-    .rb_data (rb_data)
+    .rb_data (rb_data),
+    .dbg_r7  (dbg_r7)
 );
 
 // --- ALU B-input mux: 0=Rb, 1=immediate ---
@@ -274,5 +276,6 @@ assign dbg_flag_z = flag_z;
 assign dbg_flag_c = flag_c;
 assign dbg_flag_n = flag_n;
 assign dbg_flag_v = flag_v;
+// dbg_r7 is wired directly from regfile port
 
 endmodule

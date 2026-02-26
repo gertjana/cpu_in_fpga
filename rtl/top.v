@@ -1,18 +1,32 @@
 // =============================================================================
 // top.v — MAX1000 top-level for the 8-bit CPU
 //
-// LED mapping (active-low: LED is ON when signal is 0):
-//   LED[0]  — flag C  (carry)
-//   LED[1]  — flag V  (overflow)
-//   LED[2]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
-//   LED[3]  — PC[4]
-//   LED[4]  — PC[3]
-//   LED[5]  — PC[2]
-//   LED[6]  — PC[1]
-//   LED[7]  — PC[0]
+// Display modes (toggled by USER_BTN on pin E6):
+//
+//   Mode 0 — flags + PC (default):
+//     LED[0]  — flag C  (carry)
+//     LED[1]  — flag V  (overflow)
+//     LED[2]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
+//     LED[3]  — PC[4]
+//     LED[4]  — PC[3]
+//     LED[5]  — PC[2]
+//     LED[6]  — PC[1]
+//     LED[7]  — PC[0]
+//
+//   Mode 1 — R7 register value:
+//     LED[0]  — R7[7]  (MSB)
+//     LED[1]  — R7[6]
+//     LED[2]  — R7[5]
+//     LED[3]  — R7[4]
+//     LED[4]  — R7[3]
+//     LED[5]  — R7[2]
+//     LED[6]  — R7[1]
+//     LED[7]  — R7[0]  (LSB)
+//
+// LEDs are active-low: led=0 illuminates the LED.
 //
 // Clock: 12 MHz oscillator on pin H6.
-// Reset: KEY0 button, active-low (pin C7).
+// Reset: power-on reset only (USER_BTN repurposed for display mode toggle).
 //
 // CPU clock: divided down from 12 MHz via a prescaler.
 //   CPU_CLK_DIV_BITS selects how many bits of the prescaler counter are used.
@@ -28,65 +42,66 @@
 
 module top (
     input  wire       clk_12m,   // 12 MHz board clock (pin H6)
-    input  wire       rst_n,     // KEY0 active-low reset  (pin C7)
+    input  wire       btn_n,     // USER_BTN active-low (pin E6) — toggles display mode
     output wire [7:0] led        // active-low LEDs: LED[0]..LED[7]
 );
 
 // ---------------------------------------------------------------------------
-// 2-FF synchroniser — bring the async reset button into the clock domain.
-// Button pressed (rst_n=0) → rst=1 (active-high internal reset).
+// 2-FF synchroniser — bring the async button into the clock domain.
+// Button pressed (btn_n=0) → btn_sync=1.
 // ---------------------------------------------------------------------------
-reg rst_meta, rst_sync;
+reg btn_meta, btn_sync;
 always @(posedge clk_12m) begin
-    rst_meta <= ~rst_n;
-    rst_sync <= rst_meta;
+    btn_meta <= ~btn_n;
+    btn_sync <= btn_meta;
 end
 
-wire rst = rst_sync;
+// ---------------------------------------------------------------------------
+// Edge detector — detect rising edge of btn_sync (button press).
+// ---------------------------------------------------------------------------
+reg btn_prev;
+always @(posedge clk_12m)
+    btn_prev <= btn_sync;
+
+wire btn_pressed = btn_sync & ~btn_prev;   // one-cycle pulse on press
+
+// ---------------------------------------------------------------------------
+// Display mode toggle flip-flop.
+//   0 = flags + PC  (default)
+//   1 = R7 register value
+// ---------------------------------------------------------------------------
+reg display_mode;
+always @(posedge clk_12m)
+    if (btn_pressed)
+        display_mode <= ~display_mode;
 
 // ---------------------------------------------------------------------------
 // Heartbeat counter — bit[23] of a 26-bit counter at 12 MHz toggles at
 //   12_000_000 / 2^23 ≈ 1.43 Hz  (period ≈ 700 ms each half)
 // ---------------------------------------------------------------------------
 reg [25:0] hb_ctr;
-always @(posedge clk_12m) begin
-    if (rst)
-        hb_ctr <= 26'b0;
-    else
-        hb_ctr <= hb_ctr + 1'b1;
-end
+always @(posedge clk_12m)
+    hb_ctr <= hb_ctr + 1'b1;
 
 wire heartbeat = hb_ctr[23];
 
 // ---------------------------------------------------------------------------
 // CPU clock prescaler — runs the CPU at a human-visible rate.
-//   cpu_clk toggles at 12 MHz / 2^CPU_CLK_DIV_BITS ≈ 1.43 Hz (bits=23).
-//   Increase CPU_CLK_DIV_BITS to slow down further; set to 1 for near
-//   full-speed (6 MHz). This is a simple clock-enable gated on posedge
-//   clk_12m so it is safe for synchronous logic.
 // ---------------------------------------------------------------------------
 parameter CPU_CLK_DIV_BITS = 23;
 
 reg [CPU_CLK_DIV_BITS-1:0] cpu_div_ctr;
-always @(posedge clk_12m) begin
-    if (rst)
-        cpu_div_ctr <= {CPU_CLK_DIV_BITS{1'b0}};
-    else
-        cpu_div_ctr <= cpu_div_ctr + 1'b1;
-end
+always @(posedge clk_12m)
+    cpu_div_ctr <= cpu_div_ctr + 1'b1;
 
 // cpu_clk_en pulses for one clk_12m cycle every 2^CPU_CLK_DIV_BITS cycles.
 wire cpu_clk_en = (cpu_div_ctr == {CPU_CLK_DIV_BITS{1'b1}});
 
-// Registered clock enable to drive the CPU — this avoids glitchy derived
-// clocks and keeps everything in the clk_12m domain.
+// Registered clock enable to drive the CPU.
 reg cpu_clk_r;
-always @(posedge clk_12m) begin
-    if (rst)
-        cpu_clk_r <= 1'b0;
-    else if (cpu_clk_en)
+always @(posedge clk_12m)
+    if (cpu_clk_en)
         cpu_clk_r <= ~cpu_clk_r;
-end
 
 wire cpu_clk = cpu_clk_r;
 
@@ -96,31 +111,35 @@ wire cpu_clk = cpu_clk_r;
 wire       halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
+wire [7:0] dbg_r7;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk        (cpu_clk),
-    .rst        (rst),
+    .rst        (1'b0),          // no button reset; power-on reset only
     .halt_out   (halt_out),
     .dbg_pc     (dbg_pc),
     .dbg_flag_z (dbg_flag_z),
     .dbg_flag_c (dbg_flag_c),
     .dbg_flag_n (dbg_flag_n),
-    .dbg_flag_v (dbg_flag_v)
+    .dbg_flag_v (dbg_flag_v),
+    .dbg_r7     (dbg_r7)
 );
 
 // ---------------------------------------------------------------------------
-// LED[2]: heartbeat while running; solid ON once halted.
-// All signals inverted for active-low LEDs.
+// Heartbeat / halt indicator (mode 0 only).
 // ---------------------------------------------------------------------------
 wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 
-assign led[0] = dbg_flag_c;
-assign led[1] = dbg_flag_v;
-assign led[2] = hb_or_halt;
-assign led[3] = dbg_pc[4];
-assign led[4] = dbg_pc[3];
-assign led[5] = dbg_pc[2];
-assign led[6] = dbg_pc[1];
-assign led[7] = dbg_pc[0];
+// ---------------------------------------------------------------------------
+// LED mux — mode 0: flags + PC   mode 1: R7
+// ---------------------------------------------------------------------------
+assign led[0] = display_mode ? ~dbg_r7[7] : dbg_flag_c;
+assign led[1] = display_mode ? ~dbg_r7[6] : dbg_flag_v;
+assign led[2] = display_mode ? ~dbg_r7[5] : hb_or_halt;
+assign led[3] = display_mode ? ~dbg_r7[4] : dbg_pc[4];
+assign led[4] = display_mode ? ~dbg_r7[3] : dbg_pc[3];
+assign led[5] = display_mode ? ~dbg_r7[2] : dbg_pc[2];
+assign led[6] = display_mode ? ~dbg_r7[1] : dbg_pc[1];
+assign led[7] = display_mode ? ~dbg_r7[0] : dbg_pc[0];
 
 endmodule

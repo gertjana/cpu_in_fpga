@@ -34,7 +34,8 @@ module regfile (
     input  wire [2:0] rb_addr,
     input  wire [7:0] rd_data,
     output wire [7:0] ra_data,
-    output wire [7:0] rb_data
+    output wire [7:0] rb_data,
+    output wire [7:0] dbg_r7      // direct tap of R7 for LED display
 );
 
 // ---------------------------------------------------------------------------
@@ -66,5 +67,6 @@ end
 // ---------------------------------------------------------------------------
 assign ra_data = regs[ra_addr];
 assign rb_data = regs[rb_addr];
+assign dbg_r7  = regs[7];
 
 endmodule
