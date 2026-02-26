@@ -141,7 +141,7 @@ always @(posedge clk_12m)
 // Heartbeat counter — bit[23] of a 26-bit counter at 12 MHz toggles at
 //   12_000_000 / 2^23 ≈ 1.43 Hz  (period ≈ 700 ms each half)
 // ---------------------------------------------------------------------------
-reg [25:0] hb_ctr;
+reg [25:0] hb_ctr = 26'b0;
 always @(posedge clk_12m) begin
     if (rst)
         hb_ctr <= 26'b0;
