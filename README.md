@@ -338,7 +338,9 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 
 ## LED Indicators
 
-The USER_BTN (pin E6) toggles between two display modes each time it is pressed.
+The USER_BTN (pin E6) serves a dual purpose:
+- **Short press** (<0.5 s) — toggles the LED display mode; CPU keeps running
+- **Long press** (≥0.5 s) — resets the CPU (program restarts); display mode is preserved
 
 ### Mode 0 — Flags + PC (default)
 
@@ -369,8 +371,6 @@ The USER_BTN (pin E6) toggles between two display modes each time it is pressed.
 LEDs are **active-low** on the MAX1000 — `led=0` illuminates the LED.
 
 LED[3]–LED[7] in mode 0 display PC[4:0], giving 5 bits of program counter visibility (addresses 0–31). Mode 1 shows the full 8-bit value of R7, useful for inspecting the latest Fibonacci result during execution.
-
-> **Note:** The USER_BTN is no longer wired as a CPU reset. The CPU resets only at power-on.
 
 ---
 
