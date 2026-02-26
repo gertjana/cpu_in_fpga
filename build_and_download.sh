@@ -13,7 +13,8 @@ set -euo pipefail
 REPO="gertjana/cpu_in_fpga"
 WORKFLOW="synthesize.yml"
 ARTIFACT_NAME="quartus-output"
-OUTPUT_DIR="quartus_output"
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+OUTPUT_DIR="quartus_output/${BRANCH}"
 
 # Colour helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
@@ -39,9 +40,10 @@ gh auth status &>/dev/null  || die "Not authenticated. Run: gh auth login"
 # ---------------------------------------------------------------------------
 # 3. Trigger the workflow
 # ---------------------------------------------------------------------------
-info "Triggering workflow '${WORKFLOW}' with program: ${PROGRAM}"
+info "Triggering workflow '${WORKFLOW}' on branch '${BRANCH}' with program: ${PROGRAM}"
 gh workflow run "${WORKFLOW}" \
     --repo "${REPO}" \
+    --ref "${BRANCH}" \
     --field "program=${PROGRAM}"
 
 # Give GitHub a moment to register the run
@@ -54,6 +56,7 @@ info "Fetching run ID ..."
 RUN_ID=$(gh run list \
     --repo "${REPO}" \
     --workflow "${WORKFLOW}" \
+    --branch "${BRANCH}" \
     --limit 1 \
     --json databaseId \
     --jq '.[0].databaseId')
@@ -75,6 +78,7 @@ ok "Workflow completed successfully."
 # 6. Clear the output directory
 # ---------------------------------------------------------------------------
 info "Clearing ${OUTPUT_DIR}/ ..."
+mkdir -p "${OUTPUT_DIR}"
 rm -f "${OUTPUT_DIR}"/*
 ok "Output directory cleared."
 
