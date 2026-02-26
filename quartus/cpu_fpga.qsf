@@ -72,7 +72,8 @@ set_location_assignment PIN_D8  -to led[7]
 # I/O standards
 # ---------------------------------------------------------------------------
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_12m
-set_instance_assignment -name IO_STANDARD "3.3 V Schmitt Trigger" -to rst_nset_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[0]
+set_instance_assignment -name IO_STANDARD "3.3 V Schmitt Trigger" -to rst_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[0]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[1]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[2]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[3]
