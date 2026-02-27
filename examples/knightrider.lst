@@ -1,0 +1,91 @@
+Addr  Word  Source
+------------------------------------------------------------
+            ; knightrider.asm — Knight Rider LED scanner (K.I.T.T. from the TV series)
+            ;
+            ; A single lit LED bounces left and right across the 8 LEDs continuously.
+            ;
+            ; LED mapping (mode 1, R7 displayed on LEDs):
+            ;   LED[0] = R7[7]  (MSB, leftmost)
+            ;   LED[1] = R7[6]
+            ;   LED[2] = R7[5]
+            ;   LED[3] = R7[4]
+            ;   LED[4] = R7[3]
+            ;   LED[5] = R7[2]
+            ;   LED[6] = R7[1]
+            ;   LED[7] = R7[0]  (LSB, rightmost)
+            ;
+            ; Pattern (one LED lit at a time):
+            ;   R7 = 1000_0000  LED[0] on  → scan right
+            ;   R7 = 0100_0000  LED[1] on
+            ;   R7 = 0010_0000  LED[2] on
+            ;   R7 = 0001_0000  LED[3] on
+            ;   R7 = 0000_1000  LED[4] on
+            ;   R7 = 0000_0100  LED[5] on
+            ;   R7 = 0000_0010  LED[6] on
+            ;   R7 = 0000_0001  LED[7] on  → reverse, scan left
+            ;   R7 = 0000_0010  LED[6] on
+            ;   ...and so on forever.
+            ;
+            ; Algorithm:
+            ;   R7 = 0x80  (start at leftmost LED)
+            ;
+            ;   scan_right:
+            ;     SHR R7          ; shift lit bit one position right
+            ;     JC  scan_left   ; carry set = bit fell off LSB, we were at LED[7] → reverse
+            ;     JMP scan_right
+            ;
+            ;   scan_left:
+            ;     SHL R7          ; shift lit bit one position left
+            ;     JC  scan_right  ; carry set = bit fell off MSB, we were at LED[0] → reverse
+            ;     JMP scan_left
+            ;
+            ; SHR: carry = shifted-out LSB (set when the lit bit was at position 0)
+            ; SHL: carry = shifted-out MSB (set when the lit bit was at position 7)
+            ;
+            ; When carry fires the bit is lost, so we reload the edge value before
+            ; reversing: 0x01 (rightmost) when turning left, 0x80 (leftmost) when turning right.
+            ;
+            ; Register use:
+            ;   R7 = current LED pattern (shown on LEDs in display mode 1)
+            ;
+            ; This program runs forever — it never halts.
+            
+            ; ── initialise ────────────────────────────────────────────────────────────────
+            
+0000  21E0          LDI  R7, 0x20       ; start with bit pattern 0010_0000 (LED[2] on)
+                                        ; (using a mid value so the scan direction is obvious
+                                        ;  from the first movement; 0x80 also works)
+            
+            ; Reload constants — LDI is limited to 6-bit immediates (0..63), so
+            ; 0x80 (128) and 0x01 are both fine as targets but 0x80 > 63.
+            ; We compute 0x80 via SHL from 0x40.
+            
+0001  2060          LDI  R1, 0x20       ; R1 = 0x20  (will SHL to 0x40 then 0x80 below)
+0002  0246          SHL  R1, R1         ; R1 = 0x40
+0003  0246          SHL  R1, R1         ; R1 = 0x80  — "leftmost" reload value
+0004  2081          LDI  R2, 1          ; R2 = 0x01  — "rightmost" reload value
+            
+0005  3E40          MOV  R7, R1         ; R7 = 0x80 (LED[0] on, start scanning right)
+            
+            ; ── scan right (SHR: moves lit bit from LED[0] toward LED[7]) ─────────────────
+            
+            scan_right:
+0006  0FC7          SHR  R7, R7         ; shift right; C=1 if lit bit was at LSB (LED[7])
+0007  4609          JC   turn_left      ; bit fell off right edge → load 0x01 and go left
+0008  4006          JMP  scan_right
+            
+            ; ── turn left: reload rightmost position, then scan left ──────────────────────
+            
+            turn_left:
+0009  3E80          MOV  R7, R2         ; R7 = 0x01 (LED[7] on)
+            
+            scan_left:
+000A  0FC6          SHL  R7, R7         ; shift left; C=1 if lit bit was at MSB (LED[0])
+000B  460D          JC   turn_right     ; bit fell off left edge → load 0x80 and go right
+000C  400A          JMP  scan_left
+            
+            ; ── turn right: reload leftmost position, then scan right ─────────────────────
+            
+            turn_right:
+000D  3E40          MOV  R7, R1         ; R7 = 0x80 (LED[0] on)
+000E  4006          JMP  scan_right

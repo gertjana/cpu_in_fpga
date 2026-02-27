@@ -111,13 +111,12 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 
 | Program | Explanation |
 | ------- | ----------- |
-| [](examples/infinite_counter.asm) | counts from 0 to 63 then starts again |
-| [](examples/led_test.asm) | counts from 0-255 in R7 (this register is used to drive the 8 leds on the board)|
-| [](examples/pc_test.asm) | executes 32 NOP (nothing operator) to test the program counter leds)|
-| [](examples/fibonacci.asm) | Calculates fibonacci nummers that fit in 8bits, stores in RAM and R7 to view the result|
-| [](examples/fibonacci.asm) | same as above but uses the stack to store the numbers |
-| [](example/knightrider.asm) | Display the knightrider pattern on the leds|
-
+| [examples/infinite_counter.asm](examples/infinite_counter.asm) | counts from 0 to 63 then starts again |
+| [examples/led_test.asm](examples/led_test.asm) | counts from 0-255 in R7 (this register is used to drive the 8 leds on the board)|
+| [examples/pc_test.asm](examples/pc_test.asm) | executes 32 NOP (nothing operator) to test the program counter leds)|
+| [examples/fibonacci.asm](examples/fibonacci.asm) | Calculates fibonacci nummers that fit in 8bits, stores in RAM and R7 to view the result|
+| [examples/fibonacci_stack.asm](examples/fibonacci_stack.asm) | same as above but uses the stack to store the numbers |
+| [examples/knightrider.asm](examples/knightrider.asm) | Display the knightrider pattern on the leds|
 
 ---
 
