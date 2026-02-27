@@ -3,18 +3,18 @@
 #
 # Prerequisites:
 #   brew install icarus-verilog   (iverilog / vvp)
-#   brew install --cask gtkwave   (GTKWave)
+#   brew install surfer           (waveform viewer, M1-compatible)
 #
 # Usage:
 #   make sim          — compile and run all testbenches (prints PASS/FAIL)
-#   make wave TB=cpu  — open GTKWave for a specific testbench
+#   make wave TB=cpu  — open surfer for a specific testbench
 #                       TB can be: alu, decoder, mem, pc, regfile, stack, cpu, fibonacci
 #   make clean        — remove compiled binaries and VCD files
 # =============================================================================
 
 IVERILOG = iverilog
 VVP      = vvp
-GTKWAVE  = gtkwave
+WAVE     = surfer
 
 RTL = rtl/cpu.v rtl/alu.v rtl/regfile.v rtl/pc.v \
       rtl/decoder.v rtl/rom.v rtl/ram.v rtl/stack.v
@@ -84,13 +84,13 @@ ifndef TB
 	$(error TB is not set. Usage: make wave TB=cpu)
 endif
 	$(MAKE) sim-$(TB)
-	$(GTKWAVE) $(SIM_DIR)/tb_$(TB).vcd &
+	$(WAVE) $(SIM_DIR)/tb_$(TB).vcd &
 
 # ---------------------------------------------------------------------------
 # Convenience shortcuts: make wave-cpu, make wave-fibonacci, etc.
 # ---------------------------------------------------------------------------
 $(TBS:%=wave-%): wave-%: sim-%
-	$(GTKWAVE) $(SIM_DIR)/tb_$*.vcd &
+	$(WAVE) $(SIM_DIR)/tb_$*.vcd &
 
 # ---------------------------------------------------------------------------
 # Housekeeping

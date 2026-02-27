@@ -1,13 +1,13 @@
 # 8-bit CPU in FPGA
 
 Three things happened:
- - I wanted to see how 'goos' LLM's are getting now adays
- - I was reading a blog about someone creating a basic CPU in C
- - I wanted to do something with the MAX1000 FPGA I have laying around
+ - I wanted to see how 'good' LLM's are getting nowadays.
+ - I was reading a blog about someone creating a basic CPU in C.
+ - I wanted to do something with the MAX1000 FPGA I have laying around.
 
  > An FPGA (Field-Programmable Gate Array) is a chip whose internal logic circuitry can be reprogrammed after manufacturing — essentially a blank piece of hardware you configure with code.
 
- So I asked Claude Sonnet 4.6 via opencode the following
+ So I asked Claude Sonnet 4.6 via opencode the following:
 
  > Create an 8 Bit CPU with an ALU and 8 registers, start with the specification for the instruction set
 
