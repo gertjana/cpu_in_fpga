@@ -10,7 +10,7 @@
 //   Mode 0 — flags + PC (default):
 //     LED[0]  — flag C  (carry)
 //     LED[1]  — flag V  (overflow)
-//     LED[2]  — heartbeat blink (~1.4 Hz while running); solid ON when halted
+//     LED[2]  — heartbeat blink (toggles at CPU clock rate); solid ON when halted
 //     LED[3]  — PC[4]
 //     LED[4]  — PC[3]
 //     LED[5]  — PC[2]
@@ -39,7 +39,8 @@
 //     bits=20 → ~11.4 Hz
 //     bits=1  → 6 MHz (near full speed)
 //
-// Heartbeat: 26-bit counter on 12 MHz; bit[23] toggles at ~1.43 Hz.
+// Heartbeat: MSB of the CPU prescaler counter — toggles at the CPU clock
+//   rate, so the blink is always synchronised with program execution speed.
 //   Frozen solid (1) once the CPU halts.
 // =============================================================================
 
@@ -139,20 +140,6 @@ always @(posedge clk_12m)
         display_mode <= ~display_mode;
 
 // ---------------------------------------------------------------------------
-// Heartbeat counter — bit[23] of a 26-bit counter at 12 MHz toggles at
-//   12_000_000 / 2^23 ≈ 1.43 Hz  (period ≈ 700 ms each half)
-// ---------------------------------------------------------------------------
-reg [25:0] hb_ctr = 26'b0;
-always @(posedge clk_12m) begin
-    if (rst)
-        hb_ctr <= 26'b0;
-    else
-        hb_ctr <= hb_ctr + 1'b1;
-end
-
-wire heartbeat = hb_ctr[23];
-
-// ---------------------------------------------------------------------------
 // CPU clock prescaler — runs the CPU at a human-visible rate.
 //   Change CPU_CLK_DIV_BITS to tune speed (see header for values).
 // ---------------------------------------------------------------------------
@@ -180,6 +167,13 @@ always @(posedge clk_12m) begin
 end
 
 wire cpu_clk = cpu_clk_r;
+
+// ---------------------------------------------------------------------------
+// Heartbeat — MSB of the CPU prescaler counter.
+// Toggles at exactly the CPU clock rate, so the blink speed always matches
+// program execution speed.  Frozen solid (1) once the CPU halts.
+// ---------------------------------------------------------------------------
+wire heartbeat = cpu_div_ctr[CPU_CLK_DIV_BITS-1];
 
 // ---------------------------------------------------------------------------
 // CPU instantiation
