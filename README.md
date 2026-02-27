@@ -109,14 +109,14 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 
 ## Examples
 
-| Program | Explanation |
-| ------- | ----------- |
-| [examples/infinite_counter.asm](examples/infinite_counter.asm) | counts from 0 to 63 then starts again |
-| [examples/led_test.asm](examples/led_test.asm) | counts from 0-255 in R7 (this register is used to drive the 8 leds on the board)|
-| [examples/pc_test.asm](examples/pc_test.asm) | executes 32 NOP (nothing operator) to test the program counter leds)|
-| [examples/fibonacci.asm](examples/fibonacci.asm) | Calculates fibonacci nummers that fit in 8bits, stores in RAM and R7 to view the result|
-| [examples/fibonacci_stack.asm](examples/fibonacci_stack.asm) | same as above but uses the stack to store the numbers |
-| [examples/knightrider.asm](examples/knightrider.asm) | Display the knightrider pattern on the leds|
+| Program | Tests | Explanation |
+| ------- | ------| ----------- |
+| [examples/infinite_counter.asm](examples/infinite_counter.asm) | Registers, loops| counts from 0 to 63 then starts again |
+| [examples/led_test.asm](examples/led_test.asm) | Led's| counts from 0-255 in R7 (this register is used to drive the 8 leds on the board)|
+| [examples/pc_test.asm](examples/pc_test.asm) | Program counter | executes 32 NOP (nothing operator) to test the program counter leds |
+| [examples/fibonacci.asm](examples/fibonacci.asm) | RAM, Registers | Calculates fibonacci nummers that fit in 8bits, stores in RAM and R7 to view the result |
+| [examples/fibonacci_stack.asm](examples/fibonacci_stack.asm) | Stack | same as above but uses the stack to store the numbers |
+| [examples/knightrider.asm](examples/knightrider.asm) | Shift left/right | Display the knightrider pattern on the leds |
 
 ---
 
@@ -196,11 +196,30 @@ python3 -m pytest tools/tests/test_assembler.py -v
 
 ## Synthesis and Programming the FPGA
 
+### MacOs with Apple Silicon chip M?
+
+The Quartus tooling does not work on Mac directly and when running in a docker container there are incompatibility issues with the Rosseta layer that allow x86_64 apps to run on Apple Silicon's ARM chips
+
+So I created a CICD pipeline that runs the compile/synthesize step on Github Actions and then allow to download the result, there are 2 scripts that are helpful here
+
+| Script | Explanation |
+| - | - |
+| build_and_download.sh [program] | Run's the worklow and when successsful downloads the result<br/>requires gh command line tool to be installed<br/>expect program to be in ./examples/[program].asm
+| program.sh [program] | Flashes the synthesized code to the chip. requires openFPGALoader to be installed |
+
+ Here's an asciinema cast of the process
+
+ ![cast](./casts/cicd.gif)
+
+
 ### Requirements
 
 - [Intel Quartus Prime](https://www.intel.com/content/www/us/en/products/details/fpga/development-tools/quartus-prime.html) (Lite edition is free and sufficient)
 - Arrow MAX1000 board (Intel MAX 10, `10M16SAU169C8G`)
 - USB cable for programming
+
+
+
 
 ### Step 1 — Copy the ROM program
 
