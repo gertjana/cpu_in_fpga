@@ -2,9 +2,6 @@
 ;                 overflow an 8-bit unsigned integer (> 255), storing
 ;                 each result in RAM and keeping the latest in R7.
 ;
-; Demonstrates: LDI, ADD, ADDI, ST, JC, JMP, HALT
-;               plus .equ constants and labels.
-;
 ; Algorithm (iterative):
 ;   fib(0) = 0
 ;   fib(1) = 1
@@ -16,23 +13,23 @@
 ;   R1 = fib[i-2]  (a)
 ;   R2 = fib[i-1]  (b)
 ;   R3 = fib[i]    (next = a + b)
-;   R7 = latest Fibonacci result that fits in 8 bits
+;   R7 = latest Fibonacci result that fits in 8 bits shown on the 8 LEDs of the MAX1000 board.
 ;
 ; RAM layout (at base 0x00):
-;   RAM[0]  = fib(0)  =   0
-;   RAM[1]  = fib(1)  =   1
-;   RAM[2]  = fib(2)  =   1
-;   RAM[3]  = fib(3)  =   2
-;   RAM[4]  = fib(4)  =   3
-;   RAM[5]  = fib(5)  =   5
-;   RAM[6]  = fib(6)  =   8
-;   RAM[7]  = fib(7)  =  13
-;   RAM[8]  = fib(8)  =  21
-;   RAM[9]  = fib(9)  =  34
-;   RAM[10] = fib(10) =  55
-;   RAM[11] = fib(11) =  89
-;   RAM[12] = fib(12) = 144
-;   RAM[13] = fib(13) = 233  ← last value that fits (fib(14)=377 overflows)
+;   RAM[0]  = fib(0)  =   0 = 00000000b
+;   RAM[1]  = fib(1)  =   1 = 00000001b
+;   RAM[2]  = fib(2)  =   1 = 00000001b
+;   RAM[3]  = fib(3)  =   2 = 00000010b
+;   RAM[4]  = fib(4)  =   3 = 00000011b
+;   RAM[5]  = fib(5)  =   5 = 00000101b
+;   RAM[6]  = fib(6)  =   8 = 00001000b
+;   RAM[7]  = fib(7)  =  13 = 00001101b
+;   RAM[8]  = fib(8)  =  21 = 00010101b
+;   RAM[9]  = fib(9)  =  34 = 00100010b
+;   RAM[10] = fib(10) =  55 = 00110111b
+;   RAM[11] = fib(11) =  89 = 01011001b
+;   RAM[12] = fib(12) = 144 = 10010000b
+;   RAM[13] = fib(13) = 233 = 11101001b  ← last value that fits (fib(14)=377 overflows)
 ;
 ; Final state: R7 = 233, CPU halted.
 
