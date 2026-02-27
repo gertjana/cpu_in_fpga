@@ -107,43 +107,17 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 
 ---
 
-## Project Structure
+## Examples
 
-```
-cpu_in_fpga/
-├── docs/
-│   └── ISA.md              # Full ISA specification
-├── examples/
-│   └── count_to_9.asm      # Example: count 0–9 then halt
-├── rtl/
-│   ├── alu.v
-│   ├── cpu.v
-│   ├── decoder.v
-│   ├── pc.v
-│   ├── ram.v
-│   ├── regfile.v
-│   ├── rom.v
-│   ├── stack.v
-│   └── top.v
-├── tb/
-│   ├── tb_alu.v
-│   ├── tb_cpu.v            # Integration testbench
-│   ├── tb_decoder.v
-│   ├── tb_mem.v
-│   ├── tb_pc.v
-│   ├── tb_regfile.v
-│   ├── tb_stack.v
-│   └── cpu_program.hex     # Program used by tb_cpu.v
-├── quartus/
-│   ├── cpu_fpga.qsf        # Quartus project + pin assignments
-│   ├── cpu_fpga.sdc        # Timing constraints (12 MHz)
-│   └── program.hex         # Infinite-loop demo program for the FPGA
-├── tools/
-│   ├── assembler.py        # Two-pass assembler (Python 3, no dependencies)
-│   └── tests/
-│       └── test_assembler.py  # pytest unit tests (76 tests)
-└── sim/                    # Compiled simulation binaries (generated)
-```
+| Program | Explanation |
+| ------- | ----------- |
+| [](examples/infinite_counter.asm) | counts from 0 to 63 then starts again |
+| [](examples/led_test.asm) | counts from 0-255 in R7 (this register is used to drive the 8 leds on the board)|
+| [](examples/pc_test.asm) | executes 32 NOP (nothing operator) to test the program counter leds)|
+| [](examples/fibonacci.asm) | Calculates fibonacci nummers that fit in 8bits, stores in RAM and R7 to view the result|
+| [](examples/fibonacci.asm) | same as above but uses the stack to store the numbers |
+| [](example/knightrider.asm) | Display the knightrider pattern on the leds|
+
 
 ---
 
