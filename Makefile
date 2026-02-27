@@ -8,7 +8,7 @@
 # Usage:
 #   make sim          — compile and run all testbenches (prints PASS/FAIL)
 #   make wave TB=cpu  — open surfer for a specific testbench
-#                       TB can be: alu, decoder, mem, pc, regfile, stack, cpu, fibonacci
+#                       TB can be: alu, decoder, mem, pc, regfile, stack, cpu, fibonacci, fibonacci_stack
 #   make clean        — remove compiled binaries and VCD files
 # =============================================================================
 
@@ -24,7 +24,7 @@ SIM_DIR = sim/vcd
 # ---------------------------------------------------------------------------
 # All testbenches
 # ---------------------------------------------------------------------------
-TBS = alu decoder mem pc regfile stack cpu fibonacci
+TBS = alu decoder mem pc regfile stack cpu fibonacci fibonacci_stack
 
 .PHONY: all sim clean $(TBS:%=sim-%) $(TBS:%=wave-%)
 
@@ -75,6 +75,11 @@ sim-fibonacci: $(SIM_DIR)
 	@echo "--- tb_fibonacci ---"
 	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_fibonacci tb/tb_fibonacci.v $(RTL)
 	$(VVP) $(SIM_DIR)/tb_fibonacci
+
+sim-fibonacci_stack: $(SIM_DIR)
+	@echo "--- tb_fibonacci_stack ---"
+	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_fibonacci_stack tb/tb_fibonacci_stack.v $(RTL)
+	$(VVP) $(SIM_DIR)/tb_fibonacci_stack
 
 # ---------------------------------------------------------------------------
 # GTKWave: make wave TB=<name>

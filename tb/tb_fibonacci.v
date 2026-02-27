@@ -49,15 +49,17 @@ always #5 clk = ~clk;
 // Instantiate CPU
 // ---------------------------------------------------------------------------
 cpu #(.ROM_INIT("examples/fibonacci.hex")) u_cpu (
-    .clk        (clk),
-    .rst        (rst),
-    .halt_out   (halt_out),
-    .dbg_pc     (dbg_pc),
-    .dbg_flag_z (dbg_flag_z),
-    .dbg_flag_c (dbg_flag_c),
-    .dbg_flag_n (dbg_flag_n),
-    .dbg_flag_v (dbg_flag_v),
-    .dbg_r7     (dbg_r7)
+    .clk             (clk),
+    .rst             (rst),
+    .halt_out        (halt_out),
+    .dbg_pc          (dbg_pc),
+    .dbg_flag_z      (dbg_flag_z),
+    .dbg_flag_c      (dbg_flag_c),
+    .dbg_flag_n      (dbg_flag_n),
+    .dbg_flag_v      (dbg_flag_v),
+    .dbg_r7          (dbg_r7),
+    .dbg_stack_top   (),
+    .dbg_stack_empty ()
 );
 
 // ---------------------------------------------------------------------------

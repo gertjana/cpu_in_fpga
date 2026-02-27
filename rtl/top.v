@@ -190,15 +190,17 @@ wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 wire [7:0] dbg_r7;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
-    .clk        (cpu_clk),
-    .rst        (rst),
-    .halt_out   (halt_out),
-    .dbg_pc     (dbg_pc),
-    .dbg_flag_z (dbg_flag_z),
-    .dbg_flag_c (dbg_flag_c),
-    .dbg_flag_n (dbg_flag_n),
-    .dbg_flag_v (dbg_flag_v),
-    .dbg_r7     (dbg_r7)
+    .clk             (cpu_clk),
+    .rst             (rst),
+    .halt_out        (halt_out),
+    .dbg_pc          (dbg_pc),
+    .dbg_flag_z      (dbg_flag_z),
+    .dbg_flag_c      (dbg_flag_c),
+    .dbg_flag_n      (dbg_flag_n),
+    .dbg_flag_v      (dbg_flag_v),
+    .dbg_r7          (dbg_r7),
+    .dbg_stack_top   (),
+    .dbg_stack_empty ()
 );
 
 // ---------------------------------------------------------------------------

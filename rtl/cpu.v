@@ -30,7 +30,9 @@ module cpu #(
     output wire       dbg_flag_c,
     output wire       dbg_flag_n,
     output wire       dbg_flag_v,
-    output wire [7:0] dbg_r7
+    output wire [7:0] dbg_r7,
+    output wire [7:0] dbg_stack_top,   // current top-of-stack value (combinational peek)
+    output wire       dbg_stack_empty  // stack is empty
 );
 
 // ---------------------------------------------------------------------------
@@ -215,7 +217,7 @@ stack u_stack (
     .data_in   (stack_data_in),
     .data_out  (stack_data_out),
     .full      (),
-    .empty     (),
+    .empty     (dbg_stack_empty),
     .overflow  (),
     .underflow ()
 );
@@ -277,5 +279,7 @@ assign dbg_flag_c = flag_c;
 assign dbg_flag_n = flag_n;
 assign dbg_flag_v = flag_v;
 // dbg_r7 is wired directly from regfile port
+assign dbg_stack_top   = stack_data_out;
+// dbg_stack_empty is wired directly from stack port
 
 endmodule
