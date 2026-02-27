@@ -1,7 +1,7 @@
 ; fibonacci_stack.asm — compute Fibonacci numbers until 8-bit overflow,
 ;                       storing each value on the hardware stack, then
 ;                       popping them all off to verify LIFO order.
-; clk_div: 23
+; clk_div: 20
 ;           12 MHz / 2^23 ≈ 1.4 Hz — slow enough to watch each result appear
 ;
 ; Phase 1 — PUSH:
