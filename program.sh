@@ -8,22 +8,20 @@
 # What it does:
 #   1. Checks openFPGALoader is installed.
 #   2. Looks for a connected MAX1000 / Arrow USB-Blaster.
-#   3. Programs quartus/output_files/cpu_fpga.sof into the FPGA SRAM.
+#   3. Programs quartus_output/<branch>/<name>/cpu_fpga.sof into FPGA SRAM.
 #      (SRAM programming is volatile — bitstream is lost on power-cycle.)
 #
 # For permanent (flash) programming see the note at the bottom.
 #
 # Usage:
-#   ./program.sh              — program SRAM with cpu_fpga.sof
-#   ./program.sh --flash      — program internal flash with cpu_fpga.pof (permanent)
+#   ./program.sh <name>           — program SRAM  (e.g. ./program.sh fibonacci)
+#   ./program.sh <name> --flash   — program flash (permanent)
 # =============================================================================
 
 #set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-SOF_FILE="${SCRIPT_DIR}/quartus_output/${BRANCH}/cpu_fpga.sof"
-POF_FILE="${SCRIPT_DIR}/quartus_output/${BRANCH}/cpu_fpga.pof"
 
 # Colour helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
@@ -32,8 +30,24 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
+# ---------------------------------------------------------------------------
+# Parse arguments: <name> [--flash]
+# ---------------------------------------------------------------------------
 FLASH_MODE=false
-[[ "${1:-}" == "--flash" ]] && FLASH_MODE=true
+NAME=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --flash) FLASH_MODE=true ;;
+        *)       NAME="${arg%.asm}" ;;   # strip .asm suffix if included
+    esac
+done
+
+[[ -n "$NAME" ]] || die "Usage: $0 <name> [--flash]\n  e.g. $0 fibonacci"
+
+OUTPUT_DIR="${SCRIPT_DIR}/quartus_output/${BRANCH}/${NAME}"
+SOF_FILE="${OUTPUT_DIR}/cpu_fpga.sof"
+POF_FILE="${OUTPUT_DIR}/cpu_fpga.pof"
 
 # ---------------------------------------------------------------------------
 # 1. Check openFPGALoader is installed
@@ -44,6 +58,7 @@ fi
 
 OFPL_VERSION=$(openFPGALoader --Version 2>&1 | head -1)
 info "openFPGALoader: ${OFPL_VERSION}"
+info "Program: ${NAME}  (${OUTPUT_DIR}/)"
 
 # ---------------------------------------------------------------------------
 # 2. Detect the MAX1000 / Arrow USB-Blaster
@@ -65,7 +80,7 @@ fi
 if $FLASH_MODE; then
     # --- Flash (permanent, survives power-cycle) ---
     [[ -f "${POF_FILE}" ]] \
-        || die "POF file not found: ${POF_FILE}\nRun ./synthesize.sh first."
+        || die "POF file not found: ${POF_FILE}\nRun ./build_and_download.sh ${NAME} first."
 
     info "Programming internal flash with: ${POF_FILE}"
     warn "Flash programming takes ~30 s. Do not disconnect the board."
@@ -75,14 +90,14 @@ if $FLASH_MODE; then
 else
     # --- SRAM (volatile, fastest — use during development) ---
     [[ -f "${SOF_FILE}" ]] \
-        || die "SOF file not found: ${SOF_FILE}\nRun ./synthesize.sh first."
+        || die "SOF file not found: ${SOF_FILE}\nRun ./build_and_download.sh ${NAME} first."
 
     info "Programming FPGA SRAM with: ${SOF_FILE}"
 
     openFPGALoader ${CABLE_FLAG} "${SOF_FILE}"
     ok "SRAM programming complete."
     info "Note: bitstream is volatile — it will be lost on power-cycle."
-    info "Use ./program.sh --flash to program the internal flash permanently."
+    info "Use ./program.sh ${NAME} --flash to program the internal flash permanently."
 fi
 
 # ---------------------------------------------------------------------------
@@ -91,7 +106,7 @@ fi
 # MAX 10 has internal flash.  To program it permanently:
 #   1. In Quartus, go to File → Convert Programming Files and generate a .pof
 #      targeting the CFM (Configuration Flash Memory).
-#   2. Run:  ./program.sh --flash
+#   2. Run:  ./program.sh <name> --flash
 #
 # Alternatively, openFPGALoader can convert and write in one step for some
 # boards, but explicit POF generation via Quartus is more reliable for MAX 10.

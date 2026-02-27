@@ -1,7 +1,7 @@
 # =============================================================================
 # synthesize.yml — GitHub Actions workflow: Quartus synthesis for MAX1000
 #
-# Runs on every push to main.  Checkout and artifact upload happen on the
+# Runs on manual dispatch only.  Checkout and artifact upload happen on the
 # ubuntu-latest runner (modern glibc).  Only the Quartus compilation step
 # runs inside the raetro/quartus:21.1 Docker container, invoked via
 # `docker run` — this avoids the glibc incompatibility that breaks
@@ -9,19 +9,20 @@
 # job container directly.
 #
 # The program burned into ROM is selectable at synthesis time:
-#   - On a push to main the default program is used (examples/infinite_counter.asm)
 #   - For a manual run (Actions → "Run workflow") pick any .asm from examples/
 #     in the "Program" dropdown.  The assembler runs first; no pre-built
 #     program.hex needs to be committed.
+#
+# The artifact is named "quartus-output-<name>" so multiple programs can be
+# stored side by side in the same workflow run history.
 #
 # Outputs:
 #   - cpu_fpga.sof  (SRAM programming, volatile)
 #   - cpu_fpga.pof  (flash programming, permanent) — if Quartus generates it
 #
 # To program your board after a successful run:
-#   1. Download the artifact "quartus-output" from the Actions run
-#   2. Unzip it — you get cpu_fpga.sof
-#   3. Run:  ./program.sh   (requires openFPGALoader, see README)
+#   ./build_and_download.sh <name>   (downloads artifact into quartus_output/<branch>/<name>/)
+#   ./program.sh <name>              (flashes the board)
 # =============================================================================
 
 name: Quartus Synthesis
@@ -33,6 +34,11 @@ on:
         description: "Assembly source to burn into ROM (relative to repo root)"
         required: true
         default: "examples/infinite_counter.asm"
+        type: string
+      name:
+        description: "Short name for the program (used to name the artifact)"
+        required: true
+        default: "infinite_counter"
         type: string
 
 jobs:
@@ -49,9 +55,6 @@ jobs:
 
       # -----------------------------------------------------------------------
       # 2. Assemble the selected program into quartus/program.hex
-      #
-      # On a push trigger ${{ inputs.program }} is empty; fall back to the
-      # default program via the shell expression.
       # -----------------------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -61,7 +64,6 @@ jobs:
       - name: Assemble program into quartus/program.hex
         run: |
           PROGRAM="${{ inputs.program }}"
-          PROGRAM="${PROGRAM:-examples/infinite_counter.asm}"
           echo "Building ROM from: $PROGRAM"
           python3 tools/assembler.py -o quartus/program.hex "$PROGRAM"
           echo "--- quartus/program.hex ---"
@@ -99,16 +101,17 @@ jobs:
           ls -lh quartus/output_files/ || echo "(no output files)"
 
       # -----------------------------------------------------------------------
-      # 5. Upload the output files as a downloadable artifact
+      # 5. Upload the output files as a downloadable artifact.
       #
-      # Retention: 30 days.  Download from:
-      #   Actions tab → this run → Artifacts → quartus-output
+      # The artifact is named "quartus-output-<name>" so multiple programs
+      # can coexist in the same repository's artifact history.
+      # Retention: 30 days.
       # -----------------------------------------------------------------------
       - name: Upload output files
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: quartus-output
+          name: quartus-output-${{ inputs.name }}
           path: |
             quartus/output_files/cpu_fpga.sof
             quartus/output_files/cpu_fpga.pof

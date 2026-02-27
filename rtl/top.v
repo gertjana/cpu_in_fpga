@@ -60,12 +60,12 @@ wire heartbeat = hb_ctr[23];
 
 // ---------------------------------------------------------------------------
 // CPU clock prescaler — runs the CPU at a human-visible rate.
-//   cpu_clk toggles at 12 MHz / 2^CPU_CLK_DIV_BITS ≈ 1.43 Hz (bits=23).
+//   cpu_clk toggles at 12 MHz / 2^CPU_CLK_DIV_BITS ≈ 4.77 Hz (bits=20).
 //   Increase CPU_CLK_DIV_BITS to slow down further; set to 1 for near
 //   full-speed (6 MHz). This is a simple clock-enable gated on posedge
 //   clk_12m so it is safe for synchronous logic.
 // ---------------------------------------------------------------------------
-parameter CPU_CLK_DIV_BITS = 21;
+parameter CPU_CLK_DIV_BITS = 20;
 
 reg [CPU_CLK_DIV_BITS-1:0] cpu_div_ctr;
 always @(posedge clk_12m) begin
