@@ -1,4 +1,6 @@
 ; knightrider.asm — Knight Rider LED scanner (K.I.T.T. from the TV series)
+; clk_div: 17
+;           12 MHz / 2^17 ≈ 91 Hz — fast enough for a smooth visible bounce
 ;
 ; A single lit LED bounces left and right across the 8 LEDs continuously.
 ;

@@ -1,4 +1,6 @@
 ; count_to_9.asm — count from 0 to 9, then halt
+; clk_div: 20
+;           12 MHz / 2^20 ≈ 11.4 Hz
 ;
 ; Demonstrates: LDI, ADDI, CMPI, JNZ, HALT
 ;

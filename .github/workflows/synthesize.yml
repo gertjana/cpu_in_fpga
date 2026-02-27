@@ -13,6 +13,11 @@
 #     in the "Program" dropdown.  The assembler runs first; no pre-built
 #     program.hex needs to be committed.
 #
+# The CPU clock speed is also selectable via clk_div (default 20):
+#   CPU_CLK_DIV_BITS sets the prescaler width.  12 MHz / 2^N:
+#     23 → ~1.43 Hz   22 → ~2.86 Hz   21 → ~5.7 Hz
+#     20 → ~11.4 Hz   17 → ~91 Hz     14 → ~732 Hz
+#
 # The artifact is named "quartus-output-<name>" so multiple programs can be
 # stored side by side in the same workflow run history.
 #
@@ -21,7 +26,7 @@
 #   - cpu_fpga.pof  (flash programming, permanent) — if Quartus generates it
 #
 # To program your board after a successful run:
-#   ./build_and_download.sh <name>   (downloads artifact into quartus_output/<branch>/<name>/)
+#   ./build_and_download.sh <name>   (reads clk_div from .asm, downloads artifact)
 #   ./program.sh <name>              (flashes the board)
 # =============================================================================
 
@@ -39,6 +44,11 @@ on:
         description: "Short name for the program (used to name the artifact)"
         required: true
         default: "infinite_counter"
+        type: string
+      clk_div:
+        description: "CPU_CLK_DIV_BITS — set automatically from '; clk_div: N' in the .asm header. 12 MHz / 2^N."
+        required: false
+        default: "20"
         type: string
 
 jobs:
@@ -70,7 +80,18 @@ jobs:
           cat quartus/program.hex
 
       # -----------------------------------------------------------------------
-      # 3. Run Quartus inside the raetro/quartus:21.1 container via docker run.
+      # 3. Patch CPU_CLK_DIV_BITS in rtl/top.v with the requested clock divider.
+      # -----------------------------------------------------------------------
+      - name: Patch CPU clock divider in rtl/top.v
+        run: |
+          CLK_DIV="${{ inputs.clk_div }}"
+          echo "Setting CPU_CLK_DIV_BITS = ${CLK_DIV}"
+          sed -i "s/^parameter CPU_CLK_DIV_BITS = [0-9]*;/parameter CPU_CLK_DIV_BITS = ${CLK_DIV};/" rtl/top.v
+          echo "--- patched line ---"
+          grep "^parameter CPU_CLK_DIV_BITS" rtl/top.v
+
+      # -----------------------------------------------------------------------
+      # 4. Run Quartus inside the raetro/quartus:21.1 container via docker run.
       #
       # Why not use `container:` at the job level?
       #   raetro/quartus:21.1 is Debian Stretch (glibc 2.24).  GitHub Actions
@@ -89,7 +110,7 @@ jobs:
             bash -c "cd /workspace/quartus && quartus_sh --flow compile cpu_fpga"
 
       # -----------------------------------------------------------------------
-      # 4. Show a quick summary of what was built
+      # 5. Show a quick summary of what was built
       # -----------------------------------------------------------------------
       - name: Show flow summary
         if: always()
@@ -101,7 +122,7 @@ jobs:
           ls -lh quartus/output_files/ || echo "(no output files)"
 
       # -----------------------------------------------------------------------
-      # 5. Upload the output files as a downloadable artifact.
+      # 6. Upload the output files as a downloadable artifact.
       #
       # The artifact is named "quartus-output-<name>" so multiple programs
       # can coexist in the same repository's artifact history.
