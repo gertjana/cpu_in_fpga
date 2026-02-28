@@ -48,8 +48,8 @@ module top (
     input  wire       clk_12m,   // 12 MHz board clock (pin H6)
     input  wire       rst_n,     // USER_BTN active-low (pin E6)
     output wire [7:0] led,       // active-low LEDs: LED[0]..LED[7]
-    output wire       oled_scl,  // OLED I2C clock  (PMOD J5 pin 1, PIN_M8)
-    output wire       oled_sda   // OLED I2C data   (PMOD J5 pin 2, PIN_L8)
+    output wire       oled_scl,  // OLED I2C clock  (PMOD pin 1, PIN_M3)
+    output wire       oled_sda   // OLED I2C data   (PMOD pin 2, PIN_L3)
 );
 
 // ---------------------------------------------------------------------------

@@ -71,9 +71,11 @@ set_location_assignment PIN_C9  -to led[5]
 set_location_assignment PIN_C10 -to led[6]
 set_location_assignment PIN_D8  -to led[7]
 
-# OLED I2C (SSD1306, PMOD header J5)
-set_location_assignment PIN_M8  -to oled_scl
-set_location_assignment PIN_L8  -to oled_sda
+# OLED I2C (SSD1306, PMOD header)
+# Header pin order: M3 L3 M2 M1 GND 3V3 / N3 N2 K2 K1 GND 3V3
+# Using first two signal pins: pin 1 = M3 (SCL), pin 2 = L3 (SDA)
+set_location_assignment PIN_M3  -to oled_scl
+set_location_assignment PIN_L3  -to oled_sda
 
 # ---------------------------------------------------------------------------
 # I/O standards
