@@ -37,6 +37,9 @@ set_global_assignment -name VERILOG_FILE ../rtl/decoder.v
 set_global_assignment -name VERILOG_FILE ../rtl/rom.v
 set_global_assignment -name VERILOG_FILE ../rtl/ram.v
 set_global_assignment -name VERILOG_FILE ../rtl/stack.v
+set_global_assignment -name VERILOG_FILE ../rtl/i2c_master.v
+set_global_assignment -name VERILOG_FILE ../rtl/char_rom.v
+set_global_assignment -name VERILOG_FILE ../rtl/oled_ctrl.v
 
 # ---------------------------------------------------------------------------
 # Pin assignments — MAX1000 well-known pinout
@@ -68,6 +71,10 @@ set_location_assignment PIN_C9  -to led[5]
 set_location_assignment PIN_C10 -to led[6]
 set_location_assignment PIN_D8  -to led[7]
 
+# OLED I2C (SSD1306, PMOD header J5)
+set_location_assignment PIN_M8  -to oled_scl
+set_location_assignment PIN_L8  -to oled_sda
+
 # ---------------------------------------------------------------------------
 # I/O standards
 # ---------------------------------------------------------------------------
@@ -81,6 +88,8 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[4]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[5]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[6]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to oled_scl
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to oled_sda
 
 # ---------------------------------------------------------------------------
 # Timing constraints (simple SDC — 12 MHz = 83.33 ns period)

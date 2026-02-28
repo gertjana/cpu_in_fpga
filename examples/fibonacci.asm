@@ -39,6 +39,8 @@
 
 ; ── initialise ────────────────────────────────────────────────────────────────
 
+        .oled_label "Fibonacci       "
+
         LDI  R1, 0          ; a = fib(0) = 0
         LDI  R2, 1          ; b = fib(1) = 1
         LDI  R0, BASE       ; R0 = RAM address pointer

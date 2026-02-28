@@ -50,6 +50,10 @@
 
 ; ── initialise ────────────────────────────────────────────────────────────────
 
+; Write program name to OLED label buffer (RAM[0xF0..0xFF])
+; Uses R4 (addr) and R5 (char) as scratch — restored below.
+        .oled_label "KnightRider     "
+
 ; Build R1 = 0x80.  LDI is limited to 6-bit immediates (0..63),
 ; so 0x80 (128) cannot be loaded directly.  Compute via two SHL from 0x20.
         LDI  R1, 0x20       ; R1 = 0x20

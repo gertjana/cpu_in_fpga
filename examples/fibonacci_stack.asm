@@ -36,6 +36,8 @@
 
 ; ── Phase 1: compute and PUSH ──────────────────────────────────────────────
 
+        .oled_label "Fib Stack       "
+
         LDI  R1, 0          ; a = fib(0) = 0
         LDI  R2, 1          ; b = fib(1) = 1
         LDI  R4, 1          ; R4 = constant 1 (for decrement in phase 2)

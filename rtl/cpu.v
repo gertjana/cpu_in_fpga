@@ -32,7 +32,10 @@ module cpu #(
     output wire       dbg_flag_v,
     output wire [7:0] dbg_r7,
     output wire [7:0] dbg_stack_top,   // current top-of-stack value (combinational peek)
-    output wire       dbg_stack_empty  // stack is empty
+    output wire       dbg_stack_empty, // stack is empty
+    // Debug RAM port — OLED controller scans label buffer at 0xF0..0xFF
+    input  wire [7:0] dbg_ram_addr,
+    output wire [7:0] dbg_ram_data
 );
 
 // ---------------------------------------------------------------------------
@@ -195,7 +198,9 @@ ram u_ram (
     .we       (dec_mem_we),
     .addr     (ram_addr),
     .data_in  (rb_data),    // ST stores rb_data at ra_data address
-    .data_out (ram_rdata)
+    .data_out (ram_rdata),
+    .dbg_addr (dbg_ram_addr),
+    .dbg_data (dbg_ram_data)
 );
 
 // --- Stack ---

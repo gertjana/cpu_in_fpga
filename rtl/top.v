@@ -47,7 +47,9 @@
 module top (
     input  wire       clk_12m,   // 12 MHz board clock (pin H6)
     input  wire       rst_n,     // USER_BTN active-low (pin E6)
-    output wire [7:0] led        // active-low LEDs: LED[0]..LED[7]
+    output wire [7:0] led,       // active-low LEDs: LED[0]..LED[7]
+    output wire       oled_scl,  // OLED I2C clock  (PMOD J5 pin 1, PIN_M8)
+    output wire       oled_sda   // OLED I2C data   (PMOD J5 pin 2, PIN_L8)
 );
 
 // ---------------------------------------------------------------------------
@@ -182,6 +184,10 @@ wire       halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 wire [7:0] dbg_r7;
+wire [7:0] dbg_stack_top;
+wire       dbg_stack_empty;
+wire [7:0] oled_ram_addr;
+wire [7:0] oled_ram_data;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),
@@ -193,8 +199,31 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
     .dbg_flag_n      (dbg_flag_n),
     .dbg_flag_v      (dbg_flag_v),
     .dbg_r7          (dbg_r7),
-    .dbg_stack_top   (),
-    .dbg_stack_empty ()
+    .dbg_stack_top   (dbg_stack_top),
+    .dbg_stack_empty (dbg_stack_empty),
+    .dbg_ram_addr    (oled_ram_addr),
+    .dbg_ram_data    (oled_ram_data)
+);
+
+// ---------------------------------------------------------------------------
+// OLED controller
+// ---------------------------------------------------------------------------
+oled_ctrl u_oled (
+    .clk         (clk_12m),
+    .rst         (rst),
+    .pc          (dbg_pc),
+    .flag_z      (dbg_flag_z),
+    .flag_c      (dbg_flag_c),
+    .flag_n      (dbg_flag_n),
+    .flag_v      (dbg_flag_v),
+    .r7          (dbg_r7),
+    .stack_top   (dbg_stack_top),
+    .stack_empty (dbg_stack_empty),
+    .halted      (halt_out),
+    .ram_dbg_addr(oled_ram_addr),
+    .ram_dbg_data(oled_ram_data),
+    .scl         (oled_scl),
+    .sda         (oled_sda)
 );
 
 // ---------------------------------------------------------------------------

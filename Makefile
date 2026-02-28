@@ -19,12 +19,14 @@ WAVE     = surfer
 RTL = rtl/cpu.v rtl/alu.v rtl/regfile.v rtl/pc.v \
       rtl/decoder.v rtl/rom.v rtl/ram.v rtl/stack.v
 
+OLED_RTL = rtl/i2c_master.v rtl/char_rom.v rtl/oled_ctrl.v
+
 SIM_DIR = sim/vcd
 
 # ---------------------------------------------------------------------------
 # All testbenches
 # ---------------------------------------------------------------------------
-TBS = alu decoder mem pc regfile stack cpu fibonacci fibonacci_stack knightrider
+TBS = alu decoder mem pc regfile stack cpu fibonacci fibonacci_stack knightrider oled
 
 .PHONY: all sim clean $(TBS:%=sim-%) $(TBS:%=wave-%)
 
@@ -85,6 +87,11 @@ sim-knightrider: $(SIM_DIR)
 	@echo "--- tb_knightrider ---"
 	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_knightrider tb/tb_knightrider.v $(RTL)
 	$(VVP) $(SIM_DIR)/tb_knightrider
+
+sim-oled: $(SIM_DIR)
+	@echo "--- tb_oled ---"
+	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_oled tb/tb_oled.v $(OLED_RTL) rtl/ram.v
+	$(VVP) $(SIM_DIR)/tb_oled
 
 # ---------------------------------------------------------------------------
 # GTKWave: make wave TB=<name>

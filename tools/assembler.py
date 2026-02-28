@@ -335,6 +335,99 @@ ALL_MNEMONICS = set(ALU_SUB) | set(JUMP_SUB) | set(STACK_SUB) | {
     "ADDI", "LDI", "LD", "ST", "MOV", "CMP", "CMPI", "NOP", "HALT"
 }
 
+# Directives that are not instructions but are handled in the main passes.
+# .EQU and .ORG are handled inline; .OLED_LABEL is a macro that expands
+# to a sequence of real instructions.
+DIRECTIVES = {".EQU", ".ORG", ".OLED_LABEL"}
+
+
+def expand_oled_label(text: str, filename: str, lineno: int) -> list:
+    """
+    Expand  .oled_label "text"  into a list of 16-bit instruction words.
+
+    Writes up to 16 ASCII characters into RAM[0xF0..0xFF] using registers
+    R4 (address pointer) and R5 (character value).  Existing values in R4/R5
+    are clobbered.  Call this at program startup before the main loop.
+
+    Encoding for the address (0xF0 = 240):
+        LDI  R4, 60      ; R4 = 60 = 0x3C
+        SHL  R4, R4      ; R4 = 120
+        SHL  R4, R4      ; R4 = 240 = 0xF0
+
+    Encoding for each character (ASCII value c):
+        c <= 63 : LDI  R5, c
+                  ST   [R4], R5
+                  ADDI R4, R4, 1      (advance pointer, unless last char)
+        c > 63  : LDI  R5, c-64      ; c-64 fits in 6 bits for printable ASCII (max 126-64=62)
+                  ADDI R5, R5, 64     ; ... but 64 > 63, so instead:
+                  ; We use:  LDI R5, (c>>1)  then SHL R5,R5  then ADDI R5,R5,(c&1)
+                  ; This works for c up to 127.
+
+    Uses 3 instruction address setup + 3–4 instructions per character.
+    Total for 16 chars ≈ 3 + 16×3 = 51 instructions worst case.
+    """
+    # Strip surrounding quotes and limit to 16 chars, pad with spaces
+    text = text.strip()
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        text = text[1:-1]
+    elif len(text) >= 2 and text[0] == "'" and text[-1] == "'":
+        text = text[1:-1]
+    else:
+        raise AsmError(".oled_label requires a quoted string", filename, lineno)
+
+    text = text[:16].ljust(16)   # pad / truncate to exactly 16 chars
+
+    words = []
+
+    # Register indices
+    R4 = 4
+    R5 = 5
+
+    def ldi(rd, imm6):
+        return (GRP_MEM << 12) | (MEM_LDI << 9) | (rd << 6) | (imm6 & 0x3F)
+
+    def addi(rd, ra, imm6):
+        return (GRP_ADDI << 12) | (rd << 9) | (ra << 6) | (imm6 & 0x3F)
+
+    def shl(rd, ra):
+        return (GRP_ALU << 12) | (rd << 9) | (ra << 6) | (0 << 3) | ALU_SUB["SHL"]
+
+    def st(ra, rb):
+        # ST [Ra], Rb  → addr=Ra (f_rb field [5:3]), data=Rb (f_sub [2:0])
+        return (GRP_MEM << 12) | (MEM_ST << 9) | (ra << 3) | rb
+
+    # Address setup: R4 = 0xF0 = 240
+    # LDI R4, 60  → SHL R4,R4  → SHL R4,R4  (60 → 120 → 240)
+    words.append(ldi(R4, 60))
+    words.append(shl(R4, R4))
+    words.append(shl(R4, R4))
+
+    for i, ch in enumerate(text):
+        c = ord(ch) & 0xFF
+        if c == 0:
+            c = 0x20  # treat NUL as space
+
+        # Load c into R5
+        if c <= 63:
+            words.append(ldi(R5, c))
+        else:
+            # c = 2*(c>>1) + (c&1); c>>1 <= 63 for c <= 127
+            half = c >> 1
+            bit0 = c & 1
+            words.append(ldi(R5, half))
+            words.append(shl(R5, R5))
+            if bit0:
+                words.append(addi(R5, R5, 1))
+
+        # ST [R4], R5
+        words.append(st(R4, R5))
+
+        # ADDI R4, R4, 1  (advance pointer) — skip for last char
+        if i < 15:
+            words.append(addi(R4, R4, 1))
+
+    return words
+
 
 def encode_instruction(mnemonic, operands, symbols, filename, lineno) -> int:
     if mnemonic in ALU_SUB:
@@ -442,6 +535,19 @@ def assemble(source: str, filename: str = "<stdin>"):
                 errors.append(e)
             continue
 
+        if mnemonic == ".OLED_LABEL":
+            # Macro: expands to a sequence of real instructions.
+            # Count them in Pass 1 so labels after this directive get correct addresses.
+            # Extract raw argument from line (everything after the mnemonic).
+            raw_rest = line[len(".oled_label"):].strip() if line.lower().startswith(".oled_label") else ""
+            try:
+                expanded = expand_oled_label(raw_rest, filename, lineno)
+            except AsmError as e:
+                errors.append(e)
+                continue
+            pc += len(expanded)
+            continue
+
         if mnemonic not in ALL_MNEMONICS:
             errors.append(AsmError(f"unknown mnemonic '{mnemonic}'", filename, lineno))
             continue
@@ -492,6 +598,16 @@ def assemble(source: str, filename: str = "<stdin>"):
         if mnemonic == ".ORG":
             pc = _eval_atom(operands[0].strip(), symbols, filename, lineno)
             listing.append((pc, None, raw))
+            continue
+
+        if mnemonic == ".OLED_LABEL":
+            # Expand macro into a sequence of real instruction words.
+            raw_rest = rest[len(".oled_label"):].strip() if rest.lower().startswith(".oled_label") else ""
+            expanded = expand_oled_label(raw_rest, filename, lineno)
+            listing.append((pc, None, raw))   # show directive as single listing line
+            for w in expanded:
+                words.append((pc, w))
+                pc += 1
             continue
 
         word = encode_instruction(mnemonic, operands, symbols, filename, lineno)

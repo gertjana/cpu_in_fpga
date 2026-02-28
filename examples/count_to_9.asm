@@ -11,6 +11,8 @@
 
 .equ LIMIT, 10
 
+        .oled_label "Count to 9      "
+
         LDI  R0, 0          ; R0 = 0  (counter)
         LDI  R1, LIMIT      ; R1 = 10 (loop bound)
 loop:

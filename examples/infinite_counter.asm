@@ -11,6 +11,8 @@
 
 .equ LIMIT, 63
 
+        .oled_label "Inf Counter     "
+
         LDI  R0, 0          ; R0 = 0  (counter)
         LDI  R1, LIMIT      ; R1 = 63
 loop:
