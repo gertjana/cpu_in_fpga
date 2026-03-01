@@ -1,95 +1,84 @@
 // =============================================================================
-// i2c_master.v — minimal I2C master for SSD1306 (one transaction at a time)
+// i2c_master.v — streaming I2C master for SSD1306
 //
-// Sends exactly one I2C transaction per invocation:
-//   START  →  addr byte (0x78 = 0x3C<<1 | 0=write)
-//          →  control byte (0x00 = command stream, 0x40 = data stream)
-//          →  data byte
-//          →  STOP
+// Sends one I2C transaction with a variable-length payload:
+//   START → addr+W → control_byte → data[0] → data[1] → ... → STOP
 //
-// Handshake:
-//   Caller asserts start=1 for one clk cycle.
-//   busy goes high immediately and stays high until STOP is complete.
-//   Caller must not assert start again while busy=1.
+// Streaming interface:
+//   1. Assert start=1 with dcn and first data byte on data[].
+//      busy goes high on the next clock.
+//   2. After addr+W ACK and control byte ACK, the master begins clocking
+//      data bytes. It asserts req=1 one cycle before it needs the next byte.
+//   3. Caller presents the next byte on data[] and asserts last=1 if it is
+//      the final byte.
+//   4. After the final byte's ACK, STOP is issued and busy falls.
 //
-// Clock division:
-//   SCL period = 4 * T_WAIT clk cycles.
-//   Default T_WAIT=15 → SCL period = 60 cycles @ 12 MHz = ~200 kHz.
-//   (SSD1306 supports up to 400 kHz; 200 kHz is conservative and safe.)
+// If only one byte is needed (last=1 when start fires), the transaction is:
+//   START → addr+W → ctrl → data[0] → STOP
 //
-// Push-pull drive (not open-drain) — fine for short traces at 3.3 V.
+// Clock: SCL period = 4 × T_WAIT clk cycles.
+//   T_WAIT=15 → 200 kHz at 12 MHz (SSD1306 max 400 kHz).
+//
+// Push-pull drive — no open-drain needed for short traces at 3.3 V.
 //
 // Verilog-2005.
 // =============================================================================
 
 module i2c_master #(
-    parameter T_WAIT = 15           // quarter-period in clk cycles
+    parameter T_WAIT = 15
 ) (
     input            clk,
     input            rst,
-    input            start,         // 1-cycle pulse: begin transaction
-    input            dcn,           // 0 = command byte, 1 = data byte
-    input      [7:0] data,          // byte to send after control byte
-    output reg       busy,
+    // Transaction start
+    input            start,     // 1-cycle pulse: launch transaction
+    input            dcn,       // 0=command stream, 1=data stream (control byte)
+    input      [7:0] data,      // current byte (valid when start=1 or req=1)
+    input            last,      // 1 = this is the last byte of the transaction
+    // Flow control
+    output reg       busy,      // high for entire transaction
+    output reg       req,       // 1 = need next byte on data[] next cycle
+    // I2C bus
     output reg       scl,
     output reg       sda
 );
 
 // ---------------------------------------------------------------------------
-// SSD1306 I2C address and control bytes
-// ---------------------------------------------------------------------------
 localparam [6:0] SSD1306_ADDR = 7'h3C;
-localparam [7:0] CTRL_CMD     = 8'h00;  // Co=0 D/C#=0 → command stream
-localparam [7:0] CTRL_DATA    = 8'h40;  // Co=0 D/C#=1 → data stream
+localparam [7:0] CTRL_CMD     = 8'h00;
+localparam [7:0] CTRL_DATA    = 8'h40;
 
 // ---------------------------------------------------------------------------
-// State encoding
-// ---------------------------------------------------------------------------
 localparam S_IDLE      = 4'd0;
-localparam S_START     = 4'd1;  // pull SDA low while SCL high
-localparam S_ADDR      = 4'd2;  // send 7-bit addr + W bit (8 bits)
-localparam S_ADDR_ACK  = 4'd3;  // release SDA, clock ACK bit
-localparam S_CTRL      = 4'd4;  // send control byte
-localparam S_CTRL_ACK  = 4'd5;  // ACK for control byte
-localparam S_DATA      = 4'd6;  // send data byte
-localparam S_DATA_ACK  = 4'd7;  // ACK for data byte
-localparam S_STOP      = 4'd8;  // pull SDA high while SCL high
+localparam S_START     = 4'd1;
+localparam S_ADDR      = 4'd2;
+localparam S_ADDR_ACK  = 4'd3;
+localparam S_CTRL      = 4'd4;
+localparam S_CTRL_ACK  = 4'd5;
+localparam S_DATA      = 4'd6;
+localparam S_DATA_ACK  = 4'd7;
+localparam S_STOP      = 4'd8;
 
 reg [3:0] state;
 
 // ---------------------------------------------------------------------------
 // Quarter-period timer
-// T_WAIT fits in 8 bits for any reasonable clock frequency.
 // ---------------------------------------------------------------------------
 reg [7:0] wait_ctr;
 wire timer_done = (wait_ctr == T_WAIT - 1);
 
 always @(posedge clk) begin
     if (rst || timer_done)
-        wait_ctr <= 0;
+        wait_ctr <= 8'd0;
     else if (busy)
         wait_ctr <= wait_ctr + 1'b1;
 end
 
 // ---------------------------------------------------------------------------
-// Bit counter (counts 0..7 for each byte)
-// ---------------------------------------------------------------------------
 reg [2:0] bit_ctr;
-
-// ---------------------------------------------------------------------------
-// Latched copies of dcn/data (captured on start)
-// ---------------------------------------------------------------------------
-reg       dcn_r;
-reg [7:0] data_r;
-reg [7:0] ctrl_r;       // computed control byte
-reg [7:0] shift_r;      // shift register for current byte being sent
-
-// SCL phase sub-counter: we split each bit into 4 T_WAIT phases:
-//   0: SCL low,  SDA set
-//   1: SCL rises
-//   2: SCL high  (sample point for ACK)
-//   3: SCL falls
 reg [1:0] phase;
+reg [7:0] shift_r;
+reg [7:0] ctrl_r;
+reg       last_r;   // latched last flag for current data byte
 
 // ---------------------------------------------------------------------------
 // Main FSM
@@ -98,11 +87,15 @@ always @(posedge clk) begin
     if (rst) begin
         state   <= S_IDLE;
         busy    <= 1'b0;
+        req     <= 1'b0;
         scl     <= 1'b1;
         sda     <= 1'b1;
         bit_ctr <= 3'd0;
         phase   <= 2'd0;
+        last_r  <= 1'b0;
     end else begin
+        req <= 1'b0; // default deassert
+
         case (state)
 
             // -----------------------------------------------------------------
@@ -110,41 +103,45 @@ always @(posedge clk) begin
                 scl <= 1'b1;
                 sda <= 1'b1;
                 if (start) begin
-                    dcn_r  <= dcn;
-                    data_r <= data;
-                    ctrl_r <= dcn ? CTRL_DATA : CTRL_CMD;
-                    busy   <= 1'b1;
-                    state  <= S_START;
-                    phase  <= 2'd0;
+                    ctrl_r  <= dcn ? CTRL_DATA : CTRL_CMD;
+                    shift_r <= data;   // first data byte, held for later
+                    last_r  <= last;
+                    busy    <= 1'b1;
+                    phase   <= 2'd0;
+                    state   <= S_START;
                 end
             end
 
             // -----------------------------------------------------------------
-            // START condition: SDA falls while SCL is high.
-            // We use two T_WAIT phases:
-            //   phase 0: SCL=1 SDA=1 (already there from IDLE)
-            //   phase 1: SCL=1 SDA=0  → START
-            // Then fall into first byte with SCL low.
+            // START: SDA falls while SCL high, then SCL falls
+            // phase 0 → SDA low (START condition)
+            // phase 1 → SCL low, load addr byte, go to S_ADDR
             // -----------------------------------------------------------------
             S_START: begin
                 if (timer_done) begin
-                    phase <= phase + 1'b1;
                     case (phase)
-                        2'd0: begin scl <= 1'b1; sda <= 1'b0; end  // SDA falls
-                        2'd1: begin scl <= 1'b0; sda <= 1'b0;      // SCL falls → addr
-                               shift_r <= {SSD1306_ADDR, 1'b0};    // addr + write
-                               bit_ctr <= 3'd7;
-                               phase   <= 2'd0;
-                               state   <= S_ADDR;
-                              end
+                        2'd0: begin
+                            sda   <= 1'b0;
+                            phase <= 2'd1;
+                        end
+                        2'd1: begin
+                            scl     <= 1'b0;
+                            shift_r <= {SSD1306_ADDR, 1'b0};
+                            bit_ctr <= 3'd7;
+                            phase   <= 2'd0;
+                            state   <= S_ADDR;
+                        end
                         default: ;
                     endcase
                 end
             end
 
             // -----------------------------------------------------------------
-            // Send byte states: ADDR / CTRL / DATA
-            // 4 phases per bit: set SDA | SCL high | hold | SCL low
+            // Byte transmit: ADDR / CTRL / DATA
+            // phase 0: set SDA from MSB
+            // phase 1: SCL high
+            // phase 2: hold (sample point)
+            // phase 3: SCL low; if last bit → ACK state
             // -----------------------------------------------------------------
             S_ADDR, S_CTRL, S_DATA: begin
                 if (timer_done) begin
@@ -164,8 +161,7 @@ always @(posedge clk) begin
                             scl   <= 1'b0;
                             phase <= 2'd0;
                             if (bit_ctr == 3'd0) begin
-                                // Byte done — move to ACK
-                                sda <= 1'b1;  // release SDA for ACK
+                                sda <= 1'b1; // release for ACK
                                 case (state)
                                     S_ADDR: state <= S_ADDR_ACK;
                                     S_CTRL: state <= S_CTRL_ACK;
@@ -182,56 +178,81 @@ always @(posedge clk) begin
             end
 
             // -----------------------------------------------------------------
-            // ACK phase: SCL pulse while SDA released (slave drives 0).
-            // We do not verify ACK — just clock it and move on.
+            // ACK: one SCL pulse (we ignore the ACK value)
+            // phase 0: SCL high
+            // phase 1: hold
+            // phase 2: SCL low → load next state
             // -----------------------------------------------------------------
             S_ADDR_ACK, S_CTRL_ACK, S_DATA_ACK: begin
                 if (timer_done) begin
                     case (phase)
                         2'd0: begin scl <= 1'b1; phase <= 2'd1; end
                         2'd1: begin phase <= 2'd2; end
-                        2'd2: begin scl <= 1'b0; phase <= 2'd0;
-                               case (state)
-                                   S_ADDR_ACK: begin
-                                       shift_r <= ctrl_r;
-                                       bit_ctr <= 3'd7;
-                                       state   <= S_CTRL;
-                                   end
-                                   S_CTRL_ACK: begin
-                                       shift_r <= data_r;
-                                       bit_ctr <= 3'd7;
-                                       state   <= S_DATA;
-                                   end
-                                   S_DATA_ACK: begin
-                                       state <= S_STOP;
-                                   end
-                                   default: ;
-                               endcase
-                              end
-                        default: ;
+                        2'd2: begin
+                            scl   <= 1'b0;
+                            phase <= 2'd0;
+                            case (state)
+                                S_ADDR_ACK: begin
+                                    // Send control byte
+                                    shift_r <= ctrl_r;
+                                    bit_ctr <= 3'd7;
+                                    state   <= S_CTRL;
+                                end
+                                S_CTRL_ACK: begin
+                                    // Send first data byte (already in shift_r from start)
+                                    // shift_r was loaded with data at start; reload it.
+                                    bit_ctr <= 3'd7;
+                                    state   <= S_DATA;
+                                    // shift_r still holds the first data byte from S_IDLE
+                                end
+                                S_DATA_ACK: begin
+                                    if (last_r) begin
+                                        // No more bytes — issue STOP
+                                        state <= S_STOP;
+                                    end else begin
+                                        // Request next byte; caller must present it next cycle.
+                                        req    <= 1'b1;
+                                        state  <= S_DATA_ACK; // hold one extra cycle for data
+                                        phase  <= 2'd3;       // sentinel: wait for data
+                                    end
+                                end
+                                default: ;
+                            endcase
+                        end
+                        // Sentinel phase 3: data is now valid on data[]/last
+                        2'd3: begin
+                            shift_r <= data;
+                            last_r  <= last;
+                            bit_ctr <= 3'd7;
+                            phase   <= 2'd0;
+                            state   <= S_DATA;
+                        end
                     endcase
                 end
             end
 
             // -----------------------------------------------------------------
-            // STOP condition: SDA rises while SCL is high.
-            // phase 0: SCL=0  SDA=0
-            // phase 1: SCL=1  SDA=0
-            // phase 2: SCL=1  SDA=1  → STOP
+            // STOP: SDA rises while SCL high
+            // phase 0: SDA low, SCL high
+            // phase 1: SDA high → STOP condition
+            // phase 2: done
             // -----------------------------------------------------------------
             S_STOP: begin
                 if (timer_done) begin
                     case (phase)
                         2'd0: begin sda <= 1'b0; scl <= 1'b1; phase <= 2'd1; end
                         2'd1: begin sda <= 1'b1; phase <= 2'd2; end
-                        2'd2: begin busy <= 1'b0; state <= S_IDLE; phase <= 2'd0; end
+                        2'd2: begin
+                            busy  <= 1'b0;
+                            state <= S_IDLE;
+                            phase <= 2'd0;
+                        end
                         default: ;
                     endcase
                 end
             end
 
             default: state <= S_IDLE;
-
         endcase
     end
 end
