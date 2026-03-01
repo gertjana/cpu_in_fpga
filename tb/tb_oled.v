@@ -8,7 +8,9 @@
 //   3. At least 512 data bytes are sent in the first flush
 //   4. Second render+flush occurs (refresh loop works)
 //
-// Uses T_WAIT=1 and WAIT_BITS=4 to dramatically speed up simulation.
+// Uses T_WAIT=2 and WAIT_BITS=4 to dramatically speed up simulation.
+// T_WAIT must be ≥2 so S_DATA_LOAD has at least one cycle for oled_ctrl
+// to register its response before the master samples data[].
 //
 // Output: PASS or FAIL on $display.
 // VCD written to sim/vcd/tb_oled.vcd for waveform inspection.
@@ -67,7 +69,7 @@ always @(*) ram_dbg_data = label_ram[ram_dbg_addr];
 // DUT instantiation (T_WAIT=1 → fast I2C, WAIT_BITS=4 → short wait)
 // ---------------------------------------------------------------------------
 oled_ctrl #(
-    .T_WAIT   (1),
+    .T_WAIT   (2),
     .WAIT_BITS(4)
 ) dut (
     .clk         (clk),
@@ -216,9 +218,9 @@ initial begin
     // ---------------------------------------------------------------------------
     // Wait long enough for: init (18 cmds) + render + addr (8 cmds) + disp_on +
     // flush (512 bytes) + wait + second render start.
-    // At T_WAIT=1, each I2C transaction takes ~(4*1*27) = ~108 clk cycles.
-    // 18+8+1+512 = 539 transactions × ~108 cycles = ~58k cycles.
-    // Add WAIT_BITS=4 → 16 cycles wait. Total ~60k cycles → 600k ns.
+    // At T_WAIT=2, each I2C transaction takes ~(4*2*27) = ~216 clk cycles.
+    // 18+8+1+512 = 539 transactions × ~216 cycles = ~116k cycles.
+    // Add WAIT_BITS=4 → 16 cycles wait. Total ~120k cycles → 1.2M ns.
     // Give 10× margin.
     // ---------------------------------------------------------------------------
     timeout = 0;

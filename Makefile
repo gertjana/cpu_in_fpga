@@ -26,7 +26,7 @@ SIM_DIR = sim/vcd
 # ---------------------------------------------------------------------------
 # All testbenches
 # ---------------------------------------------------------------------------
-TBS = alu decoder mem pc regfile stack cpu fibonacci fibonacci_stack knightrider oled
+TBS = alu decoder mem pc regfile stack cpu fibonacci fibonacci_stack knightrider oled oled_strict
 
 .PHONY: all sim clean $(TBS:%=sim-%) $(TBS:%=wave-%)
 
@@ -92,6 +92,11 @@ sim-oled: $(SIM_DIR)
 	@echo "--- tb_oled ---"
 	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_oled tb/tb_oled.v $(OLED_RTL) rtl/ram.v
 	$(VVP) $(SIM_DIR)/tb_oled
+
+sim-oled_strict: $(SIM_DIR)
+	@echo "--- tb_oled_strict ---"
+	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_oled_strict tb/tb_oled_strict.v $(OLED_RTL) rtl/ram.v
+	$(VVP) $(SIM_DIR)/tb_oled_strict
 
 # ---------------------------------------------------------------------------
 # GTKWave: make wave TB=<name>

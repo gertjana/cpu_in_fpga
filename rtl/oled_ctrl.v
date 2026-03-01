@@ -10,21 +10,24 @@
 //   Page 2 (row 16..23): SK:XX  HLT:X
 //   Page 3 (row 24..31): 16 ASCII chars from RAM[0xF0..0xFF]
 //
-// FSM:  INIT → RENDER → ADDR_CMD → FLUSH → WAIT → RENDER → ...
+// FSM:  POR → INIT → RENDER → ADDR_CMD → FLUSH → WAIT → RENDER → ...
 //
-//   INIT      : stream 18+1 SSD1306 init bytes in a single I2C transaction
+//   POR       : brief power-on reset (256 cycles ≈ 21 µs at 12 MHz)
+//   INIT      : stream 19 SSD1306 init bytes in a single I2C transaction
 //   RENDER    : build 512-byte framebuffer from CPU state snapshot
 //   ADDR_CMD  : send 8 addressing-setup command bytes (horizontal mode)
 //   FLUSH     : stream all 512 framebuffer bytes as one I2C data transaction
 //   WAIT      : ~83 ms idle (~12 Hz refresh)
 //
 // The i2c_master uses a streaming interface (req/last).
+// T_WAIT must be ≥2 so S_DATA_LOAD has at least one registered cycle for
+// oled_ctrl to present the next byte before i2c_master samples data[].
 //
 // Verilog-2005.
 // =============================================================================
 
 module oled_ctrl #(
-    parameter T_WAIT   = 15,   // i2c_master quarter-period (~200 kHz at 12 MHz)
+    parameter T_WAIT   = 30,   // i2c_master quarter-period (~100 kHz at 12 MHz)
     parameter WAIT_BITS = 20   // refresh wait: 2^20 cycles ≈ 83 ms at 12 MHz
 ) (
     input        clk,
@@ -72,8 +75,31 @@ localparam CH_E     = 5'd29;
 reg [7:0] fb [0:511];
 
 // ---------------------------------------------------------------------------
-// char_rom
+// Power-on reset counter — ensures clean startup regardless of FPGA power-up
+// state.  por_done starts low (FFs power up to 0), counts to 255, then
+// por_done goes high and stays high.  por_rst is high while counting.
 // ---------------------------------------------------------------------------
+reg [7:0] por_ctr;   // powers up to 0
+reg       por_done;  // powers up to 0 → POR active on cold start
+
+always @(posedge clk) begin
+    if (rst) begin
+        por_ctr  <= 8'd0;
+        por_done <= 1'b0;
+    end else if (!por_done) begin
+        if (por_ctr == 8'hFF)
+            por_done <= 1'b1;
+        else
+            por_ctr <= por_ctr + 1'b1;
+    end
+end
+
+wire por_rst = !por_done;  // high while POR counting
+
+// Internal reset: external rst OR power-on hold
+wire int_rst = rst | por_rst;
+
+
 reg  [4:0] rom_ch;
 reg  [2:0] rom_row;
 wire [4:0] rom_bits;
@@ -96,7 +122,7 @@ wire      i2c_req;
 
 i2c_master #(.T_WAIT(T_WAIT)) u_i2c (
     .clk   (clk),
-    .rst   (rst),
+    .rst   (int_rst),
     .start (i2c_start),
     .dcn   (i2c_dcn),
     .data  (i2c_data),
@@ -108,50 +134,55 @@ i2c_master #(.T_WAIT(T_WAIT)) u_i2c (
 );
 
 // ---------------------------------------------------------------------------
-// SSD1306 init sequence (19 bytes sent in one command transaction)
-// Command control byte 0x00 means: everything that follows is a command byte.
-// Bytes: AE A8 1F D3 00 40 A1 C8 DA 02 81 7F A4 A6 D5 80 8D 14 AF
-//  (AE=display off, …, AF=display on at end)
+// SSD1306 init sequence (19 bytes) — combinational ROM via case statement.
+// Synthesises as LUT constants, not as memory with initial blocks.
+// Bytes: AE A8 1F D3 00 40 A1 C8 DA 02 81 FF A4 A6 D5 80 8D 14 AF
 // ---------------------------------------------------------------------------
 localparam INIT_LEN = 19;
-reg [7:0] init_seq [0:INIT_LEN-1];
 
-initial begin
-    init_seq[0]  = 8'hAE;  // display off
-    init_seq[1]  = 8'hA8;  // set multiplex ratio
-    init_seq[2]  = 8'h1F;  // 32 rows
-    init_seq[3]  = 8'hD3;  // set display offset
-    init_seq[4]  = 8'h00;  // offset = 0
-    init_seq[5]  = 8'h40;  // start line = 0
-    init_seq[6]  = 8'hA1;  // segment remap
-    init_seq[7]  = 8'hC8;  // COM scan remap
-    init_seq[8]  = 8'hDA;  // COM pins config
-    init_seq[9]  = 8'h02;  // 128×32 value
-    init_seq[10] = 8'h81;  // contrast
-    init_seq[11] = 8'hFF;  // max contrast
-    init_seq[12] = 8'hA4;  // display follows RAM
-    init_seq[13] = 8'hA6;  // normal (not inverted)
-    init_seq[14] = 8'hD5;  // clock divide / osc freq
-    init_seq[15] = 8'h80;  // default
-    init_seq[16] = 8'h8D;  // charge pump
-    init_seq[17] = 8'h14;  // enable charge pump
-    init_seq[18] = 8'hAF;  // display ON
-end
+function [7:0] init_byte;
+    input [4:0] idx;
+    case (idx)
+        5'd0:  init_byte = 8'hAE;  // display off
+        5'd1:  init_byte = 8'hA8;  // set multiplex ratio
+        5'd2:  init_byte = 8'h1F;  // 32 rows
+        5'd3:  init_byte = 8'hD3;  // set display offset
+        5'd4:  init_byte = 8'h00;  // offset = 0
+        5'd5:  init_byte = 8'h40;  // start line = 0
+        5'd6:  init_byte = 8'hA1;  // segment remap (mirrored)
+        5'd7:  init_byte = 8'hC8;  // COM scan remap (flipped)
+        5'd8:  init_byte = 8'hDA;  // COM pins config
+        5'd9:  init_byte = 8'h02;  // 128×32 sequential COM pins
+        5'd10: init_byte = 8'h81;  // contrast
+        5'd11: init_byte = 8'hFF;  // max contrast
+        5'd12: init_byte = 8'hA4;  // display follows RAM
+        5'd13: init_byte = 8'hA6;  // normal (not inverted)
+        5'd14: init_byte = 8'hD5;  // clock divide / osc freq
+        5'd15: init_byte = 8'h80;  // default clock
+        5'd16: init_byte = 8'h8D;  // charge pump
+        5'd17: init_byte = 8'h14;  // enable charge pump
+        5'd18: init_byte = 8'hAF;  // display ON
+        default: init_byte = 8'h00;
+    endcase
+endfunction
 
-// Addressing setup: horizontal mode, col 0-127, page 0-3 (8 bytes, one transaction)
+// Addressing setup: horizontal mode, col 0-127, page 0-3 (8 bytes)
 localparam ADDR_LEN = 8;
-reg [7:0] addr_seq [0:ADDR_LEN-1];
 
-initial begin
-    addr_seq[0] = 8'h20;  // set memory addressing mode
-    addr_seq[1] = 8'h00;  // horizontal mode
-    addr_seq[2] = 8'h21;  // set column address
-    addr_seq[3] = 8'h00;  // col start = 0
-    addr_seq[4] = 8'h7F;  // col end = 127
-    addr_seq[5] = 8'h22;  // set page address
-    addr_seq[6] = 8'h00;  // page start = 0
-    addr_seq[7] = 8'h03;  // page end = 3
-end
+function [7:0] addr_byte;
+    input [3:0] idx;
+    case (idx)
+        4'd0: addr_byte = 8'h20;  // set memory addressing mode
+        4'd1: addr_byte = 8'h00;  // horizontal mode
+        4'd2: addr_byte = 8'h21;  // set column address
+        4'd3: addr_byte = 8'h00;  // col start = 0
+        4'd4: addr_byte = 8'h7F;  // col end = 127
+        4'd5: addr_byte = 8'h22;  // set page address
+        4'd6: addr_byte = 8'h00;  // page start = 0
+        4'd7: addr_byte = 8'h03;  // page end = 3
+        default: addr_byte = 8'h00;
+    endcase
+endfunction
 
 // ---------------------------------------------------------------------------
 // Top-level FSM states
@@ -323,7 +354,7 @@ wire [4:0] char_max = (r_page == 2'd3) ? 5'd15 : 5'd13;
 // Main FSM
 // ---------------------------------------------------------------------------
 always @(posedge clk) begin
-    if (rst) begin
+    if (int_rst) begin
         state      <= ST_INIT;
         seq_idx    <= 5'd0;
         flush_idx  <= 10'd0;
@@ -364,7 +395,7 @@ always @(posedge clk) begin
                     // Fire first byte
                     i2c_start <= 1'b1;
                     i2c_dcn   <= 1'b0;               // command stream
-                    i2c_data  <= init_seq[0];
+                    i2c_data  <= init_byte(5'd0);
                     i2c_last  <= (INIT_LEN == 1);
                     seq_idx   <= 5'd1;
                     state     <= ST_INIT_WAIT;
@@ -374,7 +405,7 @@ always @(posedge clk) begin
             ST_INIT_WAIT: begin
                 // Feed subsequent bytes on req, then wait for busy to fall
                 if (i2c_req && seq_idx < INIT_LEN) begin
-                    i2c_data <= init_seq[seq_idx];
+                    i2c_data <= init_byte(seq_idx);
                     i2c_last <= (seq_idx == INIT_LEN - 1);
                     seq_idx  <= seq_idx + 1'b1;
                 end
@@ -495,7 +526,7 @@ always @(posedge clk) begin
                 if (!i2c_busy) begin
                     i2c_start <= 1'b1;
                     i2c_dcn   <= 1'b0;
-                    i2c_data  <= addr_seq[0];
+                    i2c_data  <= addr_byte(4'd0);
                     i2c_last  <= (ADDR_LEN == 1);
                     seq_idx   <= 5'd1;
                     state     <= ST_ADDR_WAIT;
@@ -504,7 +535,7 @@ always @(posedge clk) begin
 
             ST_ADDR_WAIT: begin
                 if (i2c_req && seq_idx < ADDR_LEN) begin
-                    i2c_data <= addr_seq[seq_idx];
+                    i2c_data <= addr_byte(seq_idx[3:0]);
                     i2c_last <= (seq_idx == ADDR_LEN - 1);
                     seq_idx  <= seq_idx + 1'b1;
                 end
