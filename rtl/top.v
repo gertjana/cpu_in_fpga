@@ -185,9 +185,9 @@ wire [7:0] dbg_r7;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),
+    .clk_fast        (clk_12m),   // LFSR runs at full 12 MHz board clock
     .rst             (rst),
     .halt_out        (halt_out),
-    .prng_advance    (1'b1),      // LFSR runs at board clock rate (12 MHz)
     .dbg_pc          (dbg_pc),
     .dbg_flag_z      (dbg_flag_z),
     .dbg_flag_c      (dbg_flag_c),
