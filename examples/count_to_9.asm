@@ -2,8 +2,6 @@
 ; clk_div: 20
 ;           12 MHz / 2^20 ≈ 11.4 Hz
 ;
-; Demonstrates: LDI, ADDI, CMPI, JNZ, HALT
-;
 ; R0 = counter (starts at 0, increments to 9)
 ; R1 = limit   (constant 10 — loop exits when R0 == 10, i.e. after counting 0..9)
 ;

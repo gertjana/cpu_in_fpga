@@ -1,6 +1,8 @@
 Addr  Word  Source
 ------------------------------------------------------------
             ; infinite_counter.asm — FPGA demo: infinite counter loop
+            ; clk_div: 20
+            ;           12 MHz / 2^20 ≈ 11.4 Hz
             ;
             ; Counts R0 from 0 to LIMIT-1, compares against LIMIT, resets and repeats.
             ; The flags Z/C/N/V update on every iteration, producing changing LED patterns
