@@ -285,6 +285,35 @@ class TestCMP:
 
 
 # ---------------------------------------------------------------------------
+# Group 8 — IN (read hardware PRNG)
+# ---------------------------------------------------------------------------
+
+class TestIN:
+    def test_in_r0(self):
+        # IN R0  → 1000 000 000000000 = 0x8000
+        assert asm1("IN R0") == 0x8000
+
+    def test_in_r7(self):
+        # IN R7  → 1000 111 000000000 = 0x8E00
+        assert asm1("IN R7") == 0x8E00
+
+    def test_in_r3(self):
+        # IN R3  → 1000 011 000000000 = 0x8600
+        assert asm1("IN R3") == 0x8600
+
+    def test_in_case_insensitive(self):
+        assert asm1("in r5") == asm1("IN R5")
+
+    def test_in_wrong_operand_count(self):
+        with pytest.raises(AsmError, match="1 operand"):
+            asm1("IN R0, R1")
+
+    def test_in_no_operands(self):
+        with pytest.raises(AsmError, match="1 operand"):
+            asm1("IN")
+
+
+# ---------------------------------------------------------------------------
 # NOP / HALT
 # ---------------------------------------------------------------------------
 

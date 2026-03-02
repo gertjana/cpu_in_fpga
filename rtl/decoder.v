@@ -19,6 +19,7 @@
 //   4'h5  Stack/Call     sub-op in [11:9] (I8/R)
 //   4'h6  CMP            Ra - Rb flags    (R-format)
 //   4'h7  CMPI           Ra - imm6 flags  (I-format)
+//   4'h8  IN             Rd = PRNG        (R-format: dest in [11:9])
 //   4'hE  NOP
 //   4'hF  HALT
 // =============================================================================
@@ -45,11 +46,12 @@ module decoder (
     output reg  [7:0]  imm,        // immediate value (imm6 zero-ext or imm8)
 
     // Write-back source select
-    // 2'b00 = ALU result
-    // 2'b01 = data memory read
-    // 2'b10 = immediate (LDI)
-    // 2'b11 = stack pop
-    output reg  [1:0]  wb_sel,
+    // 3'b000 = ALU result
+    // 3'b001 = data memory read
+    // 3'b010 = immediate (LDI)
+    // 3'b011 = stack pop
+    // 3'b100 = PRNG (IN instruction)
+    output reg  [2:0]  wb_sel,
 
     // Memory
     output reg         mem_re,
@@ -96,6 +98,7 @@ localparam GRP_JMP  = 4'h4;
 localparam GRP_STK  = 4'h5;
 localparam GRP_CMP  = 4'h6;
 localparam GRP_CMPI = 4'h7;
+localparam GRP_IN   = 4'h8;
 localparam GRP_NOP  = 4'hE;
 localparam GRP_HALT = 4'hF;
 
@@ -131,10 +134,11 @@ localparam ALU_SHL = 3'b110;
 localparam ALU_SHR = 3'b111;
 
 // Write-back select
-localparam WB_ALU   = 2'b00;
-localparam WB_MEM   = 2'b01;
-localparam WB_IMM   = 2'b10;
-localparam WB_STACK = 2'b11;
+localparam WB_ALU   = 3'b000;
+localparam WB_MEM   = 3'b001;
+localparam WB_IMM   = 3'b010;
+localparam WB_STACK = 3'b011;
+localparam WB_PRNG  = 3'b100;
 
 // ---------------------------------------------------------------------------
 // Branch condition evaluation (combinational)
@@ -342,6 +346,16 @@ always @(*) begin
             imm       = {2'b00, f_imm6};
             flags_we  = 1'b1;
             reg_we    = 1'b0;
+        end
+
+        // ------------------------------------------------------------------
+        // Group 8: IN Rd — read hardware PRNG into register
+        // R-format: 1000 ddd xxxxxxxxxxx
+        // ------------------------------------------------------------------
+        GRP_IN: begin
+            rd_addr = f_rd;
+            reg_we  = 1'b1;
+            wb_sel  = WB_PRNG;
         end
 
         // ------------------------------------------------------------------

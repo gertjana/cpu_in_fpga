@@ -1,0 +1,23 @@
+Addr  Word  Source
+------------------------------------------------------------
+            ; prng.asm — hardware PRNG demo
+            ; clk_div: 20
+            ;
+            ; Reads the hardware Galois LFSR (rtl/prng.v) into R7 on every CPU cycle
+            ; using the IN instruction, then loops forever.
+            ;
+            ; The LFSR runs at the board clock rate (12 MHz), independent of the CPU
+            ; clock (~11 Hz at clk_div=20).  Each IN therefore samples the LFSR at a
+            ; different point in its 255-step sequence, producing values that look
+            ; random to the program.
+            ;
+            ; Display: switch board to mode 1 (short button press) to see R7 on LEDs.
+            ;
+            ; Register use:
+            ;   R7 = sampled PRNG value → drives LED display in mode 1
+            ;
+            ; This program runs forever — it never halts.
+            
+            loop:
+0000  8E00          IN   R7         ; R7 = hardware PRNG value
+0001  4000          JMP  loop       ; sample again next CPU cycle

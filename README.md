@@ -103,6 +103,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | `rtl/rom.v` | 256 × 16-bit synchronous program ROM |
 | `rtl/ram.v` | 256 × 8-bit data RAM |
 | `rtl/stack.v` | 16-entry hardware stack (PUSH/POP/CALL/RET) |
+| `rtl/prng.v` | 8-bit Galois LFSR hardware PRNG (period 255, tap mask 0xB8) |
 | `rtl/top.v` | MAX1000 top-level (clock, reset, LED logic) |
 
 ---
@@ -118,6 +119,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [examples/fibonacci_stack.asm](examples/fibonacci_stack.asm) | Stack | same as above but uses the stack to store the numbers |
 | [examples/knightrider.asm](examples/knightrider.asm) | Shift left/right | Display the knightrider pattern on the leds |
 | [examples/flag_test.asm](examples/flag_test.asm) | Flags (Z, C, N, V) | Exercises all four flags; halts with C=1 and V=1 lit on LEDs |
+| [examples/prng.asm](examples/prng.asm) | LFSR, shifts, XOR | 8-bit Galois LFSR; streams pseudo-random values to R7 (period 255) |
 
 ---
 
@@ -153,177 +155,7 @@ iverilog -g2005 -o sim/tb_stack tb/tb_stack.v rtl/stack.v && vvp sim/tb_stack
 # CPU integration (runs cpu_program.hex)
 iverilog -g2005 -o sim/tb_cpu \
     tb/tb_cpu.v rtl/cpu.v rtl/rom.v rtl/ram.v \
-    rtl/regfile.v rtl/alu.v rtl/pc.v rtl/decoder.v rtl/stack.v
-vvp sim/tb_cpu
-```
-
-All 7 testbenches should report `ALL TESTS PASSED` (244 checks total).
-
----
-
-## Assembler
-
-A two-pass assembler is included at `tools/assembler.py`. It requires **Python 3** and no third-party packages.
-
-### Features
-
-- All ISA instructions (`ADD SUB AND OR XOR NOT SHL SHR ADDI LDI LD ST MOV JMP JZ JNZ JC JNC JN JV JR PUSH POP CALL RET CMP CMPI NOP HALT`)
-- Labels — forward and backward references
-- `.equ NAME, value` — named constants
-- Simple expressions in immediates: `LIMIT-1`, `BASE+4`, `0x10+5`
-- Decimal, hex (`0xFF`) and binary (`0b1010`) literals
-- `;` line comments (inline and full-line)
-- `.org addr` — set the address counter
-- Error messages with `file:line: error:` format and non-zero exit on failure
-- Optional `-l` flag — writes a `.lst` listing alongside the hex
-
-### Usage
-
-```sh
-python3 tools/assembler.py program.asm              # → program.hex
-python3 tools/assembler.py -l program.asm           # → program.hex + program.lst
-python3 tools/assembler.py -o out.hex program.asm   # explicit output path
-```
-
-### Running the assembler tests
-
-```sh
-python3 -m pytest tools/tests/test_assembler.py -v
-```
-
-76 tests covering every instruction, label resolution, `.equ` substitution, expressions, and error cases.
-
----
-
-## Synthesis and Programming the FPGA
-
-### MacOs with Apple Silicon chip M?
-
-The Quartus tooling does not work on Mac directly and when running in a docker container there are incompatibility issues with the Rosseta layer that allow x86_64 apps to run on Apple Silicon's ARM chips
-
-So I created a CICD pipeline that runs the compile/synthesize step on Github Actions and then allow to download the result, there are 2 scripts that are helpful here
-
-| Script | Explanation |
-| - | - |
-| build_and_download.sh [program] | Run's the worklow and when successsful downloads the result<br/>requires gh command line tool to be installed<br/>expect program to be in ./examples/[program].asm
-| program.sh [program] | Flashes the synthesized code to the chip. requires openFPGALoader to be installed |
-
- Here's an asciinema cast of the process
-
- ![cast](./casts/cicd.gif)
-
-
-### Requirements
-
-- [Intel Quartus Prime](https://www.intel.com/content/www/us/en/products/details/fpga/development-tools/quartus-prime.html) (Lite edition is free and sufficient)
-- Arrow MAX1000 board (Intel MAX 10, `10M16SAU169C8G`)
-- USB cable for programming
-
-
-
-
-### Step 1 — Copy the ROM program
-
-The ROM is initialised from a file called `program.hex` that must be in the working directory when Quartus compiles. Copy the supplied demo program there:
-
-```sh
-cp quartus/program.hex program.hex
-```
-
-If you have written your own program (see below), copy that file instead.
-
-### Step 2 — Open the Quartus project
-
-```
-File → Open Project → quartus/cpu_fpga.qsf
-```
-
-Or from the command line (full compile):
-
-```sh
-quartus_sh --flow compile quartus/cpu_fpga.qsf
-```
-
-### Step 3 — Compile
-
-Click **Start Compilation** (Ctrl+L) or let the command-line flow above run to completion. The compiled bitstream is written to `quartus/output_files/top.sof`.
-
-### Step 4 — Program the board
-
-1. Connect the MAX1000 board via USB.
-2. Open **Tools → Programmer**.
-3. Click **Hardware Setup** and select the USB-Blaster.
-4. Add the `.sof` file (`quartus/output_files/top.sof`).
-5. Tick **Program/Configure** and click **Start**.
-
-The board programs in a few seconds and the CPU starts running immediately.
-
----
-
-## Writing Your Own Programs
-
-Programs are stored in the ROM as a plain hex file — one 16-bit instruction word per line, no prefix. The assembler (`tools/assembler.py`) converts `.asm` source files into this format.
-
-### Step 1 — Write assembly
-
-Refer to `docs/ISA.md` for the full instruction set. A quick reference is also at the bottom of this file. Example programs are in `examples/`.
-
-Example — count from 0 to 9, then halt (`examples/count_to_9.asm`):
-
-```asm
-; count_to_9.asm — count from 0 to 9, then halt
-; R0 = counter, R1 = limit
-
-.equ LIMIT, 10
-
-        LDI  R0, 0          ; R0 = 0  (counter)
-        LDI  R1, LIMIT      ; R1 = 10 (loop bound)
-loop:
-        ADDI R0, R0, 1      ; R0++
-        CMP  R0, R1         ; set flags: R0 - R1
-        JNZ  loop           ; repeat while R0 != R1
-        HALT
-```
-
-### Step 2 — Assemble
-
-```sh
-python3 tools/assembler.py examples/count_to_9.asm
-# → examples/count_to_9.hex
-```
-
-Add `-l` to also get a listing with addresses and hex words alongside the source:
-
-```sh
-python3 tools/assembler.py -l examples/count_to_9.asm
-```
-
-Listing output for the example above:
-
-```
-Addr  Word  Source
-------------------------------------------------------------
-            .equ LIMIT, 10
-
-0000  2000          LDI  R0, 0          ; R0 = 0  (counter)
-0001  220A          LDI  R1, LIMIT      ; R1 = 10 (loop bound)
-            loop:
-0002  1001          ADDI R0, R0, 1      ; R0++
-0003  6008          CMP  R0, R1         ; set flags: R0 - R1
-0004  4402          JNZ  loop           ; repeat while R0 != R1
-0005  F000          HALT
-```
-
-### Step 3 — Simulate your program
-
-Replace the hex file the CPU testbench loads and recompile:
-
-```sh
-cp examples/count_to_9.hex tb/cpu_program.hex
-
-iverilog -g2005 -o sim/tb_cpu \
-    tb/tb_cpu.v rtl/cpu.v rtl/rom.v rtl/ram.v \
-    rtl/regfile.v rtl/alu.v rtl/pc.v rtl/decoder.v rtl/stack.v
+    rtl/regfile.v rtl/alu.v rtl/pc.v rtl/decoder.v rtl/stack.v rtl/prng.v
 
 vvp sim/tb_cpu
 ```

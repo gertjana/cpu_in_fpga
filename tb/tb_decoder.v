@@ -26,7 +26,7 @@ wire        reg_we;
 wire [2:0]  alu_op;
 wire        alu_src_b;
 wire [7:0]  imm;
-wire [1:0]  wb_sel;
+wire [2:0]  wb_sel;
 wire        mem_re, mem_we;
 wire        pc_load;
 wire [7:0]  pc_target;
@@ -308,7 +308,7 @@ initial begin
     chk3(40, "rd_addr   ", rd_addr,   3'd3);
     chk8(41, "imm       ", imm,       8'd63);
     chk1(42, "reg_we    ", reg_we,    1'b1);
-    chk2(43, "wb_sel    ", wb_sel,    2'b10); // WB_IMM
+    chk3(43, "wb_sel    ", wb_sel,    3'b010); // WB_IMM
     chk1(44, "mem_re    ", mem_re,    1'b0);
     chk1(45, "flags_we  ", flags_we,  1'b0);
 
@@ -322,7 +322,7 @@ initial begin
     chk3(51, "ra_addr   ", ra_addr,  3'd2);
     chk1(52, "mem_re    ", mem_re,   1'b1);
     chk1(53, "reg_we    ", reg_we,   1'b1);
-    chk2(54, "wb_sel    ", wb_sel,   2'b01); // WB_MEM
+    chk3(54, "wb_sel    ", wb_sel,   3'b001); // WB_MEM
     chk1(55, "mem_we    ", mem_we,   1'b0);
 
     // ------------------------------------------------------------------
@@ -425,7 +425,7 @@ initial begin
     chk1(111, "stack_pop  ", stack_pop,  1'b1);
     chk1(112, "stack_push ", stack_push, 1'b0);
     chk1(113, "reg_we     ", reg_we,     1'b1);
-    chk2(114, "wb_sel     ", wb_sel,     2'b11); // WB_STACK
+    chk3(114, "wb_sel     ", wb_sel,     3'b011); // WB_STACK
 
     // ------------------------------------------------------------------
     // Group 5: CALL 0x50
@@ -497,6 +497,19 @@ initial begin
     chk1(171, "reg_we    ", reg_we,  1'b0);
     chk1(172, "mem_we    ", mem_we,  1'b0);
     chk1(173, "pc_load   ", pc_load, 1'b0);
+
+    // ------------------------------------------------------------------
+    // Group 8: IN R5  — read hardware PRNG into register
+    // Encoding: 1000 101 000000000
+    // ------------------------------------------------------------------
+    $display("--- IN R5 ---");
+    apply(16'h8A00);   // 1000 101 000000000  (group=8, rd=5)
+    chk3(180, "rd_addr   ", rd_addr,   3'd5);
+    chk1(181, "reg_we    ", reg_we,    1'b1);
+    chk3(182, "wb_sel    ", wb_sel,    3'b100); // WB_PRNG
+    chk1(183, "mem_we    ", mem_we,    1'b0);
+    chk1(184, "pc_load   ", pc_load,   1'b0);
+    chk1(185, "halt      ", halt,      1'b0);
 
     // ------------------------------------------------------------------
     // Summary

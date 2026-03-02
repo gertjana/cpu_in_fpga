@@ -187,6 +187,7 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),
     .rst             (rst),
     .halt_out        (halt_out),
+    .prng_advance    (1'b1),      // LFSR runs at board clock rate (12 MHz)
     .dbg_pc          (dbg_pc),
     .dbg_flag_z      (dbg_flag_z),
     .dbg_flag_c      (dbg_flag_c),
