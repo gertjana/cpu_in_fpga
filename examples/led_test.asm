@@ -2,16 +2,6 @@
 ; clk_div: 20
 ;           12 MHz / 2^20 ≈ 11.4 Hz
 ;
-; Demonstrates: LDI, ADDI, JNZ, HALT
-;
-; Algorithm:
-;   R7 = 0
-;   loop:
-;     R7++
-;     if R7 != 0 goto loop   (Z is set when R7 wraps 255→0)
-;   HALT
-;
-; At the slow CPU clock (~1.43 Hz) each value is visible for ~0.7 s.
 
 ; ── initialise ────────────────────────────────────────────────────────────────
 
