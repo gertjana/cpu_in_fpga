@@ -176,6 +176,19 @@ wire cpu_clk = cpu_clk_r;
 wire heartbeat = cpu_div_ctr[CPU_CLK_DIV_BITS-1];
 
 // ---------------------------------------------------------------------------
+// Hardware PRNG — clocked directly by the 12 MHz board oscillator.
+// Runs ~1 million steps per CPU instruction, so every IN read is at a
+// different point in the 255-step LFSR sequence.
+// ---------------------------------------------------------------------------
+wire [7:0] prng_data;
+
+prng u_prng (
+    .clk  (clk_12m),
+    .rst  (rst),
+    .data (prng_data)
+);
+
+// ---------------------------------------------------------------------------
 // CPU instantiation
 // ---------------------------------------------------------------------------
 wire       halt_out;
@@ -185,9 +198,9 @@ wire [7:0] dbg_r7;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),
-    .clk_fast        (clk_12m),   // LFSR runs at full 12 MHz board clock
     .rst             (rst),
     .halt_out        (halt_out),
+    .prng_data       (prng_data),
     .dbg_pc          (dbg_pc),
     .dbg_flag_z      (dbg_flag_z),
     .dbg_flag_c      (dbg_flag_c),

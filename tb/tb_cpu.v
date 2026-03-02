@@ -14,8 +14,9 @@
 //   R2 == 5
 //
 // The testbench also verifies the hardware PRNG (IN instruction):
-//   - Drives clk_fast at a faster rate than clk to mimic the board's 12 MHz
-//   - Reads the raw LFSR register and confirms it changes between CPU cycles
+//   - Instantiates the prng module driven by clk_fast (mimics top.v layout)
+//   - Passes prng_data into the CPU as an input
+//   - Confirms the LFSR advances on clk_fast edges, independent of cpu clk
 //
 // The testbench inspects internal register file via hierarchical references.
 // It also verifies halt_out is asserted and the CPU stops advancing.
@@ -28,17 +29,18 @@ module tb_cpu;
 // ---------------------------------------------------------------------------
 // DUT signals
 // ---------------------------------------------------------------------------
-reg  clk;
-reg  clk_fast;   // fast board clock fed to the PRNG (runs independently)
-reg  rst;
-wire halt_out;
+reg        clk;
+reg        clk_fast;   // fast board clock fed to the standalone PRNG instance
+reg        rst;
+wire       halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 wire [7:0] dbg_r7;
+wire [7:0] prng_data;  // output of the PRNG module, fed into the CPU
 
 // ---------------------------------------------------------------------------
 // CPU clock: 10 ns period (100 MHz in simulation)
-// Fast clock: 3 ns period (~333 MHz) — ~3× faster than clk, mimicking the
+// Fast clock: 2 ns period (500 MHz) — faster than clk, mimicking the
 // ratio of 12 MHz board clock vs the divided CPU clock on hardware.
 // ---------------------------------------------------------------------------
 initial clk      = 0;
@@ -47,13 +49,23 @@ always #5  clk      = ~clk;
 always #1  clk_fast = ~clk_fast;
 
 // ---------------------------------------------------------------------------
+// Hardware PRNG — mirrors the instantiation in top.v.
+// Clocked by clk_fast so it runs independently of the slow CPU clock.
+// ---------------------------------------------------------------------------
+prng u_prng (
+    .clk  (clk_fast),
+    .rst  (rst),
+    .data (prng_data)
+);
+
+// ---------------------------------------------------------------------------
 // Instantiate CPU (point ROM to our program hex)
 // ---------------------------------------------------------------------------
 cpu #(.ROM_INIT("tb/cpu_program.hex")) u_cpu (
     .clk             (clk),
-    .clk_fast        (clk_fast),
     .rst             (rst),
     .halt_out        (halt_out),
+    .prng_data       (prng_data),
     .dbg_pc          (dbg_pc),
     .dbg_flag_z      (dbg_flag_z),
     .dbg_flag_c      (dbg_flag_c),
@@ -143,18 +155,16 @@ initial begin
     end
 
     // ---- Check PRNG: LFSR advances on clk_fast independently of clk ----
-    // Reset the CPU, then sample the raw LFSR across multiple clk_fast edges.
     begin : prng_check
         reg [7:0] val0, val1, val2;
+        // Reset and wait for it to clear
         rst = 1; @(posedge clk); @(posedge clk); rst = 0;
-        // Wait for rst_r (the cpu-clock-registered reset flop inside prng) to
-        // clear, then let a few fast-clock edges pass before sampling.
-        @(posedge clk);           // rst_r clears on this edge
-        repeat(4) @(posedge clk_fast);  // let LFSR run a bit
+        // Allow a few fast-clock cycles for the LFSR to start running
+        repeat(4) @(posedge clk_fast);
         // Sample three consecutive fast-clock values
-        @(posedge clk_fast); val0 = u_cpu.u_prng.lfsr;
-        @(posedge clk_fast); val1 = u_cpu.u_prng.lfsr;
-        @(posedge clk_fast); val2 = u_cpu.u_prng.lfsr;
+        @(posedge clk_fast); val0 = u_prng.lfsr;
+        @(posedge clk_fast); val1 = u_prng.lfsr;
+        @(posedge clk_fast); val2 = u_prng.lfsr;
         // LFSR should have stepped — values must differ
         if (val0 !== val1) begin
             $display("  PASS  PRNG advances each fast-clock cycle (0x%02h → 0x%02h)", val0, val1);
@@ -171,10 +181,9 @@ initial begin
             $display("  FAIL  PRNG reached zero (lock-up state)");
             fail_count = fail_count + 1;
         end
-        // Confirm LFSR is still moving after several slow CPU cycles
-        // (i.e. it is not gated by the CPU clock)
-        @(posedge clk); val0 = u_cpu.u_prng.lfsr;
-        @(posedge clk); val1 = u_cpu.u_prng.lfsr;
+        // Confirm LFSR keeps moving across slow CPU clock edges
+        @(posedge clk); val0 = u_prng.lfsr;
+        @(posedge clk); val1 = u_prng.lfsr;
         if (val0 !== val1) begin
             $display("  PASS  PRNG runs independently of CPU clock");
             pass_count = pass_count + 1;

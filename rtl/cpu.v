@@ -24,9 +24,9 @@ module cpu #(
     input  wire       clk,
     input  wire       rst,
     output wire       halt_out,
-    // Fast board clock fed directly to the PRNG so the LFSR runs at 12 MHz,
-    // independent of the slow CPU clock — values read via IN are unpredictable.
-    input  wire       clk_fast,
+    // PRNG value sampled from the hardware LFSR in top.v (runs at 12 MHz).
+    // Passed in as a plain input — no cross-domain logic needed inside CPU.
+    input  wire [7:0] prng_data,
     // Debug / LED outputs (combinational taps of internal state)
     output wire [7:0] dbg_pc,
     output wire       dbg_flag_z,
@@ -123,11 +123,6 @@ wire [7:0] ram_rdata;
 // ---------------------------------------------------------------------------
 wire [7:0] stack_data_out;
 wire [7:0] stack_data_in;
-
-// ---------------------------------------------------------------------------
-// PRNG wire
-// ---------------------------------------------------------------------------
-wire [7:0] prng_data;
 
 // ---------------------------------------------------------------------------
 // Module instantiations
@@ -228,16 +223,6 @@ stack u_stack (
     .empty     (dbg_stack_empty),
     .overflow  (),
     .underflow ()
-);
-
-// --- Hardware PRNG ---
-// Runs at the board clock rate (via prng_advance from top.v) so the value
-// the CPU reads via IN is effectively unpredictable from software.
-prng u_prng (
-    .clk      (clk),
-    .clk_fast (clk_fast),
-    .rst      (rst),
-    .data     (prng_data)
 );
 
 // --- Write-back mux ---
