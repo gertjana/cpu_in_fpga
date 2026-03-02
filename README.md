@@ -253,7 +253,7 @@ I8-format: [15:12] group | [11:9] sub | [8] x    | [7:0] imm8
 | `RET`               | R  | `0101 011 xxx xxxxxxx` | PC ← Stack          | —       |
 | `CMP  Ra, Rb`       | R  | `0110 xxx aaa bbb xxx` | flags(Ra − Rb)      | Z C N V |
 | `CMPI Ra, imm6`     | I  | `0111 xxx aaa iiiiii`  | flags(Ra − imm6)    | Z C N V |
-| `IN   Rd`           | R  | `1000 ddd 001 xxxxxxxx` | Rd = PRNG (port 001)| —       |
+| `IN   Rd, port`     | R  | `1000 ddd ppp xxxxxxxx` | Rd = peripheral[port] | —       |
 | `NOP`               | —  | `1110 xxxxxxxxxxxx`    | no operation        | —       |
 | `HALT`              | —  | `1111 xxxxxxxxxxxx`    | freeze CPU          | —       |
 

@@ -289,27 +289,47 @@ class TestCMP:
 # ---------------------------------------------------------------------------
 
 class TestIN:
-    def test_in_r0(self):
-        # IN R0  → 1000 000 001 000000 = 0x8040  (port=001 in [8:6])
-        assert asm1("IN R0") == 0x8040
+    def test_in_r0_port1(self):
+        # IN R0, 1  → 1000 000 001 000000 = 0x8040
+        assert asm1("IN R0, 1") == 0x8040
 
-    def test_in_r7(self):
-        # IN R7  → 1000 111 001 000000 = 0x8E40
-        assert asm1("IN R7") == 0x8E40
+    def test_in_r7_port1(self):
+        # IN R7, 1  → 1000 111 001 000000 = 0x8E40
+        assert asm1("IN R7, 1") == 0x8E40
 
-    def test_in_r3(self):
-        # IN R3  → 1000 011 001 000000 = 0x8640
-        assert asm1("IN R3") == 0x8640
+    def test_in_r3_port1(self):
+        # IN R3, 1  → 1000 011 001 000000 = 0x8640
+        assert asm1("IN R3, 1") == 0x8640
+
+    def test_in_port2(self):
+        # IN R0, 2  → 1000 000 010 000000 = 0x8080
+        assert asm1("IN R0, 2") == 0x8080
+
+    def test_in_port7(self):
+        # IN R0, 7  → 1000 000 111 000000 = 0x81C0
+        assert asm1("IN R0, 7") == 0x81C0
+
+    def test_in_port0(self):
+        # IN R0, 0  → 1000 000 000 000000 = 0x8000  (undefined port, assembles fine)
+        assert asm1("IN R0, 0") == 0x8000
 
     def test_in_case_insensitive(self):
-        assert asm1("in r5") == asm1("IN R5")
+        assert asm1("in r5, 1") == asm1("IN R5, 1")
 
-    def test_in_wrong_operand_count(self):
-        with pytest.raises(AsmError, match="1 operand"):
-            asm1("IN R0, R1")
+    def test_in_port_overflow(self):
+        with pytest.raises(AsmError, match="out of range"):
+            asm1("IN R0, 8")
+
+    def test_in_wrong_operand_count_one(self):
+        with pytest.raises(AsmError, match="2 operands"):
+            asm1("IN R0")
+
+    def test_in_wrong_operand_count_three(self):
+        with pytest.raises(AsmError, match="2 operands"):
+            asm1("IN R0, 1, 2")
 
     def test_in_no_operands(self):
-        with pytest.raises(AsmError, match="1 operand"):
+        with pytest.raises(AsmError, match="2 operands"):
             asm1("IN")
 
 

@@ -154,17 +154,18 @@ Flags updated: Z C N V
 
 Format: R  
 Encoding: `1000 ddd ppp xxxxxxxx`  
+Syntax: `IN Rd, port`  
 Operation: `Rd = peripheral[port]` — reads the current value from the hardware peripheral selected by `port`  
 Flags: none
 
-Port field `ppp` is in bits `[8:6]`:
+Port field `ppp` is in bits `[8:6]` (range 0–7):
 
-| Port (`ppp`) | Peripheral | Description |
+| Port | Peripheral | Description |
 |---|---|---|
-| `001` | PRNG | 8-bit Galois LFSR hardware random number generator |
+| `1` | PRNG | 8-bit Galois LFSR hardware random number generator |
 | all others | — | Undefined; treated as NOP |
 
-The PRNG (port `001`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective. Period: 255.
+The PRNG (port `1`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective. Period: 255.
 
 ### Group 14 — NOP  `4'hE`
 
