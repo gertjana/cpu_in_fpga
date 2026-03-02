@@ -317,11 +317,12 @@ def encode_cmpi(operands, symbols, filename, lineno) -> int:
 
 
 def encode_in(operands, symbols, filename, lineno) -> int:
-    # IN Rd   → 1000 ddd 000000000
+    # IN Rd   → 1000 ddd 001 000000  (port 001 = PRNG in bits [8:6])
     if len(operands) != 1:
         raise AsmError("IN requires 1 operand: Rd", filename, lineno)
     rd = parse_reg(operands[0], filename, lineno)
-    return (GRP_IN << 12) | (rd << 9)
+    PORT_PRNG = 1   # port 001 = PRNG
+    return (GRP_IN << 12) | (rd << 9) | (PORT_PRNG << 6)
 
 
 def encode_nop(operands, filename, lineno) -> int:

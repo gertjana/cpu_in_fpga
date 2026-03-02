@@ -19,7 +19,7 @@
 //   4'h5  Stack/Call     sub-op in [11:9] (I8/R)
 //   4'h6  CMP            Ra - Rb flags    (R-format)
 //   4'h7  CMPI           Ra - imm6 flags  (I-format)
-//   4'h8  IN             Rd = PRNG        (R-format: dest in [11:9])
+//   4'h8  IN             Rd = peripheral[port]  (R-format: dest in [11:9], port in [8:6])
 //   4'hE  NOP
 //   4'hF  HALT
 // =============================================================================
@@ -349,13 +349,21 @@ always @(*) begin
         end
 
         // ------------------------------------------------------------------
-        // Group 8: IN Rd — read hardware PRNG into register
-        // R-format: 1000 ddd xxxxxxxxxxx
+        // Group 8: IN Rd, port — read hardware peripheral into register
+        // R-format: 1000 ddd ppp xxxxxxxx
+        //   [11:9] Rd   — destination register
+        //   [8:6]  port — peripheral select (3'b001 = PRNG)
+        // Undefined port numbers are treated as NOP.
         // ------------------------------------------------------------------
         GRP_IN: begin
-            rd_addr = f_rd;
-            reg_we  = 1'b1;
-            wb_sel  = WB_PRNG;
+            case (f_ra)   // port number in Ra field [8:6]
+                3'b001: begin   // port 1 = PRNG
+                    rd_addr = f_rd;
+                    reg_we  = 1'b1;
+                    wb_sel  = WB_PRNG;
+                end
+                default: ; // unknown port — NOP
+            endcase
         end
 
         // ------------------------------------------------------------------

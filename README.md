@@ -119,7 +119,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [examples/fibonacci_stack.asm](examples/fibonacci_stack.asm) | Stack | same as above but uses the stack to store the numbers |
 | [examples/knightrider.asm](examples/knightrider.asm) | Shift left/right | Display the knightrider pattern on the leds |
 | [examples/flag_test.asm](examples/flag_test.asm) | Flags (Z, C, N, V) | Exercises all four flags; halts with C=1 and V=1 lit on LEDs |
-| [examples/prng.asm](examples/prng.asm) | LFSR, shifts, XOR | 8-bit Galois LFSR; streams pseudo-random values to R7 (period 255) |
+| [examples/prng.asm](examples/prng.asm) | IN instruction, PRNG | Uses the `IN` instruction to read the hardware Galois LFSR; streams pseudo-random values to R7 (period 255) |
 
 ---
 
@@ -253,6 +253,7 @@ I8-format: [15:12] group | [11:9] sub | [8] x    | [7:0] imm8
 | `RET`               | R  | `0101 011 xxx xxxxxxx` | PC ← Stack          | —       |
 | `CMP  Ra, Rb`       | R  | `0110 xxx aaa bbb xxx` | flags(Ra − Rb)      | Z C N V |
 | `CMPI Ra, imm6`     | I  | `0111 xxx aaa iiiiii`  | flags(Ra − imm6)    | Z C N V |
+| `IN   Rd`           | R  | `1000 ddd 001 xxxxxxxx` | Rd = PRNG (port 001)| —       |
 | `NOP`               | —  | `1110 xxxxxxxxxxxx`    | no operation        | —       |
 | `HALT`              | —  | `1111 xxxxxxxxxxxx`    | freeze CPU          | —       |
 

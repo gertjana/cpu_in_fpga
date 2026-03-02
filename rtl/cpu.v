@@ -24,9 +24,10 @@ module cpu #(
     input  wire       clk,
     input  wire       rst,
     output wire       halt_out,
+
     // PRNG value sampled from the hardware LFSR in top.v (runs at 12 MHz).
-    // Passed in as a plain input — no cross-domain logic needed inside CPU.
     input  wire [7:0] prng_data,
+
     // Debug / LED outputs (combinational taps of internal state)
     output wire [7:0] dbg_pc,
     output wire       dbg_flag_z,

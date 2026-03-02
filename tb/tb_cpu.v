@@ -32,6 +32,7 @@ module tb_cpu;
 reg        clk;
 reg        clk_fast;   // fast board clock fed to the standalone PRNG instance
 reg        rst;
+reg  [7:0] prng_seed;  // entropy value — mimics cpu_div_ctr[7:0] from top.v
 wire       halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
@@ -51,10 +52,12 @@ always #1  clk_fast = ~clk_fast;
 // ---------------------------------------------------------------------------
 // Hardware PRNG — mirrors the instantiation in top.v.
 // Clocked by clk_fast so it runs independently of the slow CPU clock.
+// prng_seed mimics the cpu_div_ctr[7:0] entropy source from top.v.
 // ---------------------------------------------------------------------------
 prng u_prng (
     .clk  (clk_fast),
     .rst  (rst),
+    .seed (prng_seed),
     .data (prng_data)
 );
 
@@ -111,6 +114,7 @@ initial begin
 
     // ---- Reset ----
     rst = 1;
+    prng_seed = 8'hAB;   // arbitrary first seed
     repeat(3) @(posedge clk);
     @(negedge clk);
     rst = 0;
@@ -157,15 +161,25 @@ initial begin
     // ---- Check PRNG: LFSR advances on clk_fast independently of clk ----
     begin : prng_check
         reg [7:0] val0, val1, val2;
-        // Reset and wait for it to clear
-        rst = 1; @(posedge clk); @(posedge clk); rst = 0;
-        // Allow a few fast-clock cycles for the LFSR to start running
-        repeat(4) @(posedge clk_fast);
-        // Sample three consecutive fast-clock values
+        reg [7:0] seed_a_start, seed_b_start;
+
+        // --- Reset with seed A (0x2B), capture starting value ---
+        prng_seed = 8'h2B;
+        rst = 1; @(posedge clk_fast); @(posedge clk_fast); rst = 0;
+        @(posedge clk_fast); seed_a_start = u_prng.lfsr;
+
+        // LFSR should be non-zero
+        if (seed_a_start !== 8'h00) begin
+            $display("  PASS  PRNG seed A non-zero (0x%02h)", seed_a_start);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("  FAIL  PRNG seed A is zero (lock-up state)");
+            fail_count = fail_count + 1;
+        end
+
+        // LFSR advances each fast-clock cycle
         @(posedge clk_fast); val0 = u_prng.lfsr;
         @(posedge clk_fast); val1 = u_prng.lfsr;
-        @(posedge clk_fast); val2 = u_prng.lfsr;
-        // LFSR should have stepped — values must differ
         if (val0 !== val1) begin
             $display("  PASS  PRNG advances each fast-clock cycle (0x%02h → 0x%02h)", val0, val1);
             pass_count = pass_count + 1;
@@ -173,14 +187,7 @@ initial begin
             $display("  FAIL  PRNG did not advance (stuck at 0x%02h)", val0);
             fail_count = fail_count + 1;
         end
-        // LFSR should never be zero (lock-up state)
-        if (val0 !== 8'h00 && val1 !== 8'h00 && val2 !== 8'h00) begin
-            $display("  PASS  PRNG never zero");
-            pass_count = pass_count + 1;
-        end else begin
-            $display("  FAIL  PRNG reached zero (lock-up state)");
-            fail_count = fail_count + 1;
-        end
+
         // Confirm LFSR keeps moving across slow CPU clock edges
         @(posedge clk); val0 = u_prng.lfsr;
         @(posedge clk); val1 = u_prng.lfsr;
@@ -189,6 +196,32 @@ initial begin
             pass_count = pass_count + 1;
         end else begin
             $display("  FAIL  PRNG held across CPU clock edges (not running freely)");
+            fail_count = fail_count + 1;
+        end
+
+        // --- Reset with seed B (0x7F), verify different start ---
+        prng_seed = 8'h7F;
+        rst = 1; @(posedge clk_fast); @(posedge clk_fast); rst = 0;
+        @(posedge clk_fast); seed_b_start = u_prng.lfsr;
+
+        if (seed_b_start !== seed_a_start) begin
+            $display("  PASS  different seeds produce different sequences (0x%02h vs 0x%02h)",
+                     seed_a_start, seed_b_start);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("  FAIL  different seeds produced same start value (0x%02h)", seed_a_start);
+            fail_count = fail_count + 1;
+        end
+
+        // --- Zero seed falls back to 0x01 ---
+        prng_seed = 8'h00;
+        rst = 1; @(posedge clk_fast); @(posedge clk_fast); rst = 0;
+        @(posedge clk_fast); val0 = u_prng.lfsr;
+        if (val0 !== 8'h00) begin
+            $display("  PASS  zero seed avoided (started at 0x%02h)", val0);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("  FAIL  zero seed caused lock-up state");
             fail_count = fail_count + 1;
         end
     end

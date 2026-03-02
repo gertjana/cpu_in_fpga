@@ -499,17 +499,24 @@ initial begin
     chk1(173, "pc_load   ", pc_load, 1'b0);
 
     // ------------------------------------------------------------------
-    // Group 8: IN R5  — read hardware PRNG into register
-    // Encoding: 1000 101 000000000
+    // Group 8: IN R5, port=001  — read hardware PRNG into register
+    // Encoding: 1000 101 001 000 000  (group=8, rd=5, port=1)
     // ------------------------------------------------------------------
-    $display("--- IN R5 ---");
-    apply(16'h8A00);   // 1000 101 000000000  (group=8, rd=5)
+    $display("--- IN R5 (port=001, PRNG) ---");
+    apply(16'h8A40);   // 1000 101 001 000 000  (group=8, rd=5, port=001)
     chk3(180, "rd_addr   ", rd_addr,   3'd5);
     chk1(181, "reg_we    ", reg_we,    1'b1);
     chk3(182, "wb_sel    ", wb_sel,    3'b100); // WB_PRNG
     chk1(183, "mem_we    ", mem_we,    1'b0);
     chk1(184, "pc_load   ", pc_load,   1'b0);
     chk1(185, "halt      ", halt,      1'b0);
+
+    // IN with unknown port (port=000) — must behave as NOP
+    $display("--- IN R5 (port=000, undefined) => NOP ---");
+    apply(16'h8A00);   // 1000 101 000 000 000  (group=8, rd=5, port=000)
+    chk1(186, "reg_we=0  ", reg_we,    1'b0);   // no write-back
+    chk1(187, "mem_we=0  ", mem_we,    1'b0);
+    chk1(188, "pc_load=0 ", pc_load,   1'b0);
 
     // ------------------------------------------------------------------
     // Summary

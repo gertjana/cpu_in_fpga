@@ -179,12 +179,15 @@ wire heartbeat = cpu_div_ctr[CPU_CLK_DIV_BITS-1];
 // Hardware PRNG — clocked directly by the 12 MHz board oscillator.
 // Runs ~1 million steps per CPU instruction, so every IN read is at a
 // different point in the 255-step LFSR sequence.
-// ---------------------------------------------------------------------------
+// The low 8 bits of cpu_div_ctr are used as the seed: they are captured
+// at the moment the reset button is released, giving a different starting
+// point in the sequence on every press (button-timing entropy).
 wire [7:0] prng_data;
 
 prng u_prng (
     .clk  (clk_12m),
     .rst  (rst),
+    .seed (cpu_div_ctr[7:0]),
     .data (prng_data)
 );
 
