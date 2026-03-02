@@ -26,8 +26,11 @@ module prng (
 // Bit positions: 7, 5, 4, 3 (0-indexed from LSB)
 localparam [7:0] TAP_MASK = 8'hB8;
 
-// LFSR state register — seed to 0x01 (0x00 is the lock-up state)
-reg [7:0] lfsr;
+// LFSR state register — initialised to seed 0x01 at power-on.
+// (0x00 is the Galois LFSR lock-up state and must be avoided.)
+// MAX10 flip-flops support power-on initialisation via the `initial` block;
+// Quartus maps this to the flip-flop's power-up value.
+reg [7:0] lfsr = 8'h01;
 
 // Galois LFSR next-state logic:
 //   1. Capture the output bit (LSB)
