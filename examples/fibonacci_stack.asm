@@ -15,12 +15,6 @@
 ;   After the loop R7 = fib(0) = 0 (bottom of stack, last popped).
 ;   The loop counts pops with R0; R0 decrements from 14 to 0.
 ;
-; Stack layout after phase 1 (top → bottom):
-;   TOP  → fib(13) = 233
-;           fib(12) = 144
-;           ...
-;   BOT  → fib(0)  = 0
-;
 ; Register use:
 ;   R0 = pop counter (decremented 14 → 0 in phase 2)
 ;   R1 = fib[i-2]  (a)

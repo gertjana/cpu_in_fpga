@@ -4,8 +4,6 @@
 ;
 ; Counts PC through 0..31 visibly on LEDs[7:3], then jumps back to 0.
 ;
-; Expected LED sequence (LED7..LED5 = PC[4..0]):
-;   000 001 010 011 100 101 110 111 000 ...
 
         NOP         ; PC=0  → 00000
         NOP         ; PC=1  → 00001
