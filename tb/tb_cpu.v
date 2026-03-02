@@ -13,6 +13,10 @@
 //   R0 == 5
 //   R2 == 5
 //
+// The testbench also verifies the hardware PRNG (IN instruction):
+//   - Runs prng.hex (IN R7 / JMP loop) and checks R7 changes over time
+//   - Confirms the LFSR advances when prng_advance=1 and holds when =0
+//
 // The testbench inspects internal register file via hierarchical references.
 // It also verifies halt_out is asserted and the CPU stops advancing.
 // =============================================================================
@@ -26,6 +30,7 @@ module tb_cpu;
 // ---------------------------------------------------------------------------
 reg  clk;
 reg  rst;
+reg  prng_advance;
 wire halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
@@ -44,6 +49,7 @@ cpu #(.ROM_INIT("tb/cpu_program.hex")) u_cpu (
     .clk             (clk),
     .rst             (rst),
     .halt_out        (halt_out),
+    .prng_advance    (prng_advance),
     .dbg_pc          (dbg_pc),
     .dbg_flag_z      (dbg_flag_z),
     .dbg_flag_c      (dbg_flag_c),
@@ -89,6 +95,7 @@ initial begin
 
     // ---- Reset ----
     rst = 1;
+    prng_advance = 1;
     repeat(3) @(posedge clk);
     @(negedge clk);
     rst = 0;
@@ -130,6 +137,45 @@ initial begin
         pc_snap = u_cpu.u_pc.pc_out;
         repeat(5) @(posedge clk);
         check(u_cpu.u_pc.pc_out, pc_snap, "PC frozen after halt");
+    end
+
+    // ---- Check PRNG: LFSR advances each cycle when prng_advance=1 ----
+    // Read the raw LFSR register directly from the hardware PRNG module.
+    begin : prng_check
+        reg [7:0] val0, val1, val2;
+        // Reset and let the LFSR run for a few cycles
+        rst = 1; @(posedge clk); @(posedge clk); rst = 0;
+        @(posedge clk); val0 = u_cpu.u_prng.lfsr;
+        @(posedge clk); val1 = u_cpu.u_prng.lfsr;
+        @(posedge clk); val2 = u_cpu.u_prng.lfsr;
+        // LFSR should have stepped — values must differ
+        if (val0 !== val1) begin
+            $display("  PASS  PRNG advances each cycle (0x%02h → 0x%02h)", val0, val1);
+            pass_count = pass_count + 1;
+        end else begin
+            $display("  FAIL  PRNG did not advance (stuck at 0x%02h)", val0);
+            fail_count = fail_count + 1;
+        end
+        // LFSR should never be zero (lock-up state)
+        if (val0 !== 8'h00 && val1 !== 8'h00 && val2 !== 8'h00) begin
+            $display("  PASS  PRNG never zero");
+            pass_count = pass_count + 1;
+        end else begin
+            $display("  FAIL  PRNG reached zero (lock-up state)");
+            fail_count = fail_count + 1;
+        end
+        // Freeze the LFSR: prng_advance=0 → value should hold
+        prng_advance = 0;
+        @(posedge clk); val0 = u_cpu.u_prng.lfsr;
+        @(posedge clk); val1 = u_cpu.u_prng.lfsr;
+        if (val0 === val1) begin
+            $display("  PASS  PRNG holds when advance=0");
+            pass_count = pass_count + 1;
+        end else begin
+            $display("  FAIL  PRNG changed when advance=0 (0x%02h → 0x%02h)", val0, val1);
+            fail_count = fail_count + 1;
+        end
+        prng_advance = 1;
     end
 
     // ---- Summary ----

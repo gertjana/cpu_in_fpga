@@ -24,6 +24,9 @@ module cpu #(
     input  wire       clk,
     input  wire       rst,
     output wire       halt_out,
+    // PRNG advance: tie high to run the LFSR at full board clock rate
+    // (driven from top.v with the board clock, not the slow CPU clock)
+    input  wire       prng_advance,
     // Debug / LED outputs (combinational taps of internal state)
     output wire [7:0] dbg_pc,
     output wire       dbg_flag_z,
@@ -45,7 +48,7 @@ wire        dec_reg_we;
 wire [2:0]  dec_alu_op;
 wire        dec_alu_src_b;
 wire [7:0]  dec_imm;
-wire [1:0]  dec_wb_sel;
+wire [2:0]  dec_wb_sel;
 wire        dec_mem_re;
 wire        dec_mem_we;
 wire        dec_pc_load;
@@ -120,6 +123,11 @@ wire [7:0] ram_rdata;
 // ---------------------------------------------------------------------------
 wire [7:0] stack_data_out;
 wire [7:0] stack_data_in;
+
+// ---------------------------------------------------------------------------
+// PRNG wire
+// ---------------------------------------------------------------------------
+wire [7:0] prng_data;
 
 // ---------------------------------------------------------------------------
 // Module instantiations
@@ -222,15 +230,27 @@ stack u_stack (
     .underflow ()
 );
 
+// --- Hardware PRNG ---
+// Runs at the board clock rate (via prng_advance from top.v) so the value
+// the CPU reads via IN is effectively unpredictable from software.
+prng u_prng (
+    .clk     (clk),
+    .rst     (rst),
+    .advance (prng_advance),
+    .data    (prng_data)
+);
+
 // --- Write-back mux ---
-// 2'b00 = ALU result
-// 2'b01 = RAM read
-// 2'b10 = immediate (LDI)
-// 2'b11 = stack pop (POP)
-assign wb_data = (dec_wb_sel == 2'b00) ? alu_result  :
-                 (dec_wb_sel == 2'b01) ? ram_rdata   :
-                 (dec_wb_sel == 2'b10) ? dec_imm      :
-                                         stack_data_out;
+// 3'b000 = ALU result
+// 3'b001 = RAM read
+// 3'b010 = immediate (LDI)
+// 3'b011 = stack pop (POP/RET)
+// 3'b100 = PRNG (IN)
+assign wb_data = (dec_wb_sel == 3'b000) ? alu_result     :
+                 (dec_wb_sel == 3'b001) ? ram_rdata      :
+                 (dec_wb_sel == 3'b010) ? dec_imm        :
+                 (dec_wb_sel == 3'b011) ? stack_data_out :
+                                          prng_data;
 
 // --- PC load-target mux ---
 // JR:  pc_in = ra_data
