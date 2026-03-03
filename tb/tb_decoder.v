@@ -576,12 +576,12 @@ initial begin
     // ------------------------------------------------------------------
     $display("--- OUT R3 (port=001, PRNG seed) ---");
     apply(16'h9640);   // 1001 011 001 000 000
-    chk3(190, "ra_addr   ", ra_addr,    3'd3);   // source reg = R3
-    chk1(191, "periph_we ", periph_we,  1'b1);
-    chk3(192, "periph_port", periph_port, 3'b001);
-    chk1(193, "reg_we=0  ", reg_we,     1'b0);   // OUT never writes back
-    chk1(194, "mem_we=0  ", mem_we,     1'b0);
-    chk1(195, "pc_load=0 ", pc_load,    1'b0);
+    chk3(240, "ra_addr   ", ra_addr,    3'd3);   // source reg = R3
+    chk1(241, "periph_we ", periph_we,  1'b1);
+    chk3(242, "periph_port", periph_port, 3'b001);
+    chk1(243, "reg_we=0  ", reg_we,     1'b0);   // OUT never writes back
+    chk1(244, "mem_we=0  ", mem_we,     1'b0);
+    chk1(245, "pc_load=0 ", pc_load,    1'b0);
 
     $display("--- OUT R0 (port=010, GPIO) ---");
     apply(16'h9080);   // 1001 000 010 000 000
