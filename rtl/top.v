@@ -48,10 +48,11 @@ module top (
     input  wire       clk_12m,   // 12 MHz board clock (pin H6)
     input  wire       rst_n,     // USER_BTN active-low (pin E6)
     output wire [7:0] led,       // active-low LEDs: LED[0]..LED[7]
-    inout  wire [7:0] gpio,      // 8 bidirectional GPIO pins (E1,C2,C1,D1,E3,F1,E4,H8)
+    inout  wire [7:0] gpio,      // 8 bidirectional GPIO pins: gpio[0..7] → PIN_H8, PIN_K10, PIN_H5, PIN_H4, PIN_J1, PIN_J2, PIN_L12, PIN_J12
     // adc_in: 8 MSBs of the MAX 10 internal ADC result, supplied by the
-    // alt_adc_ctrl IP core.  The analog input is ANAIN1 (board pin D2).
-    // This port is driven by the IP wrapper, not tied directly to a pad.
+    // alt_adc_ctrl IP core. The external analog input is ADC channel AIN0 on
+    // PIN_E1 (J1 pin 2 on the MAX1000 board). This port is driven by the IP
+    // wrapper, not tied directly to a pad.
     input  wire [7:0] adc_in     // ADC result [11:4] from alt_adc_ctrl IP
 );
 
