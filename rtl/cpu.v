@@ -28,6 +28,18 @@ module cpu #(
     // PRNG value sampled from the hardware LFSR in top.v (runs at 12 MHz).
     input  wire [7:0] prng_data,
 
+    // GPIO input pin values (sampled in top.v, passed as plain wire).
+    input  wire [7:0] gpio_data,
+
+    // ADC sampled value (external, passed as plain wire from top.v).
+    input  wire [7:0] adc_data,
+
+    // Peripheral write interface (OUT instruction).
+    // Asserted for one cpu clk cycle; data is the source register value.
+    output wire        periph_we,
+    output wire [2:0]  periph_port,
+    output wire [7:0]  periph_data,
+
     // Debug / LED outputs (combinational taps of internal state)
     output wire [7:0] dbg_pc,
     output wire       dbg_flag_z,
@@ -58,6 +70,8 @@ wire        dec_stack_push;
 wire        dec_stack_pop;
 wire        dec_flags_we;
 wire        dec_halt;
+wire        dec_periph_we;
+wire [2:0]  dec_periph_port;
 
 // ---------------------------------------------------------------------------
 // Instruction register (ROM output) with branch-delay-slot flush and
@@ -158,7 +172,9 @@ decoder u_dec (
     .stack_push (dec_stack_push),
     .stack_pop  (dec_stack_pop),
     .flags_we   (dec_flags_we),
-    .halt       (dec_halt)
+    .halt       (dec_halt),
+    .periph_we  (dec_periph_we),
+    .periph_port(dec_periph_port)
 );
 
 // --- Register File ---
@@ -231,12 +247,17 @@ stack u_stack (
 // 3'b001 = RAM read
 // 3'b010 = immediate (LDI)
 // 3'b011 = stack pop (POP/RET)
-// 3'b100 = PRNG (IN)
+// 3'b100 = PRNG (IN port 1)
+// 3'b101 = GPIO input (IN port 2)
+// 3'b110 = ADC value (IN port 4)
 assign wb_data = (dec_wb_sel == 3'b000) ? alu_result     :
                  (dec_wb_sel == 3'b001) ? ram_rdata      :
                  (dec_wb_sel == 3'b010) ? dec_imm        :
                  (dec_wb_sel == 3'b011) ? stack_data_out :
-                                          prng_data;
+                 (dec_wb_sel == 3'b100) ? prng_data      :
+                 (dec_wb_sel == 3'b101) ? gpio_data      :
+                 (dec_wb_sel == 3'b110) ? adc_data       :
+                                          8'h00;
 
 // --- PC load-target mux ---
 // JR:  pc_in = ra_data
@@ -274,6 +295,13 @@ always @(posedge clk) begin
         flag_v <= alu_v;
     end
 end
+
+// --- Peripheral write interface (OUT instruction) ---
+// periph_data is the value of the source register (Ra field of OUT).
+// ra_data is already read through the register file with ra_addr set by decoder.
+assign periph_we   = dec_periph_we;
+assign periph_port = dec_periph_port;
+assign periph_data = ra_data;
 
 // --- Halt output (asserted from first HALT cycle and held permanently) ---
 assign halt_out = dec_halt | halted;

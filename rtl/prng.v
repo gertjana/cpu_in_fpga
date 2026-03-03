@@ -19,18 +19,27 @@
 //   different point.  If seed happens to be 0x00 the module falls back to
 //   0x01 to avoid the LFSR lock-up state.
 //
+//   The `load` / `load_data` interface allows top.v to reseed the LFSR at
+//   any time (used by the OUT Ra, 1 instruction).  When load=1, load_data
+//   is latched into the LFSR on the next rising clk edge (with the same
+//   zero-guard as the rst-based seed).
+//
 // Ports:
-//   clk   — board clock (12 MHz, rising edge)
-//   rst   — synchronous active-high reset
-//   seed  — 8-bit entropy value latched when rst falls; must be non-zero
-//           (0x00 is automatically replaced with 0x01)
-//   data  — current LFSR value (combinational, valid every cycle)
+//   clk       — board clock (12 MHz, rising edge)
+//   rst       — synchronous active-high reset
+//   seed      — 8-bit entropy value latched when rst falls; must be non-zero
+//               (0x00 is automatically replaced with 0x01)
+//   load      — 1 = load load_data into LFSR this cycle (overrides normal advance)
+//   load_data — value to load when load=1
+//   data      — current LFSR value (combinational, valid every cycle)
 // =============================================================================
 
 module prng (
     input  wire       clk,
     input  wire       rst,
     input  wire [7:0] seed,
+    input  wire       load,
+    input  wire [7:0] load_data,
     output wire [7:0] data
 );
 
@@ -49,7 +58,8 @@ always @(posedge clk)
 wire rst_falling = rst_prev & ~rst;
 
 // Safe seed: replace 0x00 with 0x01 to avoid the lock-up state.
-wire [7:0] safe_seed = (seed == 8'h00) ? 8'h01 : seed;
+wire [7:0] safe_seed      = (seed      == 8'h00) ? 8'h01 : seed;
+wire [7:0] safe_load_data = (load_data == 8'h00) ? 8'h01 : load_data;
 
 // Galois LFSR next-state logic:
 //   1. Capture the output bit (LSB)
@@ -61,9 +71,12 @@ wire [7:0] next    = feedback ? (shifted ^ TAP_MASK) : shifted;
 
 always @(posedge clk) begin
     if (rst_falling) begin
-        lfsr <= safe_seed;   // latch entropy at the moment reset releases
+        lfsr <= safe_seed;       // latch entropy at the moment reset releases
     end else if (!rst) begin
-        lfsr <= next;        // free-running when not in reset
+        if (load)
+            lfsr <= safe_load_data;  // CPU OUT Ra, 1 mid-program reseed
+        else
+            lfsr <= next;            // free-running when not in reset
     end
     // while rst is high: hold current value (seed not yet latched)
 end

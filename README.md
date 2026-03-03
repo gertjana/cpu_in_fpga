@@ -254,6 +254,7 @@ I8-format: [15:12] group | [11:9] sub | [8] x    | [7:0] imm8
 | `CMP  Ra, Rb`       | R  | `0110 xxx aaa bbb xxx` | flags(Ra − Rb)      | Z C N V |
 | `CMPI Ra, imm6`     | I  | `0111 xxx aaa iiiiii`  | flags(Ra − imm6)    | Z C N V |
 | `IN   Rd, port`     | R  | `1000 ddd ppp xxxxxxxx` | Rd = peripheral[port] | —       |
+| `OUT  Ra, port`     | R  | `1001 aaa ppp xxxxxxxx` | peripheral[port] = Ra | —       |
 | `NOP`               | —  | `1110 xxxxxxxxxxxx`    | no operation        | —       |
 | `HALT`              | —  | `1111 xxxxxxxxxxxx`    | freeze CPU          | —       |
 
@@ -271,3 +272,15 @@ I8-format: [15:12] group | [11:9] sub | [8] x    | [7:0] imm8
 | R7   | `111`  |
 
 See `docs/ISA.md` for the complete specification including flag behaviour details and memory map.
+
+### Peripheral port map (IN / OUT)
+
+| Port | Peripheral    | IN (read)                  | OUT (write)                        |
+|------|---------------|----------------------------|------------------------------------|
+| `1`  | PRNG          | Read 8-bit LFSR value      | Seed the LFSR                      |
+| `2`  | GPIO data     | Read GPIO pin logic levels | Set GPIO output data register      |
+| `3`  | GPIO direction| — (write-only, IN = NOP)   | Set pin direction (1=out, 0=in)    |
+| `4`  | ADC (AIN0)    | Read 8-bit sampled value   | — (NOP, no DAC)                    |
+| `5`–`7` | Reserved  | —                          | —                                  |
+
+Port `ppp` occupies bits `[8:6]` of the instruction word for both `IN` and `OUT`. Undefined ports are treated as NOP.

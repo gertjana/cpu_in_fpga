@@ -54,6 +54,7 @@ GRP_STACK = 0x5
 GRP_CMP   = 0x6
 GRP_CMPI  = 0x7
 GRP_IN    = 0x8
+GRP_OUT   = 0x9
 GRP_NOP   = 0xE
 GRP_HALT  = 0xF
 
@@ -325,6 +326,15 @@ def encode_in(operands, symbols, filename, lineno) -> int:
     return (GRP_IN << 12) | (rd << 9) | (port << 6)
 
 
+def encode_out(operands, symbols, filename, lineno) -> int:
+    # OUT Ra, port  → 1001 aaa ppp 000000  (Ra in bits [11:9], port in bits [8:6], range 0–7)
+    if len(operands) != 2:
+        raise AsmError("OUT requires 2 operands: Ra, port", filename, lineno)
+    ra   = parse_reg(operands[0], filename, lineno)
+    port = parse_imm(operands[1], symbols, filename, lineno, bits=3)
+    return (GRP_OUT << 12) | (ra << 9) | (port << 6)
+
+
 def encode_nop(operands, filename, lineno) -> int:
     if operands:
         raise AsmError("NOP takes no operands", filename, lineno)
@@ -342,7 +352,7 @@ def encode_halt(operands, filename, lineno) -> int:
 # ---------------------------------------------------------------------------
 
 ALL_MNEMONICS = set(ALU_SUB) | set(JUMP_SUB) | set(STACK_SUB) | {
-    "ADDI", "LDI", "LD", "ST", "MOV", "CMP", "CMPI", "IN", "NOP", "HALT"
+    "ADDI", "LDI", "LD", "ST", "MOV", "CMP", "CMPI", "IN", "OUT", "NOP", "HALT"
 }
 
 
@@ -377,6 +387,8 @@ def encode_instruction(mnemonic, operands, symbols, filename, lineno) -> int:
         return encode_nop(operands, filename, lineno)
     if mnemonic == "IN":
         return encode_in(operands, symbols, filename, lineno)
+    if mnemonic == "OUT":
+        return encode_out(operands, symbols, filename, lineno)
     if mnemonic == "HALT":
         return encode_halt(operands, filename, lineno)
     raise AsmError(f"unknown mnemonic '{mnemonic}'", filename, lineno)

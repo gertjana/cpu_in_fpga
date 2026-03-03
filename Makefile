@@ -17,7 +17,7 @@ VVP      = vvp
 WAVE     = surfer
 
 RTL = rtl/cpu.v rtl/alu.v rtl/regfile.v rtl/pc.v \
-      rtl/decoder.v rtl/rom.v rtl/ram.v rtl/stack.v
+      rtl/decoder.v rtl/rom.v rtl/ram.v rtl/stack.v rtl/prng.v
 
 SIM_DIR = sim/vcd
 

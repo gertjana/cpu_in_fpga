@@ -60,6 +60,22 @@ Used by: **JMP/Jcc**, **CALL**.
 
 ## Opcode Groups and Instruction Table
 
+| Group | Hex | Instruction(s) |
+|-------|-----|----------------|
+| 0     | `4'h0` | ALU register-register (ADD SUB AND OR XOR NOT SHL SHR) |
+| 1     | `4'h1` | ADDI |
+| 2     | `4'h2` | LDI LD ST |
+| 3     | `4'h3` | MOV |
+| 4     | `4'h4` | JMP JZ JNZ JC JNC JN JV JR |
+| 5     | `4'h5` | PUSH POP CALL RET |
+| 6     | `4'h6` | CMP |
+| 7     | `4'h7` | CMPI |
+| 8     | `4'h8` | IN  (read peripheral) |
+| 9     | `4'h9` | OUT (write peripheral) |
+| 10–13 | `4'hA`–`4'hD` | Reserved |
+| 14    | `4'hE` | NOP |
+| 15    | `4'hF` | HALT |
+
 ### Group 0 — ALU Register-Register  `4'h0`
 
 Format: R  
@@ -160,12 +176,68 @@ Flags: none
 
 Port field `ppp` is in bits `[8:6]` (range 0–7):
 
-| Port | Peripheral | Description |
-|---|---|---|
-| `1` | PRNG | 8-bit Galois LFSR hardware random number generator |
-| all others | — | Undefined; treated as NOP |
+| Port | Peripheral | Direction | Description |
+|------|------------|-----------|-------------|
+| `1`  | PRNG       | read      | 8-bit Galois LFSR hardware random number generator |
+| `2`  | GPIO input | read      | Read current logic level of all 8 GPIO pins (pins configured as input by `OUT Ra, 3`; pins configured as output return their driven value) |
+| `3`  | GPIO dir   | —         | Write-only; `IN` on port `3` is treated as NOP |
+| `4`  | ADC        | read      | Read the 8-bit sampled value from ADC channel 0 (AIN0, PIN_E1 on J1/2). The MAX10 internal ADC samples this pin and returns a 0–255 value proportional to the input voltage (0V = 0x00, 3.3V = 0xFF). |
+| all others | — | — | Undefined; treated as NOP |
 
 The PRNG (port `1`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective. Period: 255.
+
+### Group 9 — OUT (write hardware peripheral)  `4'h9`
+
+Format: R  
+Encoding: `1001 aaa ppp xxxxxxxx`  
+Syntax: `OUT Ra, port`  
+Operation: `peripheral[port] = Ra` — writes the value of `Ra` to the hardware peripheral selected by `port`  
+Flags: none
+
+Port field `ppp` is in bits `[8:6]` (range 0–7). Source register `Ra` is in bits `[11:9]`.
+
+Port numbers are shared with `IN` where the same peripheral supports both read and write:
+
+| Port | Peripheral   | Direction  | Description |
+|------|--------------|------------|-------------|
+| `1`  | PRNG seed    | write      | Load a seed value into the PRNG LFSR. Clears the zero-lock guard automatically (writing `0x00` is mapped to `0x01`). |
+| `2`  | GPIO out     | write      | Set all 8 GPIO output data pins simultaneously. Each bit maps to one pin (bit 0 = GPIO0, …, bit 7 = GPIO7). Only pins whose direction bit (port 3) is 1 drive the output. |
+| `3`  | GPIO dir     | write      | Set GPIO direction register (1 = output, 0 = input, per bit). Resets to `0x00` (all inputs) on CPU reset. |
+| `4`  | —            | —          | Reserved; `OUT` to port 4 is treated as NOP (MAX10 has no DAC). |
+| `5`–`7` | —        | —          | Reserved for future peripherals; currently treated as NOP. |
+
+**Notes:**
+- `OUT` has no effect on CPU registers or flags.
+- The GPIO output data register holds its last written value until the CPU writes again or the board is reset.
+- The GPIO direction register resets to `0x00` (all inputs) on CPU reset; data register resets to `0x00`.
+- On reset, the PRNG seed returns to `0x01`.
+
+**Example — seed the PRNG then read it:**
+```asm
+        LDI  R0, 42      ; seed value
+        OUT  R0, 1       ; write seed to PRNG (port 1)
+        IN   R1, 1       ; read first value from seeded PRNG
+```
+
+**Example — configure GPIO and read pins:**
+```asm
+        LDI  R0, 0xF0    ; upper 4 pins = output, lower 4 = input
+        OUT  R0, 3       ; set GPIO direction
+        LDI  R1, 0xA0    ; output pattern for upper pins
+        OUT  R1, 2       ; drive GPIO output data
+        IN   R2, 2       ; read back all 8 GPIO pin values
+```
+
+**Example — set GPIO outputs:**
+```asm
+        LDI  R0, 0x55    ; alternating high/low pattern (0101 0101)
+        OUT  R0, 2       ; drive GPIO pins
+```
+
+**Example — read ADC:**
+```asm
+        IN   R0, 4       ; sample ADC into R0
+```
 
 ### Group 14 — NOP  `4'hE`
 
@@ -188,7 +260,7 @@ Stops execution; PC holds current value.
 | N    | Result bit 7 is 1 (negative)     | ADD SUB AND OR XOR NOT SHL SHR ADDI CMP CMPI |
 | V    | Signed overflow                  | ADD SUB ADDI CMP CMPI               |
 
-Flags are **not** updated by: LDI LD ST MOV JMP Jcc JR PUSH POP CALL RET NOP HALT.
+Flags are **not** updated by: LDI LD ST MOV JMP Jcc JR PUSH POP CALL RET IN OUT NOP HALT.
 
 ---
 
@@ -267,6 +339,7 @@ loop:
 | RET              | `0101 011 xxx xxxxxxxxx`                    |
 | CMP  Ra, Rb      | `0110 xxx aaa bbb xxx`                      |
 | CMPI Ra, imm6    | `0111 xxx aaa iiiiii`                       |
-| IN   Rd          | `1000 ddd 001 xxxxxxxx`                     |
+| IN   Rd, port    | `1000 ddd ppp xxxxxxxx`                     |
+| OUT  Ra, port    | `1001 aaa ppp xxxxxxxx`                     |
 | NOP              | `1110 xxxxxxxxxxxx`                         |
 | HALT             | `1111 xxxxxxxxxxxx`                         |

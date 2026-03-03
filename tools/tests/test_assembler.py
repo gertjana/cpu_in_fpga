@@ -334,6 +334,59 @@ class TestIN:
 
 
 # ---------------------------------------------------------------------------
+# Group 9 — OUT (write hardware peripheral)
+# ---------------------------------------------------------------------------
+
+class TestOUT:
+    def test_out_r0_port1(self):
+        # OUT R0, 1  → 1001 000 001 000000 = 0x9040
+        assert asm1("OUT R0, 1") == 0x9040
+
+    def test_out_r3_port1(self):
+        # OUT R3, 1  → 1001 011 001 000000 = 0x9640
+        assert asm1("OUT R3, 1") == 0x9640
+
+    def test_out_r7_port1(self):
+        # OUT R7, 1  → 1001 111 001 000000 = 0x9E40
+        assert asm1("OUT R7, 1") == 0x9E40
+
+    def test_out_port2_gpio(self):
+        # OUT R0, 2  → 1001 000 010 000000 = 0x9080
+        assert asm1("OUT R0, 2") == 0x9080
+
+    def test_out_port3_gpio_dir(self):
+        # OUT R0, 3  → 1001 000 011 000000 = 0x90C0
+        assert asm1("OUT R0, 3") == 0x90C0
+
+    def test_out_port7(self):
+        # OUT R0, 7  → 1001 000 111 000000 = 0x91C0
+        assert asm1("OUT R0, 7") == 0x91C0
+
+    def test_out_port0(self):
+        # OUT R0, 0  → 1001 000 000 000000 = 0x9000  (undefined port, assembles fine)
+        assert asm1("OUT R0, 0") == 0x9000
+
+    def test_out_case_insensitive(self):
+        assert asm1("out r5, 1") == asm1("OUT R5, 1")
+
+    def test_out_port_overflow(self):
+        with pytest.raises(AsmError, match="out of range"):
+            asm1("OUT R0, 8")
+
+    def test_out_wrong_operand_count_one(self):
+        with pytest.raises(AsmError, match="2 operands"):
+            asm1("OUT R0")
+
+    def test_out_wrong_operand_count_three(self):
+        with pytest.raises(AsmError, match="2 operands"):
+            asm1("OUT R0, 1, 2")
+
+    def test_out_no_operands(self):
+        with pytest.raises(AsmError, match="2 operands"):
+            asm1("OUT")
+
+
+# ---------------------------------------------------------------------------
 # NOP / HALT
 # ---------------------------------------------------------------------------
 

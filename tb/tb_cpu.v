@@ -33,11 +33,16 @@ reg        clk;
 reg        clk_fast;   // fast board clock fed to the standalone PRNG instance
 reg        rst;
 reg  [7:0] prng_seed;  // entropy value — mimics cpu_div_ctr[7:0] from top.v
+reg  [7:0] gpio_data_in;  // GPIO input pin values fed to CPU
+reg  [7:0] adc_data_in;   // ADC sampled value fed to CPU
 wire       halt_out;
 wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 wire [7:0] dbg_r7;
 wire [7:0] prng_data;  // output of the PRNG module, fed into the CPU
+wire        periph_we;
+wire [2:0]  periph_port;
+wire [7:0]  periph_data;
 
 // ---------------------------------------------------------------------------
 // CPU clock: 10 ns period (100 MHz in simulation)
@@ -69,6 +74,11 @@ cpu #(.ROM_INIT("tb/cpu_program.hex")) u_cpu (
     .rst             (rst),
     .halt_out        (halt_out),
     .prng_data       (prng_data),
+    .gpio_data       (gpio_data_in),
+    .adc_data        (adc_data_in),
+    .periph_we       (periph_we),
+    .periph_port     (periph_port),
+    .periph_data     (periph_data),
     .dbg_pc          (dbg_pc),
     .dbg_flag_z      (dbg_flag_z),
     .dbg_flag_c      (dbg_flag_c),
@@ -114,7 +124,9 @@ initial begin
 
     // ---- Reset ----
     rst = 1;
-    prng_seed = 8'hAB;   // arbitrary first seed
+    prng_seed    = 8'hAB;   // arbitrary first seed
+    gpio_data_in = 8'h00;
+    adc_data_in  = 8'h00;
     repeat(3) @(posedge clk);
     @(negedge clk);
     rst = 0;
@@ -224,6 +236,96 @@ initial begin
             $display("  FAIL  zero seed caused lock-up state");
             fail_count = fail_count + 1;
         end
+    end
+
+    // ---- Check OUT: decoder correctly drives periph_we/periph_port ----
+    // The decoder is purely combinational.  We can verify its outputs for
+    // OUT instructions by inspecting the CPU's peripheral wires while the
+    // CPU is not clocked (rst held high keeps the ROM presenting NOP-like
+    // data, but we force the instruction register via the decoder hierarchy).
+    //
+    // Strategy: use $deposit / force on the instruction to the decoder and
+    // read back periph_we and periph_port combinationally.  Since Icarus
+    // doesn't support $deposit, we instead reset the CPU and check that
+    // periph_we is de-asserted at idle, then verify the decoder sub-module
+    // outputs match expected values for a known OUT encoding.
+    $display("\n=== OUT Instruction Decoder Check ===");
+    begin : out_check
+        // Reset — during reset all decoder outputs default to 0/safe
+        rst = 1; prng_seed = 8'h00;
+        repeat(2) @(posedge clk); @(negedge clk);
+
+        // While halted (instr = NOP from flush/halted logic), periph_we
+        // must be de-asserted.
+        check(periph_we, 0, "periph_we=0 during reset");
+
+        // Force the instruction word seen by the decoder to OUT R3, 1:
+        //   1001 011 001 000000 = 0x9640
+        // Then read back periph_we, periph_port, and ra_addr from the
+        // decoder sub-module (hierarchical access).
+        force u_cpu.instr = 16'h9640;   // OUT R3, port=1 (PRNG seed)
+        #2;   // allow combinational logic to settle
+        check(u_cpu.u_dec.periph_we,   1, "OUT R3,1: periph_we");
+        check(u_cpu.u_dec.periph_port, 3'b001, "OUT R3,1: periph_port=1");
+        check(u_cpu.u_dec.ra_addr,     3'd3,   "OUT R3,1: ra_addr=3");
+        check(u_cpu.u_dec.reg_we,      0, "OUT R3,1: reg_we=0");
+
+        force u_cpu.instr = 16'h9080;   // OUT R0, port=2 (GPIO)
+        #2;
+        check(u_cpu.u_dec.periph_we,   1, "OUT R0,2: periph_we");
+        check(u_cpu.u_dec.periph_port, 3'b010, "OUT R0,2: periph_port=2");
+        check(u_cpu.u_dec.ra_addr,     3'd0,   "OUT R0,2: ra_addr=0");
+
+        force u_cpu.instr = 16'h9EC0;   // OUT R7, port=3 (GPIO direction)
+        #2;
+        check(u_cpu.u_dec.periph_we,   1, "OUT R7,3: periph_we");
+        check(u_cpu.u_dec.periph_port, 3'b011, "OUT R7,3: periph_port=3");
+        check(u_cpu.u_dec.ra_addr,     3'd7,   "OUT R7,3: ra_addr=7");
+
+        force u_cpu.instr = 16'h9000;   // OUT R0, port=0 (undefined → NOP)
+        #2;
+        check(u_cpu.u_dec.periph_we,   0, "OUT R0,0: periph_we=0 (undef port)");
+        check(u_cpu.u_dec.reg_we,      0, "OUT R0,0: reg_we=0");
+
+        release u_cpu.instr;
+        rst = 0;
+    end
+
+    // ---- Check IN: decoder correctly drives wb_sel for GPIO and ADC ----
+    $display("\n=== IN Instruction Decoder Check ===");
+    begin : in_check
+        rst = 1; prng_seed = 8'h00;
+        repeat(2) @(posedge clk); @(negedge clk);
+
+        // IN R2, port=2 (GPIO): 1000 010 010 000 000 = 0x8480
+        force u_cpu.instr = 16'h8480;
+        #2;
+        check(u_cpu.u_dec.reg_we,  1,      "IN R2,2: reg_we");
+        check(u_cpu.u_dec.wb_sel,  3'b101, "IN R2,2: wb_sel=WB_GPIO");
+        check(u_cpu.u_dec.rd_addr, 3'd2,   "IN R2,2: rd_addr=2");
+
+        // IN R6, port=4 (ADC): 1000 110 100 000 000 = 0x8D00
+        force u_cpu.instr = 16'h8D00;
+        #2;
+        check(u_cpu.u_dec.reg_we,  1,      "IN R6,4: reg_we");
+        check(u_cpu.u_dec.wb_sel,  3'b110, "IN R6,4: wb_sel=WB_ADC");
+        check(u_cpu.u_dec.rd_addr, 3'd6,   "IN R6,4: rd_addr=6");
+
+        // IN R0, port=0 (undefined, NOP): 1000 000 000 000 000 = 0x8000
+        force u_cpu.instr = 16'h8000;
+        #2;
+        check(u_cpu.u_dec.reg_we,  0, "IN R0,0: reg_we=0 (undef port)");
+
+        // OUT R4, port=4 (DAC): 1001 100 100 000 000 = 0x9900
+        force u_cpu.instr = 16'h9900;
+        #2;
+        check(u_cpu.u_dec.periph_we,   1,      "OUT R4,4: periph_we");
+        check(u_cpu.u_dec.periph_port, 3'b100, "OUT R4,4: periph_port=4");
+        check(u_cpu.u_dec.ra_addr,     3'd4,   "OUT R4,4: ra_addr=4");
+        check(u_cpu.u_dec.reg_we,      0,      "OUT R4,4: reg_we=0");
+
+        release u_cpu.instr;
+        rst = 0;
     end
 
     // ---- Summary ----
