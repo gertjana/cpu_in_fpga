@@ -200,8 +200,12 @@ wire [7:0]  cpu_periph_data;
 // PRNG load pulse: register the previous value of periph_we (as seen in the
 // fast clock) and detect the rising edge to generate a one-cycle load pulse.
 reg cpu_periph_we_prev = 1'b0;
-always @(posedge clk_12m)
-    cpu_periph_we_prev <= cpu_periph_we;
+always @(posedge clk_12m) begin
+    if (rst)
+        cpu_periph_we_prev <= 1'b0;
+    else
+        cpu_periph_we_prev <= cpu_periph_we;
+end
 
 wire prng_load_req = cpu_periph_we & ~cpu_periph_we_prev
                      & (cpu_periph_port == 3'b001);  // port 1 = PRNG seed
