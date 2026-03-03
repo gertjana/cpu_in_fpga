@@ -33,6 +33,8 @@ wire [7:0]  pc_target;
 wire        stack_push, stack_pop;
 wire        flags_we;
 wire        halt;
+wire        periph_we;
+wire [2:0]  periph_port;
 
 // ---------------------------------------------------------------------------
 // Instantiate DUT
@@ -58,7 +60,9 @@ decoder dut (
     .stack_push (stack_push),
     .stack_pop  (stack_pop),
     .flags_we   (flags_we),
-    .halt       (halt)
+    .halt       (halt),
+    .periph_we  (periph_we),
+    .periph_port(periph_port)
 );
 
 // ---------------------------------------------------------------------------
@@ -517,6 +521,99 @@ initial begin
     chk1(186, "reg_we=0  ", reg_we,    1'b0);   // no write-back
     chk1(187, "mem_we=0  ", mem_we,    1'b0);
     chk1(188, "pc_load=0 ", pc_load,   1'b0);
+
+    // IN R2, port=010 — GPIO input
+    // Encoding: 1000 010 010 000 000
+    //   group=8=1000, rd=2=010, port=2=010, rest=0
+    //   1000_0100_1000_0000 = 0x8480
+    $display("--- IN R2 (port=010, GPIO) ---");
+    apply(16'h8480);
+    chk3(189, "rd_addr   ", rd_addr,   3'd2);
+    chk1(190, "reg_we    ", reg_we,    1'b1);
+    chk3(191, "wb_sel    ", wb_sel,    3'b101); // WB_GPIO
+    chk1(192, "mem_we    ", mem_we,    1'b0);
+    chk1(193, "pc_load   ", pc_load,   1'b0);
+
+    // IN R6, port=011 — GPIO direction (write-only, IN not supported → NOP)
+    // Encoding: 1000 110 011 000 000
+    //   group=8=1000, rd=6=110, port=3=011, rest=0
+    //   1000_1100_1100_0000 = 0x8CC0
+    $display("--- IN R6 (port=011, GPIO dir — NOP) ---");
+    apply(16'h8CC0);
+    chk1(194, "reg_we=0  ", reg_we,    1'b0);   // write-only port — no read-back
+    chk1(195, "mem_we=0  ", mem_we,    1'b0);
+    chk1(196, "pc_load=0 ", pc_load,   1'b0);
+
+    // IN R6, port=100 — ADC value
+    // Encoding: 1000 110 100 000 000
+    //   group=8=1000, rd=6=110, port=4=100, rest=0
+    //   1000_1101_0000_0000 = 0x8D00
+    $display("--- IN R6 (port=100, ADC) ---");
+    apply(16'h8D00);
+    chk3(197, "rd_addr   ", rd_addr,   3'd6);
+    chk1(198, "reg_we    ", reg_we,    1'b1);
+    chk3(199, "wb_sel    ", wb_sel,    3'b110); // WB_ADC
+    chk1(200, "mem_we    ", mem_we,    1'b0);
+    chk1(201, "pc_load   ", pc_load,   1'b0);
+
+    // ------------------------------------------------------------------
+    // Group 9: OUT Ra, port — write register value to hardware peripheral
+    //
+    // Encoding: 1001 aaa ppp xxxxxxxx
+    //   [11:9] Ra   — source register
+    //   [8:6]  port — peripheral select
+    //
+    //  OUT R3, 1 = PRNG seed
+    //    1001 011 001 000 000  = 0x9660  ... let's compute:
+    //    group=9=1001, Ra=3=011, port=1=001, rest=0
+    //    1001_0110_0100_0000 = 0x9640
+    //  OUT R0, 2 = GPIO
+    //    1001 000 010 000 000 = 0x9080
+    //  OUT R7, 3 = DAC
+    //    1001 111 011 000 000 = 0x9EC0
+    //  OUT R0, 0 = undefined port → NOP
+    //    1001 000 000 000 000 = 0x9000
+    // ------------------------------------------------------------------
+    $display("--- OUT R3 (port=001, PRNG seed) ---");
+    apply(16'h9640);   // 1001 011 001 000 000
+    chk3(240, "ra_addr   ", ra_addr,    3'd3);   // source reg = R3
+    chk1(241, "periph_we ", periph_we,  1'b1);
+    chk3(242, "periph_port", periph_port, 3'b001);
+    chk1(243, "reg_we=0  ", reg_we,     1'b0);   // OUT never writes back
+    chk1(244, "mem_we=0  ", mem_we,     1'b0);
+    chk1(245, "pc_load=0 ", pc_load,    1'b0);
+
+    $display("--- OUT R0 (port=010, GPIO) ---");
+    apply(16'h9080);   // 1001 000 010 000 000
+    chk3(200, "ra_addr   ", ra_addr,    3'd0);
+    chk1(201, "periph_we ", periph_we,  1'b1);
+    chk3(202, "periph_port", periph_port, 3'b010);
+    chk1(203, "reg_we=0  ", reg_we,     1'b0);
+
+    $display("--- OUT R7 (port=011, GPIO direction) ---");
+    apply(16'h9EC0);   // 1001 111 011 000 000
+    chk3(210, "ra_addr   ", ra_addr,    3'd7);
+    chk1(211, "periph_we ", periph_we,  1'b1);
+    chk3(212, "periph_port", periph_port, 3'b011);
+    chk1(213, "reg_we=0  ", reg_we,     1'b0);
+
+    $display("--- OUT R0 (port=000, undefined) => NOP ---");
+    apply(16'h9000);   // 1001 000 000 000 000
+    chk1(220, "periph_we=0", periph_we, 1'b0);
+    chk1(221, "reg_we=0   ", reg_we,    1'b0);
+    chk1(222, "pc_load=0  ", pc_load,   1'b0);
+
+    // OUT R4, port=100 — undefined/NOP (ports 4–7 are reserved)
+    // Encoding: 1001 100 100 000 000
+    //   group=9=1001, Ra=4=100, port=4=100, rest=0
+    //   1001_1001_0000_0000 = 0x9900
+    $display("--- OUT R4 (port=100, undefined/NOP) ---");
+    apply(16'h9900);
+    chk3(230, "ra_addr    ", ra_addr,    3'd4);
+    chk1(231, "periph_we=0", periph_we,  1'b0);
+    chk3(232, "periph_port", periph_port, 3'b100);
+    chk1(233, "reg_we=0   ", reg_we,     1'b0);
+    chk1(234, "mem_we=0   ", mem_we,     1'b0);
 
     // ------------------------------------------------------------------
     // Summary

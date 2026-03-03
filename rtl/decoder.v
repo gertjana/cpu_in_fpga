@@ -20,6 +20,7 @@
 //   4'h6  CMP            Ra - Rb flags    (R-format)
 //   4'h7  CMPI           Ra - imm6 flags  (I-format)
 //   4'h8  IN             Rd = peripheral[port]  (R-format: dest in [11:9], port in [8:6])
+//   4'h9  OUT            peripheral[port] = Ra  (R-format: src  in [11:9], port in [8:6])
 //   4'hE  NOP
 //   4'hF  HALT
 // =============================================================================
@@ -50,7 +51,9 @@ module decoder (
     // 3'b001 = data memory read
     // 3'b010 = immediate (LDI)
     // 3'b011 = stack pop
-    // 3'b100 = PRNG (IN instruction)
+    // 3'b100 = PRNG   (IN port 1)
+    // 3'b101 = GPIO   (IN port 2)
+    // 3'b110 = ADC    (IN port 4)
     output reg  [2:0]  wb_sel,
 
     // Memory
@@ -67,6 +70,10 @@ module decoder (
 
     // Flags write enable
     output reg         flags_we,
+
+    // Peripheral write (OUT instruction)
+    output reg         periph_we,    // 1 = write to peripheral this cycle
+    output reg  [2:0]  periph_port,  // which peripheral (port number)
 
     // CPU control
     output reg         halt
@@ -99,6 +106,7 @@ localparam GRP_STK  = 4'h5;
 localparam GRP_CMP  = 4'h6;
 localparam GRP_CMPI = 4'h7;
 localparam GRP_IN   = 4'h8;
+localparam GRP_OUT  = 4'h9;
 localparam GRP_NOP  = 4'hE;
 localparam GRP_HALT = 4'hF;
 
@@ -139,6 +147,8 @@ localparam WB_MEM   = 3'b001;
 localparam WB_IMM   = 3'b010;
 localparam WB_STACK = 3'b011;
 localparam WB_PRNG  = 3'b100;
+localparam WB_GPIO  = 3'b101;   // IN port 2 — GPIO pin values
+localparam WB_ADC   = 3'b110;   // IN port 4 — ADC sampled value
 
 // ---------------------------------------------------------------------------
 // Branch condition evaluation (combinational)
@@ -180,6 +190,8 @@ always @(*) begin
     stack_pop  = 1'b0;
     flags_we   = 1'b0;
     halt       = 1'b0;
+    periph_we  = 1'b0;
+    periph_port = 3'b000;
 
     case (group)
 
@@ -352,7 +364,11 @@ always @(*) begin
         // Group 8: IN Rd, port — read hardware peripheral into register
         // R-format: 1000 ddd ppp xxxxxxxx
         //   [11:9] Rd   — destination register
-        //   [8:6]  port — peripheral select (3'b001 = PRNG)
+        //   [8:6]  port — peripheral select
+        //     3'b001 = PRNG data
+        //     3'b010 = GPIO input pin values
+        //     3'b011 = GPIO direction (read-back, not implemented — NOP)
+        //     3'b100 = ADC sampled value
         // Undefined port numbers are treated as NOP.
         // ------------------------------------------------------------------
         GRP_IN: begin
@@ -361,6 +377,42 @@ always @(*) begin
                     rd_addr = f_rd;
                     reg_we  = 1'b1;
                     wb_sel  = WB_PRNG;
+                end
+                3'b010: begin   // port 2 = GPIO input
+                    rd_addr = f_rd;
+                    reg_we  = 1'b1;
+                    wb_sel  = WB_GPIO;
+                end
+                3'b011: begin   // port 3 = GPIO direction (write-only, IN not supported — NOP)
+                    ; // fall through to default
+                end
+                3'b100: begin   // port 4 = ADC value
+                    rd_addr = f_rd;
+                    reg_we  = 1'b1;
+                    wb_sel  = WB_ADC;
+                end
+                default: ; // unknown port — NOP
+            endcase
+        end
+
+        // ------------------------------------------------------------------
+        // Group 9: OUT Ra, port — write register value to hardware peripheral
+        // R-format: 1001 aaa ppp xxxxxxxx
+        //   [11:9] Ra   — source register (value to write)
+        //   [8:6]  port — peripheral select
+        //     3'b001 = PRNG seed (reseed the LFSR)
+        //     3'b010 = GPIO output register (8 digital output pins)
+        //     3'b011 = GPIO direction register (1=output, 0=input)
+        // Undefined port numbers (including 4–7) are treated as NOP.
+        // ------------------------------------------------------------------
+        GRP_OUT: begin
+            case (f_ra)   // port number in Ra field [8:6]
+                3'b001,   // port 1 = PRNG seed
+                3'b010,   // port 2 = GPIO out
+                3'b011: begin  // port 3 = GPIO direction
+                    ra_addr    = f_rd;   // source register is in [11:9]
+                    periph_we  = 1'b1;
+                    periph_port = f_ra;
                 end
                 default: ; // unknown port — NOP
             endcase

@@ -47,7 +47,13 @@
 module top (
     input  wire       clk_12m,   // 12 MHz board clock (pin H6)
     input  wire       rst_n,     // USER_BTN active-low (pin E6)
-    output wire [7:0] led        // active-low LEDs: LED[0]..LED[7]
+    output wire [7:0] led,       // active-low LEDs: LED[0]..LED[7]
+    inout  wire [7:0] gpio,      // 8 bidirectional GPIO pins: gpio[0..7] → PIN_H8, PIN_K10, PIN_H5, PIN_H4, PIN_J1, PIN_J2, PIN_L12, PIN_J12
+    // adc_in: 8 MSBs of the MAX 10 internal ADC result, supplied by the
+    // alt_adc_ctrl IP core. The external analog input is ADC channel AIN0 on
+    // PIN_E1 (J1 pin 2 on the MAX1000 board). This port is driven by the IP
+    // wrapper, not tied directly to a pad.
+    input  wire [7:0] adc_in     // ADC result [11:4] from alt_adc_ctrl IP
 );
 
 // ---------------------------------------------------------------------------
@@ -184,12 +190,73 @@ wire heartbeat = cpu_div_ctr[CPU_CLK_DIV_BITS-1];
 // point in the sequence on every press (button-timing entropy).
 wire [7:0] prng_data;
 
+// CPU peripheral write interface — these signals are in the cpu_clk domain.
+// They are stable for many clk_12m cycles (cpu_clk period >> clk_12m period),
+// so it is safe to sample them directly in the fast clock domain.
+wire        cpu_periph_we;
+wire [2:0]  cpu_periph_port;
+wire [7:0]  cpu_periph_data;
+
+// PRNG load pulse: register the previous value of periph_we (as seen in the
+// fast clock) and detect the rising edge to generate a one-cycle load pulse.
+reg cpu_periph_we_prev = 1'b0;
+always @(posedge clk_12m) begin
+    if (rst)
+        cpu_periph_we_prev <= 1'b0;
+    else
+        cpu_periph_we_prev <= cpu_periph_we;
+end
+
+wire prng_load_req = cpu_periph_we & ~cpu_periph_we_prev
+                     & (cpu_periph_port == 3'b001);  // port 1 = PRNG seed
+
 prng u_prng (
-    .clk  (clk_12m),
-    .rst  (rst),
-    .seed (cpu_div_ctr[7:0]),
-    .data (prng_data)
+    .clk       (clk_12m),
+    .rst       (rst),
+    .seed      (cpu_div_ctr[7:0]),
+    .load      (prng_load_req),
+    .load_data (cpu_periph_data),
+    .data      (prng_data)
 );
+
+// ---------------------------------------------------------------------------
+// GPIO output register — driven by OUT Ra, 2 (port 2).
+// Holds the last value written; reset to 0x00 on CPU reset.
+// ---------------------------------------------------------------------------
+reg [7:0] gpio_reg = 8'h00;
+always @(posedge clk_12m) begin
+    if (rst)
+        gpio_reg <= 8'h00;
+    else if (cpu_periph_we & (cpu_periph_port == 3'b010))
+        gpio_reg <= cpu_periph_data;
+end
+
+// ---------------------------------------------------------------------------
+// GPIO direction register — driven by OUT Ra, 3 (port 3).
+// 1 = output, 0 = input.  Reset to all-inputs (0x00) on CPU reset.
+// ---------------------------------------------------------------------------
+reg [7:0] gpio_dir_reg = 8'h00;
+always @(posedge clk_12m) begin
+    if (rst)
+        gpio_dir_reg <= 8'h00;
+    else if (cpu_periph_we & (cpu_periph_port == 3'b011))
+        gpio_dir_reg <= cpu_periph_data;
+end
+
+// ---------------------------------------------------------------------------
+// GPIO tri-state drivers — each pin is driven when its direction bit is 1,
+// and left floating (high-Z) when 0 so it acts as an input.
+// gpio (inout) is the single bidirectional port presented to the pin-planner.
+// ---------------------------------------------------------------------------
+genvar gi;
+generate
+    for (gi = 0; gi < 8; gi = gi + 1) begin : gpio_tris
+        assign gpio[gi] = gpio_dir_reg[gi] ? gpio_reg[gi] : 1'bz;
+    end
+endgenerate
+
+// Read-back: capture current pin value regardless of direction.
+wire [7:0] gpio_in = gpio;
 
 // ---------------------------------------------------------------------------
 // CPU instantiation
@@ -204,6 +271,11 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
     .rst             (rst),
     .halt_out        (halt_out),
     .prng_data       (prng_data),
+    .gpio_data       (gpio_in),
+    .adc_data        (adc_in),
+    .periph_we       (cpu_periph_we),
+    .periph_port     (cpu_periph_port),
+    .periph_data     (cpu_periph_data),
     .dbg_pc          (dbg_pc),
     .dbg_flag_z      (dbg_flag_z),
     .dbg_flag_c      (dbg_flag_c),
