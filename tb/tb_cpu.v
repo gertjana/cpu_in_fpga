@@ -316,13 +316,11 @@ initial begin
         #2;
         check(u_cpu.u_dec.reg_we,  0, "IN R0,0: reg_we=0 (undef port)");
 
-        // OUT R4, port=4 (DAC): 1001 100 100 000 000 = 0x9900
+        // OUT R4, port=4 (reserved/NOP): 1001 100 100 000 000 = 0x9900
         force u_cpu.instr = 16'h9900;
         #2;
-        check(u_cpu.u_dec.periph_we,   1,      "OUT R4,4: periph_we");
-        check(u_cpu.u_dec.periph_port, 3'b100, "OUT R4,4: periph_port=4");
-        check(u_cpu.u_dec.ra_addr,     3'd4,   "OUT R4,4: ra_addr=4");
-        check(u_cpu.u_dec.reg_we,      0,      "OUT R4,4: reg_we=0");
+        check(u_cpu.u_dec.periph_we,   0, "OUT R4,4: periph_we=0 (undef port)");
+        check(u_cpu.u_dec.reg_we,      0, "OUT R4,4: reg_we=0");
 
         release u_cpu.instr;
         rst = 0;
