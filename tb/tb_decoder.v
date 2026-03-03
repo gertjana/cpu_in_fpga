@@ -603,14 +603,14 @@ initial begin
     chk1(221, "reg_we=0   ", reg_we,    1'b0);
     chk1(222, "pc_load=0  ", pc_load,   1'b0);
 
-    // OUT R4, port=100 — DAC output level
+    // OUT R4, port=100 — undefined/NOP (ports 4–7 are reserved)
     // Encoding: 1001 100 100 000 000
     //   group=9=1001, Ra=4=100, port=4=100, rest=0
     //   1001_1001_0000_0000 = 0x9900
-    $display("--- OUT R4 (port=100, DAC) ---");
+    $display("--- OUT R4 (port=100, undefined/NOP) ---");
     apply(16'h9900);
     chk3(230, "ra_addr    ", ra_addr,    3'd4);
-    chk1(231, "periph_we  ", periph_we,  1'b1);
+    chk1(231, "periph_we=0", periph_we,  1'b0);
     chk3(232, "periph_port", periph_port, 3'b100);
     chk1(233, "reg_we=0   ", reg_we,     1'b0);
     chk1(234, "mem_we=0   ", mem_we,     1'b0);
