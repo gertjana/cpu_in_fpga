@@ -162,7 +162,9 @@ Port field `ppp` is in bits `[8:6]` (range 0–7):
 
 | Port | Peripheral | Description |
 |---|---|---|
-| `1` | PRNG | 8-bit Galois LFSR hardware random number generator |
+| `001` | PRNG | 8-bit Galois LFSR hardware random number generator |
+| `010` | GPIO | 8 digital input GPIO's (not yet implemented) |
+| `011` | ADC  | a analog GPIO input port with analog to digital conversion (not yet implemented) |
 | all others | — | Undefined; treated as NOP |
 
 The PRNG (port `1`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective. Period: 255.
