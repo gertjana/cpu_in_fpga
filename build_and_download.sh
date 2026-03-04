@@ -48,6 +48,16 @@ CLK_DIV="${CLK_DIV:-20}"
 info "Clock divider : CPU_CLK_DIV_BITS=${CLK_DIV}  (12 MHz / 2^${CLK_DIV})"
 
 # ---------------------------------------------------------------------------
+# 2b. Read prog_name from the .asm header ("; name: <NAME>"), default to NAME
+#     Truncated/padded to exactly 21 characters for the OLED display.
+# ---------------------------------------------------------------------------
+RAW_NAME=$(grep -m1 '^[[:space:]]*;[[:space:]]*name[[:space:]]*:' "$PROGRAM" | sed 's/.*name[[:space:]]*:[[:space:]]*//' | tr -d '\r\n')
+RAW_NAME="${RAW_NAME:-${NAME}}"
+# Pad or truncate to exactly 21 characters
+PROG_NAME=$(printf "%-21.21s" "${RAW_NAME}")
+info "Program name  : \"${PROG_NAME}\""
+
+# ---------------------------------------------------------------------------
 # 3. Check gh is available and authenticated
 # ---------------------------------------------------------------------------
 command -v gh &>/dev/null || die "gh (GitHub CLI) not found.\n  brew install gh"
@@ -64,7 +74,8 @@ gh workflow run "${WORKFLOW}" \
     --ref "${BRANCH}" \
     --field "program=${PROGRAM}" \
     --field "name=${NAME}" \
-    --field "clk_div=${CLK_DIV}"
+    --field "clk_div=${CLK_DIV}" \
+    --field "prog_name=${PROG_NAME}"
 
 # Give GitHub a moment to register the run
 sleep 3

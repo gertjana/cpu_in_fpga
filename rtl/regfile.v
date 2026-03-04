@@ -35,6 +35,13 @@ module regfile (
     input  wire [7:0] rd_data,
     output wire [7:0] ra_data,
     output wire [7:0] rb_data,
+    output wire [7:0] dbg_r0,     // direct taps of all registers for OLED monitor
+    output wire [7:0] dbg_r1,
+    output wire [7:0] dbg_r2,
+    output wire [7:0] dbg_r3,
+    output wire [7:0] dbg_r4,
+    output wire [7:0] dbg_r5,
+    output wire [7:0] dbg_r6,
     output wire [7:0] dbg_r7      // direct tap of R7 for LED display
 );
 
@@ -67,6 +74,13 @@ end
 // ---------------------------------------------------------------------------
 assign ra_data = regs[ra_addr];
 assign rb_data = regs[rb_addr];
+assign dbg_r0  = regs[0];
+assign dbg_r1  = regs[1];
+assign dbg_r2  = regs[2];
+assign dbg_r3  = regs[3];
+assign dbg_r4  = regs[4];
+assign dbg_r5  = regs[5];
+assign dbg_r6  = regs[6];
 assign dbg_r7  = regs[7];
 
 endmodule

@@ -46,6 +46,13 @@ module cpu #(
     output wire       dbg_flag_c,
     output wire       dbg_flag_n,
     output wire       dbg_flag_v,
+    output wire [7:0] dbg_r0,
+    output wire [7:0] dbg_r1,
+    output wire [7:0] dbg_r2,
+    output wire [7:0] dbg_r3,
+    output wire [7:0] dbg_r4,
+    output wire [7:0] dbg_r5,
+    output wire [7:0] dbg_r6,
     output wire [7:0] dbg_r7,
     output wire [7:0] dbg_stack_top,   // current top-of-stack value (combinational peek)
     output wire       dbg_stack_empty  // stack is empty
@@ -188,6 +195,13 @@ regfile u_rf (
     .rd_data (wb_data),
     .ra_data (ra_data),
     .rb_data (rb_data),
+    .dbg_r0  (dbg_r0),
+    .dbg_r1  (dbg_r1),
+    .dbg_r2  (dbg_r2),
+    .dbg_r3  (dbg_r3),
+    .dbg_r4  (dbg_r4),
+    .dbg_r5  (dbg_r5),
+    .dbg_r6  (dbg_r6),
     .dbg_r7  (dbg_r7)
 );
 
