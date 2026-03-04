@@ -3,7 +3,6 @@
 ;                 each result in RAM and keeping the latest in R7.
 ; clk_div: 20
 ; name: FIBONACCI
-;           12 MHz / 2^23 ≈ 1.4 Hz — slow enough to watch each result appear
 ;
 ; Algorithm (iterative):
 ;   fib(0) = 0

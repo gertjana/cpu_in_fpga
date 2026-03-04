@@ -82,7 +82,7 @@ module oled_monitor #(
 // Covers ASCII 0x20 (space) through 0x7E (~). Index = ascii - 0x20.
 // Each byte is one column of 7 pixels: bit0=top row, bit6=bottom row.
 // ---------------------------------------------------------------------------
-reg [7:0] font [0:474]; // 95 chars × 5 columns
+reg [7:0] font [0:511]; // 95 chars × 5 columns = 475 entries; padded to 512 for Quartus MIF alignment
 
 // Standard 5×7 font — same bitmap as the classic Arduino/Adafruit GFX font.
 initial begin
@@ -487,7 +487,10 @@ wire [6:0] cur_text_idx = {5'd0, cur_line} * 7'd21 + {2'd0, cur_char};
 wire [7:0] cur_ascii    = text[cur_text_idx];
 
 // Font ROM address: (ascii - 0x20) * 5 + cur_col
-wire [8:0] font_addr  = ({5'd0, cur_ascii} - 9'h20) * 9'd5 + {6'd0, cur_col[2:0]};
+// Max address: (0x7E-0x20)*5 + 4 = 94*5 + 4 = 474, fits in 9 bits.
+// Use 9-bit arithmetic throughout to avoid Quartus truncation warning.
+wire [8:0] font_ascii9 = {1'b0, cur_ascii} - 9'h020;
+wire [8:0] font_addr   = font_ascii9 * 9'd5 + {6'd0, cur_col[2:0]};
 // Column 5 (6th pixel col) is always 0 (inter-character gap)
 wire [7:0] font_byte  = (cur_col == 3'd5) ? 8'h00 : font[font_addr[8:0]];
 
