@@ -34,38 +34,37 @@ def asmn(source: str) -> list[int]:
 
 class TestALU:
     def test_add(self):
-        # ADD R1, R2, R3  → 0000 001 010 011 000 = 0x0053 ... let's compute
-        # group=0, rd=1, ra=2, rb=3, sub=0
-        # 0000 001 010 011 000 = 0000_0010_1001_1000 = 0x0298
-        assert asm1("ADD R1, R2, R3") == 0x0298
+        # ADD R1, R2, R3  → 0000 sss=000 ddd=001 aaa=010 bbb=011
+        # 0000_0000_0101_0011 = 0x0053
+        assert asm1("ADD R1, R2, R3") == 0x0053
 
     def test_sub(self):
-        # SUB R0, R0, R1  → 0000 000 000 001 001 = 0x0009
-        assert asm1("SUB R0, R0, R1") == 0x0009
+        # SUB R0, R0, R1  → 0000 001 000 000 001 = 0x0201
+        assert asm1("SUB R0, R0, R1") == 0x0201
 
     def test_and(self):
-        # AND R3, R3, R4  → 0000 011 011 100 010 = 0x06E2
-        assert asm1("AND R3, R3, R4") == 0x06E2
+        # AND R3, R3, R4  → 0000 010 011 011 100 = 0x04DC
+        assert asm1("AND R3, R3, R4") == 0x04DC
 
     def test_or(self):
-        # OR R0, R1, R2  → 0000 000 001 010 011 = 0x0053
-        assert asm1("OR R0, R1, R2") == 0x0053
+        # OR R0, R1, R2  → 0000 011 000 001 010 = 0x060A
+        assert asm1("OR R0, R1, R2") == 0x060A
 
     def test_xor(self):
-        # XOR R5, R5, R5  → 0000 101 101 101 100 = 0x0B6C
-        assert asm1("XOR R5, R5, R5") == 0x0B6C
+        # XOR R5, R5, R5  → 0000 100 101 101 101 = 0x096D
+        assert asm1("XOR R5, R5, R5") == 0x096D
 
     def test_not(self):
-        # NOT R2, R3  → 0000 010 011 000 101 = 0x04C5
-        assert asm1("NOT R2, R3") == 0x04C5
+        # NOT R2, R3  → 0000 101 010 011 000 = 0x0A98
+        assert asm1("NOT R2, R3") == 0x0A98
 
     def test_shl(self):
-        # SHL R0, R0  → 0000 000 000 000 110 = 0x0006
-        assert asm1("SHL R0, R0") == 0x0006
+        # SHL R0, R0  → 0000 110 000 000 000 = 0x0C00
+        assert asm1("SHL R0, R0") == 0x0C00
 
     def test_shr(self):
-        # SHR R7, R7  → 0000 111 111 000 111 = 0x0FC7
-        assert asm1("SHR R7, R7") == 0x0FC7
+        # SHR R7, R7  → 0000 111 111 111 000 = 0x0FF8
+        assert asm1("SHR R7, R7") == 0x0FF8
 
     def test_alu_case_insensitive(self):
         assert asm1("add r0, r1, r2") == asm1("ADD R0, R1, R2")
