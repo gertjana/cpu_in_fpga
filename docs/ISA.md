@@ -21,10 +21,10 @@ All instructions are 16 bits wide. Two formats are used:
 
 ```
 [15:12]  group  — opcode group (4 bits)
-[11:9]   Rd     — destination register (3 bits)
-[8:6]    Ra     — source register A    (3 bits)
-[5:3]    Rb     — source register B    (3 bits)
-[2:0]    sub    — sub-opcode or unused (3 bits)
+[11:9]   sub    — sub-opcode (Group 0) or destination register (other groups)
+[8:6]    Rd     — destination register (Group 0) or source register A (other groups)
+[5:3]    Ra     — source register A (Group 0) or source register B (other groups)
+[2:0]    Rb     — source register B (Group 0) or unused
 ```
 
 ### I-format (immediate operand)
@@ -79,8 +79,8 @@ Used by: **JMP/Jcc**, **CALL**.
 ### Group 0 — ALU Register-Register  `4'h0`
 
 Format: R  
-Encoding: `0000 ddd aaa bbb sss`  
-Sub-opcode `sss` in bits `[2:0]`:
+Encoding: `0000 sss ddd aaa bbb`  
+Sub-opcode `sss` in bits `[11:9]`, destination `ddd` in bits `[8:6]`, source A `aaa` in bits `[5:3]`, source B `bbb` in bits `[2:0]`:
 
 | `sss` | Mnemonic | Operation              | Flags updated |
 |-------|----------|------------------------|---------------|
