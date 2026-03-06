@@ -47,7 +47,6 @@ Three things happened:
 │ Clock │ 12 MHz on-board oscillator │
 
 ### Block Diagram
-
 ![cpu-diagram.svg](./docs/cpu-diagram.png)
 
 ### Pipeline
