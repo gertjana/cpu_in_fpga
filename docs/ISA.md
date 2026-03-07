@@ -21,10 +21,10 @@ All instructions are 16 bits wide. Two formats are used:
 
 ```
 [15:12]  group  — opcode group (4 bits)
-[11:9]   Rd     — destination register (3 bits)
-[8:6]    Ra     — source register A    (3 bits)
-[5:3]    Rb     — source register B    (3 bits)
-[2:0]    sub    — sub-opcode or unused (3 bits)
+[11:9]   sub    — sub-opcode (Group 0) or destination register (other groups)
+[8:6]    Rd     — destination register (Group 0) or source register A (other groups)
+[5:3]    Ra     — source register A (Group 0) or source register B (other groups)
+[2:0]    Rb     — source register B (Group 0) or unused
 ```
 
 ### I-format (immediate operand)
@@ -79,8 +79,8 @@ Used by: **JMP/Jcc**, **CALL**.
 ### Group 0 — ALU Register-Register  `4'h0`
 
 Format: R  
-Encoding: `0000 ddd aaa bbb sss`  
-Sub-opcode `sss` in bits `[2:0]`:
+Encoding: `0000 sss ddd aaa bbb`  
+Sub-opcode `sss` in bits `[11:9]`, destination `ddd` in bits `[8:6]`, source A `aaa` in bits `[5:3]`, source B `bbb` in bits `[2:0]`:
 
 | `sss` | Mnemonic | Operation              | Flags updated |
 |-------|----------|------------------------|---------------|
@@ -312,19 +312,19 @@ loop:
 
 | Instruction      | Binary pattern                              |
 |------------------|---------------------------------------------|
-| ADD  Rd, Ra, Rb  | `0000 ddd aaa bbb 000`                      |
-| SUB  Rd, Ra, Rb  | `0000 ddd aaa bbb 001`                      |
-| AND  Rd, Ra, Rb  | `0000 ddd aaa bbb 010`                      |
-| OR   Rd, Ra, Rb  | `0000 ddd aaa bbb 011`                      |
-| XOR  Rd, Ra, Rb  | `0000 ddd aaa bbb 100`                      |
-| NOT  Rd, Ra      | `0000 ddd aaa xxx 101`                      |
-| SHL  Rd, Ra      | `0000 ddd aaa xxx 110`                      |
-| SHR  Rd, Ra      | `0000 ddd aaa xxx 111`                      |
+| ADD  Rd, Ra, Rb  | `0000 000 ddd aaa bbb`                      |
+| SUB  Rd, Ra, Rb  | `0000 001 ddd aaa bbb`                      |
+| AND  Rd, Ra, Rb  | `0000 010 ddd aaa bbb`                      |
+| OR   Rd, Ra, Rb  | `0000 011 ddd aaa bbb`                      |
+| XOR  Rd, Ra, Rb  | `0000 100 ddd aaa bbb`                      |
+| NOT  Rd, Ra      | `0000 101 ddd aaa xxx`                      |
+| SHL  Rd, Ra      | `0000 110 ddd aaa xxx`                      |
+| SHR  Rd, Ra      | `0000 111 ddd aaa xxx`                      |
 | ADDI Rd, Ra, imm6| `0001 ddd aaa iiiiii`                       |
 | LDI  Rd, imm6    | `0010 000 ddd iiiiii`                       |
 | LD   Rd, [Ra]    | `0010 001 ddd aaa xxx`                      |
 | ST   [Ra], Rb    | `0010 010 xxx aaa bbb`                      |
-| MOV  Rd, Ra      | `0011 ddd aaa xxxxxxxxx`                    |
+| MOV  Rd, Ra      | `0011 ddd aaa xxx xxx`                      |
 | JMP  addr8       | `0100 000 x iiiiiiii`                       |
 | JZ   addr8       | `0100 001 x iiiiiiii`                       |
 | JNZ  addr8       | `0100 010 x iiiiiiii`                       |

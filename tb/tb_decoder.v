@@ -252,10 +252,10 @@ initial begin
 
     // ------------------------------------------------------------------
     // Group 0: ALU reg-reg — ADD R2, R3, R5
-    // R-format: 0000 010 011 101 000
+    // R-format: 0000 sss=000 ddd=010 aaa=011 bbb=101
     // ------------------------------------------------------------------
     $display("--- ALU ADD R2, R3, R5 ---");
-    apply(enc_r(4'h0, 3'd2, 3'd3, 3'd5, 3'b000));
+    apply(enc_r(4'h0, 3'b000, 3'd2, 3'd3, 3'd5));
     chk3(10, "rd_addr   ", rd_addr,   3'd2);
     chk3(11, "ra_addr   ", ra_addr,   3'd3);
     chk3(12, "rb_addr   ", rb_addr,   3'd5);
@@ -269,18 +269,18 @@ initial begin
     chk1(20, "halt      ", halt,      1'b0);
 
     $display("--- ALU SUB R0, R1, R2 ---");
-    apply(enc_r(4'h0, 3'd0, 3'd1, 3'd2, 3'b001));
+    apply(enc_r(4'h0, 3'b001, 3'd0, 3'd1, 3'd2));
     chk3(21, "alu_op SUB", alu_op,   3'b001);
     chk1(22, "flags_we  ", flags_we, 1'b1);
 
     $display("--- ALU SHR R7, R7, Rx ---");
-    apply(enc_r(4'h0, 3'd7, 3'd7, 3'd0, 3'b111));
+    apply(enc_r(4'h0, 3'b111, 3'd7, 3'd7, 3'd0));
     chk3(23, "alu_op SHR", alu_op,   3'b111);
     chk3(24, "rd_addr   ", rd_addr,  3'd7);
     chk3(25, "ra_addr   ", ra_addr,  3'd7);
 
     $display("--- ALU NOT R4, R6, Rx ---");
-    apply(enc_r(4'h0, 3'd4, 3'd6, 3'd0, 3'b101));
+    apply(enc_r(4'h0, 3'b101, 3'd4, 3'd6, 3'd0));
     chk3(26, "alu_op NOT", alu_op,   3'b101);
     chk3(27, "rd_addr   ", rd_addr,  3'd4);
     chk3(28, "ra_addr   ", ra_addr,  3'd6);

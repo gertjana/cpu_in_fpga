@@ -200,7 +200,7 @@ def encode_alu(mnemonic, operands, symbols, filename, lineno) -> int:
         rd = parse_reg(operands[0], filename, lineno)
         ra = parse_reg(operands[1], filename, lineno)
         rb = parse_reg(operands[2], filename, lineno)
-    return (GRP_ALU << 12) | (rd << 9) | (ra << 6) | (rb << 3) | sub
+    return (GRP_ALU << 12) | (sub << 9) | (rd << 6) | (ra << 3) | rb
 
 
 def encode_addi(operands, symbols, filename, lineno) -> int:

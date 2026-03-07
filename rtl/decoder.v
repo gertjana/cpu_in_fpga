@@ -85,10 +85,10 @@ module decoder (
 wire [3:0] group = instr[15:12];
 
 // R-format / I-format fields
-wire [2:0] f_rd  = instr[11:9];   // destination reg or sub-opcode
-wire [2:0] f_ra  = instr[8:6];    // source A reg or sub-opcode (mem)
-wire [2:0] f_rb  = instr[5:3];    // source B reg
-wire [2:0] f_sub = instr[2:0];    // ALU sub-opcode (group 0)
+wire [2:0] f_rd  = instr[11:9];   // sub-opcode (group 0) or destination reg
+wire [2:0] f_ra  = instr[8:6];    // destination reg (group 0) or source A reg or sub-opcode (mem)
+wire [2:0] f_rb  = instr[5:3];    // source A reg (group 0) or source B reg
+wire [2:0] f_sub = instr[2:0];    // source B reg (group 0)
 
 // Immediate values
 wire [5:0] f_imm6 = instr[5:0];   // I-format:  6-bit immediate
@@ -197,13 +197,13 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 0: ALU reg-reg
-        // R-format: 0000 ddd aaa bbb sss
+        // R-format: 0000 sss ddd aaa bbb
         // ------------------------------------------------------------------
         GRP_ALU: begin
-            rd_addr   = f_rd;
-            ra_addr   = f_ra;
-            rb_addr   = f_rb;
-            alu_op    = f_sub;     // sub-opcode in [2:0]
+            rd_addr   = f_ra;      // destination reg in [8:6]
+            ra_addr   = f_rb;      // source A reg   in [5:3]
+            rb_addr   = f_sub;     // source B reg   in [2:0]
+            alu_op    = f_rd;      // sub-opcode     in [11:9]
             alu_src_b = 1'b0;
             reg_we    = 1'b1;
             wb_sel    = WB_ALU;
