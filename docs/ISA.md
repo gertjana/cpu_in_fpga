@@ -312,19 +312,19 @@ loop:
 
 | Instruction      | Binary pattern                              |
 |------------------|---------------------------------------------|
-| ADD  Rd, Ra, Rb  | `0000 ddd aaa bbb 000`                      |
-| SUB  Rd, Ra, Rb  | `0000 ddd aaa bbb 001`                      |
-| AND  Rd, Ra, Rb  | `0000 ddd aaa bbb 010`                      |
-| OR   Rd, Ra, Rb  | `0000 ddd aaa bbb 011`                      |
-| XOR  Rd, Ra, Rb  | `0000 ddd aaa bbb 100`                      |
-| NOT  Rd, Ra      | `0000 ddd aaa xxx 101`                      |
-| SHL  Rd, Ra      | `0000 ddd aaa xxx 110`                      |
-| SHR  Rd, Ra      | `0000 ddd aaa xxx 111`                      |
+| ADD  Rd, Ra, Rb  | `0000 000 ddd aaa bbb`                      |
+| SUB  Rd, Ra, Rb  | `0000 001 ddd aaa bbb`                      |
+| AND  Rd, Ra, Rb  | `0000 010 ddd aaa bbb`                      |
+| OR   Rd, Ra, Rb  | `0000 011 ddd aaa bbb`                      |
+| XOR  Rd, Ra, Rb  | `0000 100 ddd aaa bbb`                      |
+| NOT  Rd, Ra      | `0000 101 ddd aaa xxx`                      |
+| SHL  Rd, Ra      | `0000 110 ddd aaa xxx`                      |
+| SHR  Rd, Ra      | `0000 111 ddd aaa xxx`                      |
 | ADDI Rd, Ra, imm6| `0001 ddd aaa iiiiii`                       |
 | LDI  Rd, imm6    | `0010 000 ddd iiiiii`                       |
 | LD   Rd, [Ra]    | `0010 001 ddd aaa xxx`                      |
 | ST   [Ra], Rb    | `0010 010 xxx aaa bbb`                      |
-| MOV  Rd, Ra      | `0011 ddd aaa xxxxxxxxx`                    |
+| MOV  Rd, Ra      | `0011 ddd aaa xxx xxx`                      |
 | JMP  addr8       | `0100 000 x iiiiiiii`                       |
 | JZ   addr8       | `0100 001 x iiiiiiii`                       |
 | JNZ  addr8       | `0100 010 x iiiiiiii`                       |
