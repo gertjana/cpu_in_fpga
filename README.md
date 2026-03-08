@@ -45,6 +45,17 @@ Three things happened:
 | Stack | Hardware LIFO, 16 entries deep |
 | Flags | Z (zero), C (carry), N (negative), V (overflow) |
 | Clock | 12 MHz on-board oscillator |
+| Property | Value |
+|----------|-------|
+| Data width | 8 bits |
+| Address width | 8 bits (256 locations) |
+| Instruction width | 16 bits (fixed) |
+| Registers | R0–R7 (8 × 8-bit, general purpose) |
+| Architecture | Harvard (separate program ROM and data RAM) |
+| Pipeline | 2-stage: Fetch → Execute |
+| Stack | Hardware LIFO, 16 entries deep |
+| Flags | Z (zero), C (carry), N (negative), V (overflow) |
+| Clock | 12 MHz on-board oscillator |
 
 ### Block Diagram
 ![cpu-diagram.svg](./docs/cpu-diagram.png)
