@@ -1,5 +1,5 @@
 // =============================================================================
-// top.v — MAX1000 top-level for the 8-bit CPU
+// top.v — MAX1000 top-level for the CPU (8-bit data path, 16-bit address space)
 //
 // USER_BTN (pin E6, active-low) — single button, dual function:
 //   Short press (<0.35 s) → toggles LED display mode; CPU keeps running
@@ -261,10 +261,10 @@ wire [7:0] gpio_in = gpio;
 // ---------------------------------------------------------------------------
 // CPU instantiation
 // ---------------------------------------------------------------------------
-wire       halt_out;
-wire [7:0] dbg_pc;
-wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
-wire [7:0] dbg_r7;
+wire        halt_out;
+wire [15:0] dbg_pc;
+wire        dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
+wire [7:0]  dbg_r7;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),

@@ -1,15 +1,19 @@
 // =============================================================================
-// stack.v — Hardware LIFO Stack (16 entries x 8-bit)
+// stack.v — Hardware LIFO Stack (16 entries x 16-bit)
 //
 // Used to save/restore the program counter for CALL/RET and PUSH/POP.
+//
+// Stack entries are 16 bits wide to accommodate the 16-bit program counter
+// pushed by CALL. PUSH/POP of 8-bit register values are zero-extended on push
+// and the low 8 bits are read on pop (upper byte is always 0 for PUSH).
 //
 // Ports:
 //   clk      — clock (rising edge)
 //   rst      — synchronous reset: SP → 0, stack contents cleared
 //   push     — push data_in onto stack on rising edge
 //   pop      — pop top of stack on rising edge
-//   data_in  — 8-bit value to push
-//   data_out — 8-bit value at top of stack (combinational, always valid)
+//   data_in  — 16-bit value to push
+//   data_out — 16-bit value at top of stack (combinational, always valid)
 //   full     — stack is full  (SP == DEPTH)
 //   empty    — stack is empty (SP == 0)
 //   overflow — push attempted when full  (held for one cycle)
@@ -18,27 +22,27 @@
 // Priority: rst > push > pop  (simultaneous push+pop is a push)
 //
 // SP points to the next free slot (0 = empty).
-// data_out always shows mem[SP-1] (the current top), or 0x00 when empty.
+// data_out always shows mem[SP-1] (the current top), or 0x0000 when empty.
 // =============================================================================
 
 module stack #(
     parameter DEPTH = 16
 ) (
-    input  wire       clk,
-    input  wire       rst,
-    input  wire       push,
-    input  wire       pop,
-    input  wire [7:0] data_in,
-    output wire [7:0] data_out,
-    output wire       full,
-    output wire       empty,
-    output reg        overflow,
-    output reg        underflow
+    input  wire        clk,
+    input  wire        rst,
+    input  wire        push,
+    input  wire        pop,
+    input  wire [15:0] data_in,
+    output wire [15:0] data_out,
+    output wire        full,
+    output wire        empty,
+    output reg         overflow,
+    output reg         underflow
 );
 
 localparam PTR_W = 5;   // enough bits for depth 0..16
 
-reg [7:0]     mem [0:DEPTH-1];
+reg [15:0]    mem [0:DEPTH-1];
 reg [PTR_W:0] sp;        // stack pointer: 0 = empty, DEPTH = full
 
 // ---------------------------------------------------------------------------
@@ -48,7 +52,7 @@ assign full  = (sp == DEPTH);
 assign empty = (sp == 0);
 
 // Top of stack — combinational peek
-assign data_out = (sp == 0) ? 8'h00 : mem[sp - 1];
+assign data_out = (sp == 0) ? 16'h0000 : mem[sp - 1];
 
 // ---------------------------------------------------------------------------
 // Synchronous push / pop / reset
@@ -62,7 +66,7 @@ always @(posedge clk) begin
     if (rst) begin
         sp <= 0;
         for (j = 0; j < DEPTH; j = j + 1)
-            mem[j] <= 8'h00;
+            mem[j] <= 16'h0000;
 
     end else if (push) begin
         if (full) begin

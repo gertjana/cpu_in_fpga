@@ -38,17 +38,17 @@ task chk8;
     end
 endtask
 
-task chk16;
+task chk24;
     input [63:0]  id;
     input [127:0] name;
-    input [15:0]  got;
-    input [15:0]  exp;
+    input [23:0]  got;
+    input [23:0]  exp;
     begin
         if (got === exp) begin
-            $display("  PASS [%0d] %s = %04h", id, name, got);
+            $display("  PASS [%0d] %s = %06h", id, name, got);
             pass_count = pass_count + 1;
         end else begin
-            $display("  FAIL [%0d] %s = %04h (expected %04h)", id, name, got, exp);
+            $display("  FAIL [%0d] %s = %06h (expected %06h)", id, name, got, exp);
             fail_count = fail_count + 1;
         end
     end
@@ -57,8 +57,8 @@ endtask
 // ===========================================================================
 // ROM tests
 // ===========================================================================
-reg  [7:0]  rom_addr;
-wire [15:0] rom_data;
+reg  [15:0] rom_addr;
+wire [23:0] rom_data;
 
 rom #(.INIT_FILE("tb/program.hex")) rom_dut (
     .clk      (clk),
@@ -94,7 +94,7 @@ initial begin
     ram_we   = 0;
     ram_addr = 0;
     ram_din  = 0;
-    rom_addr = 0;
+    rom_addr = 16'h0000;
 
     $display("=== Memory Testbench ===");
 
@@ -157,25 +157,25 @@ initial begin
     // ------------------------------------------------------------------
     // ROM Test 1: Read known instruction words
     //   program.hex was written at program ROM address 0,1,2... as:
-    //   0000: DEAD, 0001: BEEF, 0002: 1234, 0003: ABCD
+    //   0000: 00DEAD, 0001: 00BEEF, 0002: 001234, 0003: 00ABCD
     // ------------------------------------------------------------------
     $display("--- ROM: Fetch instructions ---");
     // Sync read — present addr, clock, read result next cycle
-    @(negedge clk); rom_addr = 8'h00;
+    @(negedge clk); rom_addr = 16'h0000;
     @(posedge clk); #1;
-    chk16(50, "ROM[00]", rom_data, 16'hDEAD);
+    chk24(50, "ROM[00]", rom_data, 24'h00DEAD);
 
-    @(negedge clk); rom_addr = 8'h01;
+    @(negedge clk); rom_addr = 16'h0001;
     @(posedge clk); #1;
-    chk16(51, "ROM[01]", rom_data, 16'hBEEF);
+    chk24(51, "ROM[01]", rom_data, 24'h00BEEF);
 
-    @(negedge clk); rom_addr = 8'h02;
+    @(negedge clk); rom_addr = 16'h0002;
     @(posedge clk); #1;
-    chk16(52, "ROM[02]", rom_data, 16'h1234);
+    chk24(52, "ROM[02]", rom_data, 24'h001234);
 
-    @(negedge clk); rom_addr = 8'h03;
+    @(negedge clk); rom_addr = 16'h0003;
     @(posedge clk); #1;
-    chk16(53, "ROM[03]", rom_data, 16'hABCD);
+    chk24(53, "ROM[03]", rom_data, 24'h00ABCD);
 
     // ------------------------------------------------------------------
     // ROM Test 2: Sequential addresses (simulate instruction fetch)
@@ -183,11 +183,11 @@ initial begin
     $display("--- ROM: Sequential fetch ---");
     begin : seq
         integer k;
-        // ROM hex has 0x10 at address 4, 0x20 at 5, 0x30 at 6, 0x40 at 7
+        // ROM hex has 0x000010 at address 4, 0x000020 at 5, 0x000030 at 6, 0x000040 at 7
         for (k = 0; k < 4; k = k + 1) begin
-            @(negedge clk); rom_addr = 8'h04 + k[7:0];
+            @(negedge clk); rom_addr = 16'h0004 + k[15:0];
             @(posedge clk); #1;
-            chk16(60 + k, "ROM seq", rom_data, 16'h0010 + (k[15:0] << 4));
+            chk24(60 + k, "ROM seq", rom_data, 24'h000010 + (k[23:0] << 4));
         end
     end
 

@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
 """
-assembler.py — Two-pass assembler for the simple 8-bit CPU.
+assembler.py — Two-pass assembler for the CPU (8-bit data path, 16-bit address space).
+
+All instructions are 24 bits wide.
+
+Instruction format summary:
+  Bits [23:20] — group (4 bits)
+  Bits [19:17] — Rd / sub-opcode (3 bits)
+  Bits [16:14] — Ra (3 bits)
+  Bits [13:11] — Rb (3 bits)
+  Bits [10:8]  — sub / extra Rb (3 bits)
+  Bits [13:8]  — imm6  (I6-format: ADDI, CMPI)
+  Bits [7:0]   — imm8  (I8-format: LDI)
+  Bits [15:0]  — addr16 (I16-format: JMP, Jcc, CALL)
 
 Usage:
     python tools/assembler.py program.asm
     python tools/assembler.py -l program.asm          # also writes .lst
     python tools/assembler.py -o out.hex program.asm
 
-Output: Intel-format readmemh-compatible hex (one 4-digit hex word per line).
+Output: readmemh-compatible hex (one 6-digit hex word per line).
 Errors are written to stderr with file:line: error: message format.
 Exit code 0 = success, 1 = assembly error.
 """
@@ -44,7 +56,7 @@ class AsmError(Exception):
 
 REGISTERS = {f"R{i}": i for i in range(8)}
 
-# Group encodings (bits [15:12])
+# Group encodings (bits [23:20])
 GRP_ALU   = 0x0
 GRP_ADDI  = 0x1
 GRP_MEM   = 0x2
@@ -58,25 +70,35 @@ GRP_OUT   = 0x9
 GRP_NOP   = 0xE
 GRP_HALT  = 0xF
 
-# ALU sub-opcodes (bits [2:0])
+# ALU sub-opcodes (bits [19:17])
 ALU_SUB = {
     "ADD": 0, "SUB": 1, "AND": 2, "OR": 3,
     "XOR": 4, "NOT": 5, "SHL": 6, "SHR": 7,
 }
 
-# Jump sub-opcodes (bits [11:9])
+# Jump sub-opcodes (bits [19:17])
 JUMP_SUB = {
     "JMP": 0, "JZ": 1, "JNZ": 2, "JC": 3,
     "JNC": 4, "JN": 5, "JV": 6, "JR": 7,
 }
 
-# Stack/subroutine sub-opcodes (bits [11:9])
+# Stack/subroutine sub-opcodes (bits [19:17])
 STACK_SUB = {"PUSH": 0, "POP": 1, "CALL": 2, "RET": 3}
 
-# MEM sub-opcodes (in Rd field, bits [11:9])
+# MEM sub-opcodes (in Rd field, bits [19:17])
 MEM_LDI  = 0  # handled specially — Rd is destination
 MEM_LD   = 1  # handled specially
 MEM_ST   = 2  # handled specially
+
+# Field shift amounts for 24-bit encoding
+_SH_GRP  = 20   # group:   bits [23:20]
+_SH_RD   = 17   # Rd/sub:  bits [19:17]
+_SH_RA   = 14   # Ra:      bits [16:14]
+_SH_RB   = 11   # Rb:      bits [13:11]
+_SH_SUB  = 8    # sub/Rb:  bits [10:8]
+_SH_IMM6 = 8    # imm6:    bits [13:8]
+# imm8:   bits [7:0]  — no shift
+# addr16: bits [15:0] — no shift
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +204,25 @@ def _find_binary_op(expr: str):
 
 # ---------------------------------------------------------------------------
 # Instruction encoders
+# All functions return a 24-bit integer.
+#
+# 24-bit field layout:
+#   [23:20] group
+#   [19:17] Rd / sub-opcode
+#   [16:14] Ra
+#   [13:11] Rb
+#   [10:8]  sub / Rb-extra
+#   [13:8]  imm6  (I6-format)
+#   [7:0]   imm8  (I8-format)
+#   [15:0]  addr16 (I16-format: JMP/Jcc/CALL)
 # ---------------------------------------------------------------------------
 
 def encode_alu(mnemonic, operands, symbols, filename, lineno) -> int:
+    # R-format: 0000 sss ddd aaa bbb 00000000
+    #   [19:17] ALU sub-opcode
+    #   [16:14] Rd (destination)
+    #   [13:11] Ra (source A)
+    #   [10:8]  Rb (source B)
     sub = ALU_SUB[mnemonic]
     if mnemonic in ("NOT", "SHL", "SHR"):
         # Two-operand: Rd, Ra
@@ -200,151 +238,160 @@ def encode_alu(mnemonic, operands, symbols, filename, lineno) -> int:
         rd = parse_reg(operands[0], filename, lineno)
         ra = parse_reg(operands[1], filename, lineno)
         rb = parse_reg(operands[2], filename, lineno)
-    return (GRP_ALU << 12) | (sub << 9) | (rd << 6) | (ra << 3) | rb
+    return (GRP_ALU << _SH_GRP) | (sub << _SH_RD) | (rd << _SH_RA) | (ra << _SH_RB) | (rb << _SH_SUB)
 
 
 def encode_addi(operands, symbols, filename, lineno) -> int:
+    # I6-format: 0001 ddd aaa iiiiii 00000000
+    #   [19:17] Rd
+    #   [16:14] Ra
+    #   [13:8]  imm6
     if len(operands) != 3:
         raise AsmError("ADDI requires 3 operands: Rd, Ra, imm6", filename, lineno)
     rd  = parse_reg(operands[0], filename, lineno)
     ra  = parse_reg(operands[1], filename, lineno)
     imm = parse_imm(operands[2], symbols, filename, lineno, bits=6)
-    return (GRP_ADDI << 12) | (rd << 9) | (ra << 6) | imm
+    return (GRP_ADDI << _SH_GRP) | (rd << _SH_RD) | (ra << _SH_RA) | (imm << _SH_IMM6)
 
 
 def encode_ldi(operands, symbols, filename, lineno) -> int:
-    # LDI Rd, imm6   → 0010 000 ddd iiiiii
-    # Decoder: sub=MEM_LDI in f_rd [11:9], dest=f_ra [8:6], imm=f_imm6 [5:0]
+    # LDI Rd, imm8  →  0010 000 ddd xxxxxx iiiiiiii
+    # Decoder: sub=MEM_LDI in [19:17], dest=f_ra in [16:14], imm8 in [7:0]
     if len(operands) != 2:
-        raise AsmError("LDI requires 2 operands: Rd, imm6", filename, lineno)
+        raise AsmError("LDI requires 2 operands: Rd, imm8", filename, lineno)
     rd  = parse_reg(operands[0], filename, lineno)
-    imm = parse_imm(operands[1], symbols, filename, lineno, bits=6)
-    return (GRP_MEM << 12) | (MEM_LDI << 9) | (rd << 6) | imm
+    imm = parse_imm(operands[1], symbols, filename, lineno, bits=8)
+    return (GRP_MEM << _SH_GRP) | (MEM_LDI << _SH_RD) | (rd << _SH_RA) | imm
 
 
 def encode_ld(operands, symbols, filename, lineno) -> int:
-    # LD Rd, [Ra]   → 0010 001 ddd aaa 000
-    # Decoder: sub=MEM_LD in f_rd [11:9], dest=f_ra [8:6], addr=f_rb [5:3]
+    # LD Rd, [Ra]  →  0010 001 ddd aaa 00000000000
+    # Decoder: sub=MEM_LD in [19:17], dest=f_ra in [16:14], addr=f_rb in [13:11]
     if len(operands) != 2:
         raise AsmError("LD requires 2 operands: Rd, [Ra]", filename, lineno)
     rd = parse_reg(operands[0], filename, lineno)
     ra_tok = operands[1].strip().lstrip("[").rstrip("]")
     ra = parse_reg(ra_tok, filename, lineno)
-    return (GRP_MEM << 12) | (MEM_LD << 9) | (rd << 6) | (ra << 3)
+    return (GRP_MEM << _SH_GRP) | (MEM_LD << _SH_RD) | (rd << _SH_RA) | (ra << _SH_RB)
 
 
 def encode_st(operands, symbols, filename, lineno) -> int:
-    # ST [Ra], Rb   → 0010 010 xxx aaa bbb
-    # Decoder: sub=MEM_ST in f_rd [11:9], addr=f_rb [5:3], data=f_sub [2:0]
+    # ST [Ra], Rb  →  0010 010 xxx aaa bbb 00000000
+    # Decoder: sub=MEM_ST in [19:17], addr=f_rb in [13:11], data=f_sub in [10:8]
     if len(operands) != 2:
         raise AsmError("ST requires 2 operands: [Ra], Rb", filename, lineno)
     ra_tok = operands[0].strip().lstrip("[").rstrip("]")
     ra = parse_reg(ra_tok, filename, lineno)
     rb = parse_reg(operands[1], filename, lineno)
-    return (GRP_MEM << 12) | (MEM_ST << 9) | (ra << 3) | rb
+    return (GRP_MEM << _SH_GRP) | (MEM_ST << _SH_RD) | (ra << _SH_RB) | (rb << _SH_SUB)
 
 
 def encode_mov(operands, symbols, filename, lineno) -> int:
-    # MOV Rd, Ra   → 0011 ddd aaa 000000000
+    # MOV Rd, Ra  →  0011 ddd aaa 000000000000000
     if len(operands) != 2:
         raise AsmError("MOV requires 2 operands: Rd, Ra", filename, lineno)
     rd = parse_reg(operands[0], filename, lineno)
     ra = parse_reg(operands[1], filename, lineno)
-    return (GRP_MOV << 12) | (rd << 9) | (ra << 6)
+    return (GRP_MOV << _SH_GRP) | (rd << _SH_RD) | (ra << _SH_RA)
 
 
 def encode_jump(mnemonic, operands, symbols, filename, lineno) -> int:
     sub = JUMP_SUB[mnemonic]
     if mnemonic == "JR":
-        # JR Ra   → 0100 111 aaa 00000000
+        # JR Ra  →  0100 111 aaa 000000000000000
         if len(operands) != 1:
             raise AsmError("JR requires 1 operand: Ra", filename, lineno)
         ra = parse_reg(operands[0], filename, lineno)
-        return (GRP_JUMP << 12) | (sub << 9) | (ra << 6)
+        return (GRP_JUMP << _SH_GRP) | (sub << _SH_RD) | (ra << _SH_RA)
     else:
-        # JMP/Jcc addr8
+        # JMP/Jcc addr16  →  0100 sub x aaaaaaaaaaaaaaaa
         if len(operands) != 1:
-            raise AsmError(f"{mnemonic} requires 1 operand: addr8", filename, lineno)
-        addr = parse_imm(operands[0], symbols, filename, lineno, bits=8)
-        return (GRP_JUMP << 12) | (sub << 9) | addr
+            raise AsmError(f"{mnemonic} requires 1 operand: addr16", filename, lineno)
+        addr = parse_imm(operands[0], symbols, filename, lineno, bits=16)
+        return (GRP_JUMP << _SH_GRP) | (sub << _SH_RD) | addr
 
 
 def encode_push(operands, symbols, filename, lineno) -> int:
-    # PUSH Ra   → 0101 000 aaa 000000000
+    # PUSH Ra  →  0101 000 aaa 000000000000000
     if len(operands) != 1:
         raise AsmError("PUSH requires 1 operand: Ra", filename, lineno)
     ra = parse_reg(operands[0], filename, lineno)
-    return (GRP_STACK << 12) | (STACK_SUB["PUSH"] << 9) | (ra << 6)
+    return (GRP_STACK << _SH_GRP) | (STACK_SUB["PUSH"] << _SH_RD) | (ra << _SH_RA)
 
 
 def encode_pop(operands, symbols, filename, lineno) -> int:
-    # POP Rd   → 0101 001 ddd 000000000
+    # POP Rd  →  0101 001 ddd 000000000000000
     if len(operands) != 1:
         raise AsmError("POP requires 1 operand: Rd", filename, lineno)
     rd = parse_reg(operands[0], filename, lineno)
-    return (GRP_STACK << 12) | (STACK_SUB["POP"] << 9) | (rd << 6)
+    return (GRP_STACK << _SH_GRP) | (STACK_SUB["POP"] << _SH_RD) | (rd << _SH_RA)
 
 
 def encode_call(operands, symbols, filename, lineno) -> int:
-    # CALL addr8   → 0101 010 x iiiiiiii
+    # CALL addr16  →  0101 010 x aaaaaaaaaaaaaaaa
     if len(operands) != 1:
-        raise AsmError("CALL requires 1 operand: addr8", filename, lineno)
-    addr = parse_imm(operands[0], symbols, filename, lineno, bits=8)
-    return (GRP_STACK << 12) | (STACK_SUB["CALL"] << 9) | addr
+        raise AsmError("CALL requires 1 operand: addr16", filename, lineno)
+    addr = parse_imm(operands[0], symbols, filename, lineno, bits=16)
+    return (GRP_STACK << _SH_GRP) | (STACK_SUB["CALL"] << _SH_RD) | addr
 
 
 def encode_ret(operands, symbols, filename, lineno) -> int:
+    # RET  →  0101 011 000 000000000000000
     if operands:
         raise AsmError("RET takes no operands", filename, lineno)
-    return (GRP_STACK << 12) | (STACK_SUB["RET"] << 9)
+    return (GRP_STACK << _SH_GRP) | (STACK_SUB["RET"] << _SH_RD)
 
 
 def encode_cmp(operands, symbols, filename, lineno) -> int:
-    # CMP Ra, Rb   → 0110 000 aaa bbb 000
+    # CMP Ra, Rb  →  0110 000 aaa bbb 00000000000
+    #   [16:14] Ra
+    #   [13:11] Rb
     if len(operands) != 2:
         raise AsmError("CMP requires 2 operands: Ra, Rb", filename, lineno)
     ra = parse_reg(operands[0], filename, lineno)
     rb = parse_reg(operands[1], filename, lineno)
-    return (GRP_CMP << 12) | (ra << 6) | (rb << 3)
+    return (GRP_CMP << _SH_GRP) | (ra << _SH_RA) | (rb << _SH_RB)
 
 
 def encode_cmpi(operands, symbols, filename, lineno) -> int:
-    # CMPI Ra, imm6   → 0111 000 aaa iiiiii
+    # CMPI Ra, imm6  →  0111 000 aaa iiiiii 00000000
+    #   [16:14] Ra
+    #   [13:8]  imm6
     if len(operands) != 2:
         raise AsmError("CMPI requires 2 operands: Ra, imm6", filename, lineno)
     ra  = parse_reg(operands[0], filename, lineno)
     imm = parse_imm(operands[1], symbols, filename, lineno, bits=6)
-    return (GRP_CMPI << 12) | (ra << 6) | imm
+    return (GRP_CMPI << _SH_GRP) | (ra << _SH_RA) | (imm << _SH_IMM6)
 
 
 def encode_in(operands, symbols, filename, lineno) -> int:
-    # IN Rd, port   → 1000 ddd ppp 000000  (port in bits [8:6], range 0–7)
+    # IN Rd, port  →  1000 ddd ppp 000000000000000  (port in bits [16:14])
     if len(operands) != 2:
         raise AsmError("IN requires 2 operands: Rd, port", filename, lineno)
     rd   = parse_reg(operands[0], filename, lineno)
     port = parse_imm(operands[1], symbols, filename, lineno, bits=3)
-    return (GRP_IN << 12) | (rd << 9) | (port << 6)
+    return (GRP_IN << _SH_GRP) | (rd << _SH_RD) | (port << _SH_RA)
 
 
 def encode_out(operands, symbols, filename, lineno) -> int:
-    # OUT Ra, port  → 1001 aaa ppp 000000  (Ra in bits [11:9], port in bits [8:6], range 0–7)
+    # OUT Ra, port  →  1001 aaa ppp 000000000000000  (Ra in [19:17], port in [16:14])
     if len(operands) != 2:
         raise AsmError("OUT requires 2 operands: Ra, port", filename, lineno)
     ra   = parse_reg(operands[0], filename, lineno)
     port = parse_imm(operands[1], symbols, filename, lineno, bits=3)
-    return (GRP_OUT << 12) | (ra << 9) | (port << 6)
+    return (GRP_OUT << _SH_GRP) | (ra << _SH_RD) | (port << _SH_RA)
 
 
 def encode_nop(operands, filename, lineno) -> int:
     if operands:
         raise AsmError("NOP takes no operands", filename, lineno)
-    return GRP_NOP << 12
+    return GRP_NOP << _SH_GRP
 
 
 def encode_halt(operands, filename, lineno) -> int:
     if operands:
         raise AsmError("HALT takes no operands", filename, lineno)
-    return GRP_HALT << 12
+    return GRP_HALT << _SH_GRP
 
 
 # ---------------------------------------------------------------------------
@@ -403,7 +450,7 @@ def assemble(source: str, filename: str = "<stdin>"):
     Assemble `source` text.
 
     Returns:
-        words   : list of int (16-bit instruction words, in address order)
+        words   : list of (addr, word) where word is a 24-bit int
         listing : list of (addr, word_or_None, source_line) for listing output
     """
     lines = source.splitlines()
@@ -531,28 +578,28 @@ def assemble(source: str, filename: str = "<stdin>"):
 # ---------------------------------------------------------------------------
 
 def write_hex(words: list, out_path: str):
-    """Write plain readmemh-compatible hex (one 4-hex-digit word per line)."""
+    """Write plain readmemh-compatible hex (one 6-hex-digit word per line)."""
     with open(out_path, "w") as f:
-        # Group words by address — fill gaps with 0000 if .org was used
+        # Group words by address — fill gaps with 000000 if .org was used
         if not words:
             return
         max_addr = max(addr for addr, _ in words)
         word_map = {addr: w for addr, w in words}
         for addr in range(max_addr + 1):
             w = word_map.get(addr, 0)
-            f.write(f"{w:04X}\n")
+            f.write(f"{w:06X}\n")
 
 
 def write_listing(listing: list, lst_path: str):
     """Write a human-readable listing file."""
     with open(lst_path, "w") as f:
-        f.write(f"{'Addr':>4}  {'Word':>4}  Source\n")
-        f.write("-" * 60 + "\n")
+        f.write(f"{'Addr':>4}  {'Word':>6}  Source\n")
+        f.write("-" * 62 + "\n")
         for addr, word, raw in listing:
             if word is not None:
-                f.write(f"{addr:04X}  {word:04X}  {raw}\n")
+                f.write(f"{addr:04X}  {word:06X}  {raw}\n")
             else:
-                f.write(f"{'':4}  {'':4}  {raw}\n")
+                f.write(f"{'':4}  {'':6}  {raw}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -561,7 +608,7 @@ def write_listing(listing: list, lst_path: str):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Assembler for the simple 8-bit CPU",
+        description="Assembler for the CPU (8-bit data path, 16-bit address space)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

@@ -1,5 +1,5 @@
 // =============================================================================
-// rom.v — Program ROM (256 x 16-bit, synchronous read)
+// rom.v — Program ROM (65536 x 24-bit, synchronous read)
 //
 // Holds the instruction stream. In simulation the contents are loaded via
 // $readmemh from a hex file. On MAX 10 Quartus infers this as on-chip M9K
@@ -7,8 +7,8 @@
 //
 // Ports:
 //   clk      — clock (rising edge)
-//   addr     — 8-bit byte address (word-addressed: each location = 16-bit instr)
-//   data_out — 16-bit instruction word at addr
+//   addr     — 16-bit word address (each location = 24-bit instr)
+//   data_out — 24-bit instruction word at addr
 //
 // Read is synchronous (registered output) to match block RAM timing on MAX 10.
 // The CPU must present the fetch address one cycle before it needs the result.
@@ -17,12 +17,12 @@
 module rom #(
     parameter INIT_FILE = "program.hex"   // override in simulation
 ) (
-    input  wire       clk,
-    input  wire [7:0] addr,
-    output reg  [15:0] data_out
+    input  wire        clk,
+    input  wire [15:0] addr,
+    output reg  [23:0] data_out
 );
 
-reg [15:0] mem [0:255];
+reg [23:0] mem [0:65535];
 
 // Load initial contents from hex file at elaboration time
 initial begin

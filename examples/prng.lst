@@ -1,15 +1,15 @@
-Addr  Word  Source
-------------------------------------------------------------
-            ; prng.asm — hardware PRNG demo
-            ; clk_div: 20
-            ;
-            ; Reads the hardware Galois LFSR (rtl/prng.v) into R7 on every CPU cycle
-            
-            .equ PRNG_ADDR,    0x01     ; Port 1 is PRNG
-            .equ INITIAL_SEED, 0x28   
-            
-0000  2028          LDI  R0, INITIAL_SEED     
-0001  9040          OUT  R0, PRNG_ADDR
-            loop:
-0002  8E40          IN   R7, PRNG_ADDR
-0003  4002          JMP  loop           
+Addr    Word  Source
+--------------------------------------------------------------
+              ; prng.asm — hardware PRNG demo
+              ; clk_div: 20
+              ;
+              ; Reads the hardware Galois LFSR (rtl/prng.v) into R7 on every CPU cycle
+              
+              .equ PRNG_ADDR,    0x01     ; Port 1 is PRNG
+              .equ INITIAL_SEED, 0x28   
+              
+0000  200028          LDI  R0, INITIAL_SEED     
+0001  904000          OUT  R0, PRNG_ADDR
+              loop:
+0002  8E4000          IN   R7, PRNG_ADDR
+0003  400002          JMP  loop           
