@@ -93,9 +93,9 @@ JUMP_SUB = {
 # Stack/subroutine sub-opcodes (bits [19:17])
 STACK_SUB = {"PUSH": 0, "POP": 1, "CALL": 2, "RET": 3}
 
-# MEM sub-opcodes (in Rd field, bits [19:17])
-MEM_LDI  = 0  # handled specially — Rd is destination
-MEM_LD   = 1  # handled specially
+# MEM sub-opcodes (carried in f_rd field, bits [19:17])
+MEM_LDI  = 0  # handled specially — destination register is in Ra field [16:14]; imm8 in [7:0]
+MEM_LD   = 1  # handled specially — destination register is in Ra field [16:14]
 MEM_ST   = 2  # handled specially
 
 # Field shift amounts for 24-bit encoding (non-ALU groups)
@@ -599,16 +599,22 @@ def assemble(source: str, filename: str = "<stdin>"):
 # ---------------------------------------------------------------------------
 
 def write_hex(words: list, out_path: str):
-    """Write plain readmemh-compatible hex (one 6-hex-digit word per line)."""
+    """Write readmemh-compatible hex with sparse @ADDR directives for gaps.
+
+    Each contiguous block of instructions is preceded by an @ADDR marker so
+    that large address-space gaps (e.g. from .org directives) do not produce
+    tens of thousands of zero-fill lines.
+    """
     with open(out_path, "w") as f:
-        # Group words by address — fill gaps with 000000 if .org was used
         if not words:
             return
-        max_addr = max(addr for addr, _ in words)
-        word_map = {addr: w for addr, w in words}
-        for addr in range(max_addr + 1):
-            w = word_map.get(addr, 0)
+        sorted_words = sorted(words, key=lambda x: x[0])
+        prev_addr = None
+        for addr, w in sorted_words:
+            if prev_addr is None or addr != prev_addr + 1:
+                f.write(f"@{addr:04X}\n")
             f.write(f"{w:06X}\n")
+            prev_addr = addr
 
 
 def write_listing(listing: list, lst_path: str):
