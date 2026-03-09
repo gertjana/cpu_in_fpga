@@ -212,19 +212,19 @@ endfunction
 function [23:0] enc_ldi;
     input [2:0] rd;
     input [7:0] imm8;
-    enc_ldi = {4'h2, 3'b000, rd, 6'bxxxxxx, imm8};
+    enc_ldi = {4'h2, 3'b000, rd, 6'b000000, imm8};
 endfunction
 
 // LD: 0010 001 ddd aaa xxxxxxxxxx  (dest in Ra [16:14], addr-reg in Rb [13:11])
 function [23:0] enc_ld;
     input [2:0] rd, ra_src;
-    enc_ld = {4'h2, 3'b001, rd, ra_src, 3'bxxx, 8'hxx};
+    enc_ld = {4'h2, 3'b001, rd, ra_src, 3'b000, 8'h00};
 endfunction
 
 // ST: 0010 010 xxx aaa bbb xxxxxxxx  (addr in Rb [13:11], data in sub [10:8])
 function [23:0] enc_st;
     input [2:0] addr_reg, data_reg;
-    enc_st = {4'h2, 3'b010, 3'bxxx, addr_reg, data_reg, 8'hxx};
+    enc_st = {4'h2, 3'b010, 3'b000, addr_reg, data_reg, 8'h00};
 endfunction
 
 // PUSH: 0101 000 aaa 000000000000000  (Ra in Ra field [16:14])
