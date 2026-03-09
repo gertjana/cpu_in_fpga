@@ -1,65 +1,87 @@
-; fibonacci_stack.asm — compute Fibonacci numbers until 8-bit overflow,
-;                       storing each value on the hardware stack, then
-;                       popping them all off to verify LIFO order.
-; clk_div: 20
-;           12 MHz / 2^23 ≈ 1.4 Hz — slow enough to watch each result appear
+; fibonacci_stack.asm — compute 16-bit Fibonacci numbers fib(0)..fib(15),
+;                       pushing the lo byte of each value onto the hardware
+;                       stack (16 pushes total), then popping all 16 values
+;                       back to verify LIFO order.
+;
+; 16-bit arithmetic uses register pairs (hi:lo):
+;   a  = R2(lo) : R3(hi)     fib[i-2]
+;   b  = R4(lo) : R5(hi)     fib[i-1]
+;   next_lo = R6, next_hi = (computed via ADD then ADC)
+;
+; Loop control:
+;   R0 = push counter, counts 0 → 16 (ADDI R0,R0,1 + CMPI R0,16 + JNZ)
 ;
 ; Phase 1 — PUSH:
-;   Compute fib(0)..fib(13) iteratively; PUSH each value as it is produced.
-;   Stop when fib(i-2)+fib(i-1) would overflow (carry set).
-;   R7 holds the last valid value (fib(13)=233) throughout this phase.
+;   For i = 0..15:
+;     push lo byte of fib(i)
+;     advance (a,b) ← (b, a+b) using 16-bit ADD/ADC
 ;
 ; Phase 2 — POP:
-;   Pop all 14 values back off the stack into R7 one by one.
-;   Use R4=1 as a constant to subtract from the counter in R0.
-;   After the loop R7 = fib(0) = 0 (bottom of stack, last popped).
-;   The loop counts pops with R0; R0 decrements from 14 to 0.
+;   Pop all 16 values into R7 in LIFO order.
+;   R0 counts 16 → 0 using ADDI R0,R0,1 + CMPI R0,16 + JNZ loop.
 ;
 ; Register use:
-;   R0 = pop counter (decremented 14 → 0 in phase 2)
-;   R1 = fib[i-2]  (a)
-;   R2 = fib[i-1]  (b)
-;   R3 = fib[i]    (next = a + b)
-;   R4 = constant 1  (used as subtrahend in phase 2)
-;   R7 = latest value (last PUSH during phase 1;
-;                      most recently POPped value during phase 2)
+;   R0 = loop counter
+;   R1 = scratch (hi byte of next during push advance)
+;   R2 = a_lo    fib[i-2] low byte
+;   R3 = a_hi    fib[i-2] high byte
+;   R4 = b_lo    fib[i-1] low byte
+;   R5 = b_hi    fib[i-1] high byte
+;   R6 = next_lo (a_lo + b_lo)
+;   R7 = display / pop result
 ;
-; Final state: R7 = 0 (= fib(0), the last value popped), CPU halted.
+; Expected lo bytes pushed (fib(0)..fib(15)):
+;   0,1,1,2,3,5,8,13,21,34,55,89,144,233,121,98
+;   (fib(14)=377 → lo=121,hi=1;  fib(15)=610 → lo=98,hi=2)
+;
+; Final state: R7 = 0 (= lo(fib(0)), last value popped), CPU halted.
 
-.equ FIB_COUNT, 14     ; number of Fibonacci values pushed (fib(0)..fib(13))
+.equ PUSH_COUNT, 16    ; number of values to push
 
-; ── Phase 1: compute and PUSH ──────────────────────────────────────────────
+; ── Phase 1: initialise ─────────────────────────────────────────────────────
 
-        LDI  R1, 0          ; a = fib(0) = 0
-        LDI  R2, 1          ; b = fib(1) = 1
-        LDI  R4, 1          ; R4 = constant 1 (for decrement in phase 2)
+        LDI  R0, 0          ; loop counter = 0
 
-        PUSH R1             ; push fib(0)
-        MOV  R7, R1         ; R7 = fib(0)
-        PUSH R2             ; push fib(1)
-        MOV  R7, R2         ; R7 = fib(1)
+        ; a = fib(-1) sentinel so that fib(0)=0, fib(1)=1 fall out naturally:
+        ; We start with a=0,b=1 and push b before advancing, but actually
+        ; we want fib(0)=0 first. Seed: a_lo=1,a_hi=0  b_lo=0,b_hi=0
+        ; so first push is b_lo=0=fib(0), then advance b←a+b=1=fib(1), etc.
+        LDI  R2, 1          ; a_lo = 1  (seed so fib(0)=0 is b)
+        LDI  R3, 0          ; a_hi = 0
+        LDI  R4, 0          ; b_lo = 0  = fib(0)
+        LDI  R5, 0          ; b_hi = 0
+
+; ── Push loop ───────────────────────────────────────────────────────────────
 
 push_loop:
-        ADD  R3, R1, R2     ; next = a + b; C set if > 255
-        JC   pop_phase      ; overflow → done pushing, start popping
+        PUSH R4             ; push lo byte of current fib value (b_lo)
+        MOV  R7, R4         ; R7 = latest lo byte (for debug display)
 
-        MOV  R7, R3         ; R7 = latest valid fib
-        PUSH R3             ; push fib(i)
+        ; Compute next = a + b (16-bit)
+        ADD  R6, R2, R4     ; next_lo = a_lo + b_lo  (may produce carry in C)
+        ADC  R1, R3, R5     ; next_hi = a_hi + b_hi + C
 
-        MOV  R1, R2         ; a = b
-        MOV  R2, R3         ; b = next
-        JMP  push_loop
+        ; Advance: a ← b,  b ← next
+        MOV  R2, R4         ; a_lo = b_lo
+        MOV  R3, R5         ; a_hi = b_hi
+        MOV  R4, R6         ; b_lo = next_lo
+        MOV  R5, R1         ; b_hi = next_hi
 
-; ── Phase 2: POP all values back into R7 ───────────────────────────────────
+        ; Loop control: count up to PUSH_COUNT
+        ADDI R0, R0, 1
+        CMPI R0, PUSH_COUNT
+        JNZ  push_loop
 
-pop_phase:
-        LDI  R0, FIB_COUNT  ; R0 = pop counter = 14
+; ── Phase 2: POP all 16 values back into R7 ─────────────────────────────────
+
+        LDI  R0, 0          ; reset counter
 
 pop_loop:
-        POP  R7             ; R7 = top of stack (fib values in reverse order)
-        SUB  R0, R0, R4     ; R0 = R0 - 1
-        JNZ  pop_loop       ; loop until all 14 values popped
+        POP  R7             ; R7 = next value from stack (LIFO)
+        ADDI R0, R0, 1
+        CMPI R0, PUSH_COUNT
+        JNZ  pop_loop
 
-; ── Halt ───────────────────────────────────────────────────────────────────
+; ── Halt ────────────────────────────────────────────────────────────────────
 
         HALT

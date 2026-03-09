@@ -1,5 +1,5 @@
 // =============================================================================
-// cpu.v — Top-level 8-bit CPU
+// cpu.v — Top-level CPU (8-bit data path, 16-bit address space)
 //
 // Architecture: Harvard, single-issue, two-cycle fetch+execute pipeline.
 //
@@ -9,6 +9,7 @@
 //              → register / memory / stack / PC updated on rising edge of N+1
 //
 // Instruction formats, ISA and control signals are defined in decoder.v.
+// All instructions are 24 bits wide.
 //
 // Ports:
 //   clk      — clock (rising edge)
@@ -21,18 +22,18 @@
 module cpu #(
     parameter ROM_INIT = "program.hex"
 ) (
-    input  wire       clk,
-    input  wire       rst,
-    output wire       halt_out,
+    input  wire        clk,
+    input  wire        rst,
+    output wire        halt_out,
 
     // PRNG value sampled from the hardware LFSR in top.v (runs at 12 MHz).
-    input  wire [7:0] prng_data,
+    input  wire [7:0]  prng_data,
 
     // GPIO input pin values (sampled in top.v, passed as plain wire).
-    input  wire [7:0] gpio_data,
+    input  wire [7:0]  gpio_data,
 
     // ADC sampled value (external, passed as plain wire from top.v).
-    input  wire [7:0] adc_data,
+    input  wire [7:0]  adc_data,
 
     // Peripheral write interface (OUT instruction).
     // Asserted for one cpu clk cycle; data is the source register value.
@@ -41,14 +42,14 @@ module cpu #(
     output wire [7:0]  periph_data,
 
     // Debug / LED outputs (combinational taps of internal state)
-    output wire [7:0] dbg_pc,
-    output wire       dbg_flag_z,
-    output wire       dbg_flag_c,
-    output wire       dbg_flag_n,
-    output wire       dbg_flag_v,
-    output wire [7:0] dbg_r7,
-    output wire [7:0] dbg_stack_top,   // current top-of-stack value (combinational peek)
-    output wire       dbg_stack_empty  // stack is empty
+    output wire [15:0] dbg_pc,
+    output wire        dbg_flag_z,
+    output wire        dbg_flag_c,
+    output wire        dbg_flag_n,
+    output wire        dbg_flag_v,
+    output wire [7:0]  dbg_r7,
+    output wire [15:0] dbg_stack_top,   // current top-of-stack value (combinational peek)
+    output wire        dbg_stack_empty  // stack is empty
 );
 
 // ---------------------------------------------------------------------------
@@ -60,12 +61,13 @@ wire [2:0]  dec_rb_addr;
 wire        dec_reg_we;
 wire [2:0]  dec_alu_op;
 wire        dec_alu_src_b;
+wire        dec_alu_cin;
 wire [7:0]  dec_imm;
 wire [2:0]  dec_wb_sel;
 wire        dec_mem_re;
 wire        dec_mem_we;
 wire        dec_pc_load;
-wire [7:0]  dec_pc_target;
+wire [15:0] dec_pc_target;
 wire        dec_stack_push;
 wire        dec_stack_pop;
 wire        dec_flags_we;
@@ -81,12 +83,13 @@ wire [2:0]  dec_periph_port;
 // halted:  sticky flag — once HALT executes, all subsequent ROM outputs are
 //          replaced with NOP and pc.halt is held permanently.
 // ---------------------------------------------------------------------------
-wire [15:0] rom_out;    // raw ROM output
+wire [23:0] rom_out;    // raw ROM output
 reg         flush_r;   // 1 = suppress next instruction (replace with NOP)
 reg         halted;    // 1 = CPU has executed HALT and is permanently frozen
-wire [15:0] instr;     // instruction presented to decoder
+wire [23:0] instr;     // instruction presented to decoder
 
-assign instr = (flush_r || halted) ? 16'hE000 : rom_out;
+// NOP encoding: group=0xE, all other bits 0 → 24'hE00000
+assign instr = (flush_r || halted) ? 24'hE00000 : rom_out;
 
 // flush_r is set the cycle a branch/jump is taken; cleared next cycle
 // halted is set the cycle dec_halt is seen; never cleared (only rst)
@@ -104,9 +107,9 @@ end
 // ---------------------------------------------------------------------------
 // PC wires
 // ---------------------------------------------------------------------------
-wire [7:0] pc_out;
-wire [7:0] pc_next;
-wire [7:0] pc_in;
+wire [15:0] pc_out;
+wire [15:0] pc_next;
+wire [15:0] pc_in;
 
 // ---------------------------------------------------------------------------
 // Register file wires
@@ -136,8 +139,8 @@ wire [7:0] ram_rdata;
 // ---------------------------------------------------------------------------
 // Stack wires
 // ---------------------------------------------------------------------------
-wire [7:0] stack_data_out;
-wire [7:0] stack_data_in;
+wire [15:0] stack_data_out;
+wire [15:0] stack_data_in;
 
 // ---------------------------------------------------------------------------
 // Module instantiations
@@ -163,6 +166,7 @@ decoder u_dec (
     .reg_we     (dec_reg_we),
     .alu_op     (dec_alu_op),
     .alu_src_b  (dec_alu_src_b),
+    .alu_cin    (dec_alu_cin),
     .imm        (dec_imm),
     .wb_sel     (dec_wb_sel),
     .mem_re     (dec_mem_re),
@@ -199,6 +203,7 @@ alu u_alu (
     .op     (dec_alu_op),
     .a      (ra_data),
     .b      (alu_b),
+    .cin    (dec_alu_cin & flag_c),   // 1 = ADC: route carry flag into adder
     .result (alu_result),
     .z      (alu_z),
     .c      (alu_c),
@@ -220,14 +225,16 @@ ram u_ram (
 
 // --- Stack ---
 // Push data mux: CALL pushes pc_out (the address after the CALL instruction);
-// PUSH pushes ra_data.
+// PUSH pushes ra_data (zero-extended to 16 bits since registers are 8-bit).
 //
 // Why pc_out and not pc_next:
 //   Because the ROM is synchronous, the instruction currently in the decode
 //   stage was fetched when pc = pc_out - 1.  Therefore pc_out already points
 //   one past the CALL instruction — it is the correct return address.
-wire is_call = (instr[15:12] == 4'h5) && (instr[11:9] == 3'b010);
-assign stack_data_in = is_call ? pc_out : ra_data;
+//
+// is_call: group=0x5 (STK), sub-opcode=010 (CALL) — bits [23:20] and [19:17]
+wire is_call = (instr[23:20] == 4'h5) && (instr[19:17] == 3'b010);
+assign stack_data_in = is_call ? pc_out : {8'h00, ra_data};
 
 stack u_stack (
     .clk       (clk),
@@ -246,28 +253,31 @@ stack u_stack (
 // 3'b000 = ALU result
 // 3'b001 = RAM read
 // 3'b010 = immediate (LDI)
-// 3'b011 = stack pop (POP/RET)
+// 3'b011 = stack pop (POP/RET) — lower 8 bits only (PUSH zero-extends)
 // 3'b100 = PRNG (IN port 1)
 // 3'b101 = GPIO input (IN port 2)
 // 3'b110 = ADC value (IN port 4)
-assign wb_data = (dec_wb_sel == 3'b000) ? alu_result     :
-                 (dec_wb_sel == 3'b001) ? ram_rdata      :
-                 (dec_wb_sel == 3'b010) ? dec_imm        :
-                 (dec_wb_sel == 3'b011) ? stack_data_out :
-                 (dec_wb_sel == 3'b100) ? prng_data      :
-                 (dec_wb_sel == 3'b101) ? gpio_data      :
-                 (dec_wb_sel == 3'b110) ? adc_data       :
+assign wb_data = (dec_wb_sel == 3'b000) ? alu_result           :
+                 (dec_wb_sel == 3'b001) ? ram_rdata             :
+                 (dec_wb_sel == 3'b010) ? dec_imm               :
+                 (dec_wb_sel == 3'b011) ? stack_data_out[7:0]   :
+                 (dec_wb_sel == 3'b100) ? prng_data              :
+                 (dec_wb_sel == 3'b101) ? gpio_data              :
+                 (dec_wb_sel == 3'b110) ? adc_data               :
                                           8'h00;
 
 // --- PC load-target mux ---
-// JR:  pc_in = ra_data
-// RET: pc_in = stack_data_out (top of stack before pop)
-// else: pc_in = dec_pc_target (imm8)
-wire is_jr  = (instr[15:12] == 4'h4) && (instr[11:9] == 3'b111);
-wire is_ret = (instr[15:12] == 4'h5) && (instr[11:9] == 3'b011);
+// JR:  pc_in = {8'h00, ra_data}  (register holds 8-bit address, zero-extend)
+// RET: pc_in = stack_data_out (16-bit return address pushed by CALL)
+// else: pc_in = dec_pc_target (addr16)
+//
+// is_jr:  group=0x4 (JMP), sub-opcode=111 (JR) — bits [23:20] and [19:17]
+// is_ret: group=0x5 (STK), sub-opcode=011 (RET) — bits [23:20] and [19:17]
+wire is_jr  = (instr[23:20] == 4'h4) && (instr[19:17] == 3'b111);
+wire is_ret = (instr[23:20] == 4'h5) && (instr[19:17] == 3'b011);
 
-assign pc_in = is_jr  ? ra_data        :
-               is_ret ? stack_data_out :
+assign pc_in = is_jr  ? {8'h00, ra_data}  :
+               is_ret ? stack_data_out     :
                         dec_pc_target;
 
 // --- Program Counter ---

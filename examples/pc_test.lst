@@ -1,41 +1,41 @@
-Addr  Word  Source
-------------------------------------------------------------
-            ; pc_test.asm — PC LED test
-            ; clk_div: 21
-            ;           12 MHz / 2^21 ≈ 5.7 Hz — slow enough to watch each value appear
-            ;
-            ; Counts PC through 0..31 visibly on LEDs[7:3], then jumps back to 0.
-            ;
-            
-0000  E000          NOP         ; PC=0  → 00000
-0001  E000          NOP         ; PC=1  → 00001
-0002  E000          NOP         ; PC=2  → 00010
-0003  E000          NOP         ; PC=3  → 00011
-0004  E000          NOP         ; PC=4  → 00100
-0005  E000          NOP         ; PC=5  → 00101
-0006  E000          NOP         ; PC=6  → 00110
-0007  E000          NOP         ; PC=7  → 00111
-0008  E000          NOP         ; PC=8  → 01000
-0009  E000          NOP         ; PC=9  → 01001
-000A  E000          NOP         ; PC=10 → 01010
-000B  E000          NOP         ; PC=11 → 01011
-000C  E000          NOP         ; PC=12 → 01100
-000D  E000          NOP         ; PC=13 → 01101
-000E  E000          NOP         ; PC=14 → 01110
-000F  E000          NOP         ; PC=15 → 01111
-0010  E000          NOP         ; PC=16 → 10000
-0011  E000          NOP         ; PC=17 → 10001     
-0012  E000          NOP         ; PC=18 → 10010
-0013  E000          NOP         ; PC=19 → 10011
-0014  E000          NOP         ; PC=20 → 10100
-0015  E000          NOP         ; PC=21 → 10101
-0016  E000          NOP         ; PC=22 → 10110
-0017  E000          NOP         ; PC=23 → 10111
-0018  E000          NOP         ; PC=24 → 11000
-0019  E000          NOP         ; PC=25 → 11001
-001A  E000          NOP         ; PC=26 → 11010
-001B  E000          NOP         ; PC=27 → 11011
-001C  E000          NOP         ; PC=28 → 11100
-001D  E000          NOP         ; PC=29 → 11101
-001E  E000          NOP         ; PC=30 → 11110
-001F  4000          JMP 0       ; PC=31, jump back to 0
+Addr    Word  Source
+--------------------------------------------------------------
+              ; pc_test.asm — PC LED test
+              ; clk_div: 21
+              ;           12 MHz / 2^21 ≈ 5.7 Hz — slow enough to watch each value appear
+              ;
+              ; Counts PC through 0..31 visibly on LEDs[7:3], then jumps back to 0.
+              ;
+              
+0000  E00000          NOP         ; PC=0  → 00000
+0001  E00000          NOP         ; PC=1  → 00001
+0002  E00000          NOP         ; PC=2  → 00010
+0003  E00000          NOP         ; PC=3  → 00011
+0004  E00000          NOP         ; PC=4  → 00100
+0005  E00000          NOP         ; PC=5  → 00101
+0006  E00000          NOP         ; PC=6  → 00110
+0007  E00000          NOP         ; PC=7  → 00111
+0008  E00000          NOP         ; PC=8  → 01000
+0009  E00000          NOP         ; PC=9  → 01001
+000A  E00000          NOP         ; PC=10 → 01010
+000B  E00000          NOP         ; PC=11 → 01011
+000C  E00000          NOP         ; PC=12 → 01100
+000D  E00000          NOP         ; PC=13 → 01101
+000E  E00000          NOP         ; PC=14 → 01110
+000F  E00000          NOP         ; PC=15 → 01111
+0010  E00000          NOP         ; PC=16 → 10000
+0011  E00000          NOP         ; PC=17 → 10001     
+0012  E00000          NOP         ; PC=18 → 10010
+0013  E00000          NOP         ; PC=19 → 10011
+0014  E00000          NOP         ; PC=20 → 10100
+0015  E00000          NOP         ; PC=21 → 10101
+0016  E00000          NOP         ; PC=22 → 10110
+0017  E00000          NOP         ; PC=23 → 10111
+0018  E00000          NOP         ; PC=24 → 11000
+0019  E00000          NOP         ; PC=25 → 11001
+001A  E00000          NOP         ; PC=26 → 11010
+001B  E00000          NOP         ; PC=27 → 11011
+001C  E00000          NOP         ; PC=28 → 11100
+001D  E00000          NOP         ; PC=29 → 11101
+001E  E00000          NOP         ; PC=30 → 11110
+001F  400000          JMP 0       ; PC=31, jump back to 0

@@ -18,6 +18,7 @@ module tb_alu;
 // ---------------------------------------------------------------------------
 reg  [2:0] op;
 reg  [7:0] a, b;
+reg        cin;
 wire [7:0] result;
 wire       z, c, n, v;
 
@@ -28,6 +29,7 @@ alu dut (
     .op     (op),
     .a      (a),
     .b      (b),
+    .cin    (cin),
     .result (result),
     .z      (z),
     .c      (c),
@@ -73,6 +75,8 @@ initial begin
     pass_count = 0;
     fail_count = 0;
 
+    cin = 1'b0;   // default: no carry-in (normal ADD behaviour)
+
     $display("=== ALU Testbench ===");
 
     // ------------------------------------------------------------------
@@ -95,6 +99,32 @@ initial begin
 
     a = 8'd0;   b = 8'd0;
     check(5, 8'd0,  1, 0, 0, 0);                  // zero flag
+
+    // ------------------------------------------------------------------
+    // ADC — ADD with carry-in (cin=1 routes flag_c into the adder)
+    // Same op code as ADD (op=000); cin is the extra input.
+    // ------------------------------------------------------------------
+    $display("--- ADC (op=000, cin=1) ---");
+    op = 3'b000; cin = 1'b1;
+
+    a = 8'd10;  b = 8'd20;
+    check(6, 8'd31, 0, 0, 0, 0);                  // 10+20+1 = 31, no carry
+
+    a = 8'd254; b = 8'd1;
+    check(7, 8'd0,  1, 1, 0, 0);                  // 254+1+1 = 256 → result=0, C=1, Z=1
+
+    a = 8'd255; b = 8'd0;
+    check(8, 8'd0,  1, 1, 0, 0);                  // 255+0+1 = 256 → carry, zero
+
+    a = 8'd126; b = 8'd1;
+    check(9, 8'd128, 0, 0, 1, 1);                 // 126+1+1=128 → signed overflow pos→neg
+
+    // Verify cin=0 produces identical result to plain ADD
+    cin = 1'b0;
+    a = 8'd10;  b = 8'd20;
+    check(9, 8'd30, 0, 0, 0, 0);                  // cin=0 → same as ADD
+
+    cin = 1'b0;   // restore for remaining tests
 
     // ------------------------------------------------------------------
     // SUB

@@ -5,6 +5,9 @@
 //   op    [2:0]  — operation select (see ALU_OP_* parameters)
 //   a     [7:0]  — operand A
 //   b     [7:0]  — operand B
+//   cin           — carry input; when 1 the ADD operation becomes ADC
+//                   (a + b + 1).  Driven by flag_c via the decoder alu_cin
+//                   signal; always 0 for all non-ADD instructions.
 //
 // Outputs:
 //   result [7:0] — computation result
@@ -18,6 +21,7 @@ module alu (
     input  wire [2:0] op,
     input  wire [7:0] a,
     input  wire [7:0] b,
+    input  wire       cin,
     output reg  [7:0] result,
     output wire       z,
     output reg        c,
@@ -51,7 +55,7 @@ always @(*) begin
 
     case (op)
         ALU_ADD: begin
-            wide   = {1'b0, a} + {1'b0, b};
+            wide   = {1'b0, a} + {1'b0, b} + {8'b0, cin};
             result = wide[7:0];
             c      = wide[8];
             // Signed overflow: both operands same sign, result different sign
