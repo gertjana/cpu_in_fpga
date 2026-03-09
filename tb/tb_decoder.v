@@ -8,8 +8,10 @@
 //  I8-format:  [23:20] group | [19:17] sub/Rd  | [16:14] Ra |                          [7:0]  imm8
 //  I16-format: [23:20] group | [19:17] sub      | [18] spare |                         [15:0] addr16
 //
-// Note: ALU group decoder remaps fields:
-//   rd_addr = f_ra [16:14], ra_addr = f_rb [13:11], rb_addr = f_sub [10:8], alu_op = f_rd [19:17]
+// ALU group (0) uses an extended 4-bit sub-opcode field:
+//  ALU-format: [23:20] group | [19:16] alu_op(4b) | [15:13] Rd | [12:10] Ra | [9:7] Rb | [6:0] unused
+//    alu_op[2:0] = operation  (ADD/SUB/AND/OR/XOR/NOT/SHL/SHR)
+//    alu_op[3]   = carry-in enable (1 => ADC; 0 => normal)
 //
 // Simulate with:
 //   iverilog -o tb_decoder tb/tb_decoder.v rtl/decoder.v && vvp tb_decoder
@@ -29,6 +31,7 @@ wire [2:0]  rd_addr, ra_addr, rb_addr;
 wire        reg_we;
 wire [2:0]  alu_op;
 wire        alu_src_b;
+wire        alu_cin;
 wire [7:0]  imm;
 wire [2:0]  wb_sel;
 wire        mem_re, mem_we;
@@ -55,6 +58,7 @@ decoder dut (
     .reg_we     (reg_we),
     .alu_op     (alu_op),
     .alu_src_b  (alu_src_b),
+    .alu_cin    (alu_cin),
     .imm        (imm),
     .wb_sel     (wb_sel),
     .mem_re     (mem_re),
@@ -163,7 +167,7 @@ endtask
 // ---------------------------------------------------------------------------
 // Instruction encoders — all produce 24-bit words.
 //
-// 24-bit field layout:
+// 24-bit field layout (non-ALU groups):
 //   [23:20] group
 //   [19:17] f_rd  — Rd / sub-opcode
 //   [16:14] f_ra  — Ra (source A, or destination for LDI/LD/POP)
@@ -173,15 +177,23 @@ endtask
 //   [7:0]   imm8  (I8-format: LDI)
 //   [15:0]  addr16 (I16-format: JMP, Jcc, CALL)
 //
-// ALU decoder remapping: rd_addr=f_ra, ra_addr=f_rb, rb_addr=f_sub, alu_op=f_rd
-// So enc_r(grp, sub, rd, ra, rb) puts:
-//   sub → [19:17] (alu_op / sub-opcode)
-//   rd  → [16:14] (f_ra → decoded as rd_addr)
-//   ra  → [13:11] (f_rb → decoded as ra_addr)
-//   rb  → [10:8]  (f_sub → decoded as rb_addr)
+// ALU group (0) extended layout:
+//   [23:20] group=0
+//   [19:16] alu_op (4-bit; bit[3]=cin enable)
+//   [15:13] Rd
+//   [12:10] Ra
+//   [9:7]   Rb
 // ---------------------------------------------------------------------------
 
+// ALU-format encoder: {group=0, alu_op[3:0], rd[2:0], ra[2:0], rb[2:0], 7'b0}
+function [23:0] enc_alu;
+    input [3:0] alu_op;
+    input [2:0] rd, ra, rb;
+    enc_alu = {4'h0, alu_op, rd, ra, rb, 7'h00};
+endfunction
+
 // R-format: [23:20] grp | [19:17] sub | [16:14] rd | [13:11] ra | [10:8] rb | [7:0] 00
+// (Used for non-ALU groups only)
 function [23:0] enc_r;
     input [3:0] grp;
     input [2:0] sub, rd, ra, rb;
@@ -267,40 +279,59 @@ initial begin
     $display("=== Instruction Decoder Testbench ===");
 
     // ------------------------------------------------------------------
-    // Group 0: ALU reg-reg — ADD R2, R3, R5
-    // R-format: 0000 sss=000 ddd=010 aaa=011 bbb=101 00000000
-    // Decoder: alu_op=f_rd=000, rd=f_ra=010, ra=f_rb=011, rb=f_sub=101
+    // Group 0: ALU reg-reg (4-bit alu_op field)
+    // ADD R2, R3, R5: enc_alu(4'b0000, rd=2, ra=3, rb=5)
+    //   [19:16]=0 (ADD, cin-off), [15:13]=2, [12:10]=3, [9:7]=5
     // ------------------------------------------------------------------
     $display("--- ALU ADD R2, R3, R5 ---");
-    apply(enc_r(4'h0, 3'b000, 3'd2, 3'd3, 3'd5));
+    apply(enc_alu(4'b0000, 3'd2, 3'd3, 3'd5));
     chk3(10, "rd_addr   ", rd_addr,   3'd2);
     chk3(11, "ra_addr   ", ra_addr,   3'd3);
     chk3(12, "rb_addr   ", rb_addr,   3'd5);
     chk3(13, "alu_op    ", alu_op,    3'b000); // ADD
     chk1(14, "alu_src_b ", alu_src_b, 1'b0);
-    chk1(15, "reg_we    ", reg_we,    1'b1);
-    chk1(16, "flags_we  ", flags_we,  1'b1);
-    chk1(17, "mem_re    ", mem_re,    1'b0);
-    chk1(18, "mem_we    ", mem_we,    1'b0);
-    chk1(19, "pc_load   ", pc_load,   1'b0);
-    chk1(20, "halt      ", halt,      1'b0);
+    chk1(15, "alu_cin   ", alu_cin,   1'b0);   // no carry-in for ADD
+    chk1(16, "reg_we    ", reg_we,    1'b1);
+    chk1(17, "flags_we  ", flags_we,  1'b1);
+    chk1(18, "mem_re    ", mem_re,    1'b0);
+    chk1(19, "mem_we    ", mem_we,    1'b0);
+    chk1(20, "pc_load   ", pc_load,   1'b0);
+    chk1(21, "halt      ", halt,      1'b0);
 
     $display("--- ALU SUB R0, R1, R2 ---");
-    apply(enc_r(4'h0, 3'b001, 3'd0, 3'd1, 3'd2));
-    chk3(21, "alu_op SUB", alu_op,   3'b001);
-    chk1(22, "flags_we  ", flags_we, 1'b1);
+    apply(enc_alu(4'b0001, 3'd0, 3'd1, 3'd2));
+    chk3(22, "alu_op SUB", alu_op,   3'b001);
+    chk1(23, "alu_cin   ", alu_cin,  1'b0);
+    chk1(24, "flags_we  ", flags_we, 1'b1);
 
     $display("--- ALU SHR R7, R7, Rx ---");
-    apply(enc_r(4'h0, 3'b111, 3'd7, 3'd7, 3'd0));
-    chk3(23, "alu_op SHR", alu_op,   3'b111);
-    chk3(24, "rd_addr   ", rd_addr,  3'd7);
-    chk3(25, "ra_addr   ", ra_addr,  3'd7);
+    apply(enc_alu(4'b0111, 3'd7, 3'd7, 3'd0));
+    chk3(25, "alu_op SHR", alu_op,   3'b111);
+    chk3(26, "rd_addr   ", rd_addr,  3'd7);
+    chk3(27, "ra_addr   ", ra_addr,  3'd7);
+    chk1(28, "alu_cin   ", alu_cin,  1'b0);
 
     $display("--- ALU NOT R4, R6, Rx ---");
-    apply(enc_r(4'h0, 3'b101, 3'd4, 3'd6, 3'd0));
-    chk3(26, "alu_op NOT", alu_op,   3'b101);
-    chk3(27, "rd_addr   ", rd_addr,  3'd4);
-    chk3(28, "ra_addr   ", ra_addr,  3'd6);
+    apply(enc_alu(4'b0101, 3'd4, 3'd6, 3'd0));
+    chk3(29, "alu_op NOT", alu_op,   3'b101);
+    chk3(30, "rd_addr   ", rd_addr,  3'd4);
+    chk3(31, "ra_addr   ", ra_addr,  3'd6);
+    chk1(32, "alu_cin   ", alu_cin,  1'b0);
+
+    // ------------------------------------------------------------------
+    // Group 0: ADC R1, R3, R5  (alu_op=4'b1000)
+    // alu_op[3]=1 enables carry-in; alu_op[2:0]=000 selects ADD
+    // ------------------------------------------------------------------
+    $display("--- ALU ADC R1, R3, R5 (alu_op=1000, cin=1) ---");
+    apply(enc_alu(4'b1000, 3'd1, 3'd3, 3'd5));
+    chk3(33, "rd_addr   ", rd_addr,   3'd1);
+    chk3(34, "ra_addr   ", ra_addr,   3'd3);
+    chk3(35, "rb_addr   ", rb_addr,   3'd5);
+    chk3(36, "alu_op    ", alu_op,    3'b000); // op[2:0] = ADD
+    chk1(37, "alu_cin   ", alu_cin,   1'b1);   // op[3]=1 => carry-in enabled
+    chk1(38, "alu_src_b ", alu_src_b, 1'b0);
+    chk1(39, "reg_we    ", reg_we,    1'b1);
+    chk1(40, "flags_we  ", flags_we,  1'b1);
 
     // ------------------------------------------------------------------
     // Group 1: ADDI R1, R4, 42  (imm6 = 6'd42 = 6'b101010)

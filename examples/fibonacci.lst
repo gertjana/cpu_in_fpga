@@ -37,7 +37,7 @@ Addr    Word  Source
               ; ── main loop ─────────────────────────────────────────────────────────────────
               
               loop:
-0009  00CA00          ADD  R3, R1, R2     ; next = a + b; carry set if > 255
+0009  006500          ADD  R3, R1, R2     ; next = a + b; carry set if > 255
 000A  460011          JC   done           ; overflow → stop, R7 holds last valid result
               
 000B  3EC000          MOV  R7, R3         ; R7 = latest Fibonacci result

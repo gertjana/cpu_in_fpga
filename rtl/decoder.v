@@ -10,7 +10,19 @@
 //  I8-format:  [23:20] group | [19:17] Rd/sub  | [16:14] Ra |                           [7:0] imm8
 //  I16-format: [23:20] group | [19:17] sub      | [18] unused |                         [15:0] addr16
 //
-// Field summary:
+// ALU group (0) uses an extended 4-bit sub-opcode field — field positions
+// differ from all other groups:
+//
+//  ALU:        [23:20] group | [19:16] alu_op(4b) | [15:13] Rd | [12:10] Ra | [9:7] Rb | [6:0] unused
+//
+//   alu_op[2:0] selects the ALU operation (same codes as before).
+//   alu_op[3]   is the carry-in enable bit: when set, ADD becomes ADC
+//               (a + b + flag_c).  This gives 8 carry-capable variants:
+//                 0b1000 ADC — add with carry
+//                 0b1001 SBC — subtract with borrow (reserved, not yet used)
+//                 0b1010..0b1111 — reserved
+//
+// Field summary (non-ALU groups):
 //   [23:20] group       — instruction group (4 bits)
 //   [19:17] f_rd        — Rd / sub-opcode (3 bits)
 //   [16:14] f_ra        — Ra (3 bits)
@@ -21,7 +33,7 @@
 //   [15:0]  f_addr16    — 16-bit address  (I16-format: JMP, Jcc, CALL)
 //
 // Groups:
-//   4'h0  ALU reg-reg    sub-op in [2:0]
+//   4'h0  ALU reg-reg    4-bit sub-op in [19:16]; Rd/Ra/Rb in [15:13]/[12:10]/[9:7]
 //   4'h1  ADDI           Rd = Ra + imm6   (I6-format)
 //   4'h2  Mem            sub-op in [19:17] (mixed)
 //          LDI: 0010 000 ddd xxxxxx iiiiiiii  (I8-format: dest=Ra field, imm8 in [7:0])
@@ -57,6 +69,7 @@ module decoder (
     // ALU
     output reg  [2:0]  alu_op,
     output reg         alu_src_b,  // 0=Rb, 1=immediate
+    output reg         alu_cin,    // 1=carry-in enabled (ADC); 0=normal ADD
     output reg  [7:0]  imm,        // immediate value (imm6 zero-ext or imm8)
 
     // Write-back source select
@@ -97,13 +110,19 @@ module decoder (
 // ---------------------------------------------------------------------------
 wire [3:0] group = instr[23:20];
 
-// R-format / I-format fields
+// Standard R-format / I-format fields (used by all groups except ALU)
 wire [2:0] f_rd  = instr[19:17];   // sub-opcode or destination reg
 wire [2:0] f_ra  = instr[16:14];   // source A reg or destination (mem/pop)
 wire [2:0] f_rb  = instr[13:11];   // source B reg
 wire [2:0] f_sub = instr[10:8];    // extra sub / source B
 
-// Immediate values
+// ALU group (0) extended fields — 4-bit op, register fields shifted down 1 bit
+wire [3:0] f_alu_op = instr[19:16]; // 4-bit ALU sub-opcode
+wire [2:0] f_alu_rd = instr[15:13]; // Rd for ALU instructions
+wire [2:0] f_alu_ra = instr[12:10]; // Ra for ALU instructions
+wire [2:0] f_alu_rb = instr[9:7];   // Rb for ALU instructions
+
+// Immediate values (non-ALU groups)
 wire [5:0]  f_imm6  = instr[13:8];    // I6-format: 6-bit immediate (ADDI, CMPI)
 wire [7:0]  f_imm8  = instr[7:0];     // I8-format: 8-bit immediate (LDI)
 wire [15:0] f_addr16 = instr[15:0];   // I16-format: 16-bit address (JMP, Jcc, CALL)
@@ -189,12 +208,13 @@ end
 always @(*) begin
     // Safe defaults — no side effects
     rd_addr    = f_rd;
-    ra_addr    = f_ra;
-    rb_addr    = f_rb;
-    reg_we     = 1'b0;
-    alu_op     = ALU_ADD;
-    alu_src_b  = 1'b0;
-    imm        = 8'h00;
+        ra_addr    = f_ra;
+        rb_addr    = f_rb;
+        reg_we     = 1'b0;
+        alu_op     = ALU_ADD;
+        alu_src_b  = 1'b0;
+        alu_cin    = 1'b0;
+        imm        = 8'h00;
     wb_sel     = WB_ALU;
     mem_re     = 1'b0;
     mem_we     = 1'b0;
@@ -210,18 +230,22 @@ always @(*) begin
     case (group)
 
         // ------------------------------------------------------------------
-        // Group 0: ALU reg-reg
-        // R-format: 0000 sss ddd aaa bbb xxx 00000000
-        //   [19:17] sub-opcode (ALU op)
-        //   [16:14] Rd (destination)
-        //   [13:11] Ra (source A)
-        //   [10:8]  Rb (source B)
+        // Group 0: ALU reg-reg  (4-bit sub-opcode)
+        // ALU-format: 0000 ssss ddd aaa bbb 0000000
+        //   [19:16] ALU sub-opcode (4 bits); bit[3]=carry-in enable
+        //   [15:13] Rd (destination)
+        //   [12:10] Ra (source A)
+        //   [9:7]   Rb (source B)
+        //
+        // alu_op  = f_alu_op[2:0]  — selects ADD/SUB/AND/OR/XOR/NOT/SHL/SHR
+        // alu_cin = f_alu_op[3]    — 1 routes flag_c into ALU carry-in (ADC)
         // ------------------------------------------------------------------
         GRP_ALU: begin
-            rd_addr   = f_ra;      // destination reg in [16:14]
-            ra_addr   = f_rb;      // source A reg   in [13:11]
-            rb_addr   = f_sub;     // source B reg   in [10:8]
-            alu_op    = f_rd;      // sub-opcode     in [19:17]
+            rd_addr   = f_alu_rd;
+            ra_addr   = f_alu_ra;
+            rb_addr   = f_alu_rb;
+            alu_op    = f_alu_op[2:0];
+            alu_cin   = f_alu_op[3];
             alu_src_b = 1'b0;
             reg_we    = 1'b1;
             wb_sel    = WB_ALU;

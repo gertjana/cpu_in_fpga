@@ -61,6 +61,7 @@ wire [2:0]  dec_rb_addr;
 wire        dec_reg_we;
 wire [2:0]  dec_alu_op;
 wire        dec_alu_src_b;
+wire        dec_alu_cin;
 wire [7:0]  dec_imm;
 wire [2:0]  dec_wb_sel;
 wire        dec_mem_re;
@@ -165,6 +166,7 @@ decoder u_dec (
     .reg_we     (dec_reg_we),
     .alu_op     (dec_alu_op),
     .alu_src_b  (dec_alu_src_b),
+    .alu_cin    (dec_alu_cin),
     .imm        (dec_imm),
     .wb_sel     (dec_wb_sel),
     .mem_re     (dec_mem_re),
@@ -201,6 +203,7 @@ alu u_alu (
     .op     (dec_alu_op),
     .a      (ra_data),
     .b      (alu_b),
+    .cin    (dec_alu_cin & flag_c),   // 1 = ADC: route carry flag into adder
     .result (alu_result),
     .z      (alu_z),
     .c      (alu_c),

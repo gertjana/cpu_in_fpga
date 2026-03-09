@@ -4,7 +4,7 @@ assembler.py — Two-pass assembler for the CPU (8-bit data path, 16-bit address
 
 All instructions are 24 bits wide.
 
-Instruction format summary:
+Instruction format summary (non-ALU groups):
   Bits [23:20] — group (4 bits)
   Bits [19:17] — Rd / sub-opcode (3 bits)
   Bits [16:14] — Ra (3 bits)
@@ -13,6 +13,12 @@ Instruction format summary:
   Bits [13:8]  — imm6  (I6-format: ADDI, CMPI)
   Bits [7:0]   — imm8  (I8-format: LDI)
   Bits [15:0]  — addr16 (I16-format: JMP, Jcc, CALL)
+
+ALU group (0) uses an extended 4-bit sub-opcode field:
+  Bits [19:16] — alu_op (4 bits; bit[3]=carry-in enable for ADC)
+  Bits [15:13] — Rd (3 bits)
+  Bits [12:10] — Ra (3 bits)
+  Bits [9:7]   — Rb (3 bits)
 
 Usage:
     python tools/assembler.py program.asm
@@ -70,10 +76,12 @@ GRP_OUT   = 0x9
 GRP_NOP   = 0xE
 GRP_HALT  = 0xF
 
-# ALU sub-opcodes (bits [19:17])
+# ALU sub-opcodes (bits [19:16], 4-bit field)
+# bit[3]=0: normal ops; bit[3]=1: carry-enabled variants
 ALU_SUB = {
     "ADD": 0, "SUB": 1, "AND": 2, "OR": 3,
     "XOR": 4, "NOT": 5, "SHL": 6, "SHR": 7,
+    "ADC": 8,   # Add with carry: alu_op=0b1000 → ADD with cin=flag_c
 }
 
 # Jump sub-opcodes (bits [19:17])
@@ -90,7 +98,7 @@ MEM_LDI  = 0  # handled specially — Rd is destination
 MEM_LD   = 1  # handled specially
 MEM_ST   = 2  # handled specially
 
-# Field shift amounts for 24-bit encoding
+# Field shift amounts for 24-bit encoding (non-ALU groups)
 _SH_GRP  = 20   # group:   bits [23:20]
 _SH_RD   = 17   # Rd/sub:  bits [19:17]
 _SH_RA   = 14   # Ra:      bits [16:14]
@@ -99,6 +107,12 @@ _SH_SUB  = 8    # sub/Rb:  bits [10:8]
 _SH_IMM6 = 8    # imm6:    bits [13:8]
 # imm8:   bits [7:0]  — no shift
 # addr16: bits [15:0] — no shift
+
+# ALU group (0) uses a 4-bit sub-opcode; register fields shift down by 1 bit
+_SH_ALUOP = 16  # alu_op:  bits [19:16]
+_SH_ALU_RD = 13 # Rd:      bits [15:13]
+_SH_ALU_RA = 10 # Ra:      bits [12:10]
+_SH_ALU_RB = 7  # Rb:      bits [9:7]
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +220,7 @@ def _find_binary_op(expr: str):
 # Instruction encoders
 # All functions return a 24-bit integer.
 #
-# 24-bit field layout:
+# 24-bit field layout (non-ALU groups):
 #   [23:20] group
 #   [19:17] Rd / sub-opcode
 #   [16:14] Ra
@@ -215,14 +229,21 @@ def _find_binary_op(expr: str):
 #   [13:8]  imm6  (I6-format)
 #   [7:0]   imm8  (I8-format)
 #   [15:0]  addr16 (I16-format: JMP/Jcc/CALL)
+#
+# ALU group (0) layout:
+#   [23:20] group=0
+#   [19:16] alu_op (4-bit; bit[3]=cin enable)
+#   [15:13] Rd
+#   [12:10] Ra
+#   [9:7]   Rb
 # ---------------------------------------------------------------------------
 
 def encode_alu(mnemonic, operands, symbols, filename, lineno) -> int:
-    # R-format: 0000 sss ddd aaa bbb 00000000
-    #   [19:17] ALU sub-opcode
-    #   [16:14] Rd (destination)
-    #   [13:11] Ra (source A)
-    #   [10:8]  Rb (source B)
+    # ALU-format: 0000 ssss ddd aaa bbb 0000000
+    #   [19:16] ALU sub-opcode (4 bits; bit[3]=carry-in enable)
+    #   [15:13] Rd (destination)
+    #   [12:10] Ra (source A)
+    #   [9:7]   Rb (source B)
     sub = ALU_SUB[mnemonic]
     if mnemonic in ("NOT", "SHL", "SHR"):
         # Two-operand: Rd, Ra
@@ -238,7 +259,7 @@ def encode_alu(mnemonic, operands, symbols, filename, lineno) -> int:
         rd = parse_reg(operands[0], filename, lineno)
         ra = parse_reg(operands[1], filename, lineno)
         rb = parse_reg(operands[2], filename, lineno)
-    return (GRP_ALU << _SH_GRP) | (sub << _SH_RD) | (rd << _SH_RA) | (ra << _SH_RB) | (rb << _SH_SUB)
+    return (GRP_ALU << _SH_GRP) | (sub << _SH_ALUOP) | (rd << _SH_ALU_RD) | (ra << _SH_ALU_RA) | (rb << _SH_ALU_RB)
 
 
 def encode_addi(operands, symbols, filename, lineno) -> int:

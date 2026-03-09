@@ -16,8 +16,8 @@ Addr    Word  Source
               ; Build R1 = 0x80.  LDI is limited to 6-bit immediates (0..63),
               ; so 0x80 (128) cannot be loaded directly.  Compute via two SHL from 0x20.
 0000  204020          LDI  R1, 0x20       ; R1 = 0x20
-0001  0C4800          SHL  R1, R1         ; R1 = 0x40
-0002  0C4800          SHL  R1, R1         ; R1 = 0x80  — leftmost edge
+0001  062400          SHL  R1, R1         ; R1 = 0x40
+0002  062400          SHL  R1, R1         ; R1 = 0x80  — leftmost edge
               
 0003  208001          LDI  R2, 1          ; R2 = 0x01  — rightmost edge
               
@@ -26,11 +26,11 @@ Addr    Word  Source
               scan_right:
 0005  61D000          CMP  R7, R2         ; R7 == 0x01 (rightmost edge)?
 0006  420009          JZ   scan_left      ; yes → reverse, scan left
-0007  0FF800          SHR  R7, R7         ; no  → step right
+0007  07FC00          SHR  R7, R7         ; no  → step right
 0008  400005          JMP  scan_right
               
               scan_left:
 0009  61C800          CMP  R7, R1         ; R7 == 0x80 (leftmost edge)?
 000A  420005          JZ   scan_right     ; yes → reverse, scan right
-000B  0DF800          SHL  R7, R7         ; no  → step left
+000B  06FC00          SHL  R7, R7         ; no  → step left
 000C  400009          JMP  scan_left
