@@ -39,7 +39,13 @@ done
 [[ -n "$NAME" ]] || die "Usage: $0 <name>\n  e.g. $0 fibonacci"
 
 OUTPUT_DIR="${SCRIPT_DIR}/quartus_output/${BRANCH}/${NAME}"
-POF_FILE="${OUTPUT_DIR}/cpu_fpga.pof"
+# gh run download nests files under a subdirectory named after the artifact
+NESTED_POF="${OUTPUT_DIR}/quartus-output-${BRANCH}-${NAME}/cpu_fpga.pof"
+FLAT_POF="${OUTPUT_DIR}/cpu_fpga.pof"
+if   [[ -f "${FLAT_POF}"   ]]; then POF_FILE="${FLAT_POF}"
+elif [[ -f "${NESTED_POF}" ]]; then POF_FILE="${NESTED_POF}"
+else POF_FILE="${FLAT_POF}"   # will trigger the error message below
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Check openFPGALoader is installed

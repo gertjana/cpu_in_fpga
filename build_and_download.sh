@@ -35,7 +35,7 @@ die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
 NAME="${1%.asm}"          # strip .asm suffix if accidentally included
 PROGRAM="examples/${NAME}.asm"
-ARTIFACT_NAME="quartus-output-${NAME}"
+ARTIFACT_NAME="quartus-output-${BRANCH}-${NAME}"
 OUTPUT_DIR="quartus_output/${BRANCH}/${NAME}"
 
 [[ -f "$PROGRAM" ]] || die "File not found: ${PROGRAM}"

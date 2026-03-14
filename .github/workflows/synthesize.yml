@@ -157,7 +157,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: quartus-output-${{ inputs.name }}
+          name: quartus-output-${{ github.ref_name }}-${{ inputs.name }}
           path: |
             quartus/output_files/cpu_fpga.sof
             quartus/output_files/cpu_fpga.pof

@@ -413,54 +413,52 @@ reg [3:0]  spi_bit_ctr;  // counts from 15 down to 0 (2 cycles per bit)
 wire       spi_done = (spi_bit_ctr == 4'd0);
 
 // ---------------------------------------------------------------------------
-// Command/data sequence ROM
-// We store the SSD1306 initialisation sequence as a flat array of bytes
-// plus a flag byte that marks data-vs-command and end-of-sequence.
+// Command/data sequence ROM — SSD1306 initialisation sequence.
 //
 // Format: {is_data[0], byte[7:0]}  — 9 bits per entry; 0=command, 1=data.
 // A sentinel of 9'h1FF marks end-of-sequence.
+//
+// Implemented as a pure combinatorial function so Quartus synthesises it
+// as LUT-based ROM with no initial-block dependency.
 // ---------------------------------------------------------------------------
-localparam SEQ_CMD  = 1'b0;
 localparam SEQ_END  = 9'h1FF;
 
-reg [8:0] seq_rom [0:31];
 reg [4:0] seq_idx;
+// Current init sequence entry — wire avoids inline bit-select on function calls
+wire [8:0] seq_entry = seq_lookup(seq_idx);
 
-initial begin
-    // SSD1306 init commands (display already off, VDD already on)
-    seq_rom[0]  = {SEQ_CMD, 8'hAE};  // Display off
-    seq_rom[1]  = {SEQ_CMD, 8'hD5};  // Set display clock divide
-    seq_rom[2]  = {SEQ_CMD, 8'h80};  //   ratio/oscillator = 0x80
-    seq_rom[3]  = {SEQ_CMD, 8'hA8};  // Set multiplex ratio
-    seq_rom[4]  = {SEQ_CMD, 8'h1F};  //   31 (for 32-row display)
-    seq_rom[5]  = {SEQ_CMD, 8'hD3};  // Set display offset
-    seq_rom[6]  = {SEQ_CMD, 8'h00};  //   0
-    seq_rom[7]  = {SEQ_CMD, 8'h40};  // Set display start line = 0
-    seq_rom[8]  = {SEQ_CMD, 8'h8D};  // Charge pump setting
-    seq_rom[9]  = {SEQ_CMD, 8'h14};  //   enable charge pump
-    seq_rom[10] = {SEQ_CMD, 8'hA1};  // Set segment remap (col 127 = SEG0)
-    seq_rom[11] = {SEQ_CMD, 8'hC8};  // Set COM scan direction (remapped)
-    seq_rom[12] = {SEQ_CMD, 8'hDA};  // Set COM pins hardware config
-    seq_rom[13] = {SEQ_CMD, 8'h02};  //   sequential, no remap (32-row)
-    seq_rom[14] = {SEQ_CMD, 8'h81};  // Set contrast
-    seq_rom[15] = {SEQ_CMD, 8'h8F};  //   0x8F
-    seq_rom[16] = {SEQ_CMD, 8'hD9};  // Set pre-charge period
-    seq_rom[17] = {SEQ_CMD, 8'hF1};  //   0xF1
-    seq_rom[18] = {SEQ_CMD, 8'hDB};  // Set VCOMH deselect level
-    seq_rom[19] = {SEQ_CMD, 8'h40};  //   0x40
-    seq_rom[20] = {SEQ_CMD, 8'hA4};  // Entire display ON (normal)
-    seq_rom[21] = {SEQ_CMD, 8'hA6};  // Normal display (not inverted)
-    seq_rom[22] = {SEQ_CMD, 8'h20};  // Set memory addressing mode
-    seq_rom[23] = {SEQ_CMD, 8'h02};  //   page addressing (matches FSM refresh loop)
-    seq_rom[24] = SEQ_END;            // Display ON sent separately after VBAT delay
-    seq_rom[25] = SEQ_END;            // (padding — unreachable)
-    seq_rom[26] = SEQ_END;
-    seq_rom[27] = SEQ_END;
-    seq_rom[28] = SEQ_END;
-    seq_rom[29] = SEQ_END;
-    seq_rom[30] = SEQ_END;
-    seq_rom[31] = SEQ_END;
-end
+function [8:0] seq_lookup;
+    input [4:0] idx;
+    begin
+        case (idx)
+            5'd0:  seq_lookup = {1'b0, 8'hAE};  // Display off
+            5'd1:  seq_lookup = {1'b0, 8'hD5};  // Set display clock divide
+            5'd2:  seq_lookup = {1'b0, 8'h80};  //   ratio/oscillator = 0x80
+            5'd3:  seq_lookup = {1'b0, 8'hA8};  // Set multiplex ratio
+            5'd4:  seq_lookup = {1'b0, 8'h1F};  //   31 (for 32-row display)
+            5'd5:  seq_lookup = {1'b0, 8'hD3};  // Set display offset
+            5'd6:  seq_lookup = {1'b0, 8'h00};  //   0
+            5'd7:  seq_lookup = {1'b0, 8'h40};  // Set display start line = 0
+            5'd8:  seq_lookup = {1'b0, 8'h8D};  // Charge pump setting
+            5'd9:  seq_lookup = {1'b0, 8'h14};  //   enable charge pump
+            5'd10: seq_lookup = {1'b0, 8'hA1};  // Set segment remap (col 127 = SEG0)
+            5'd11: seq_lookup = {1'b0, 8'hC8};  // Set COM scan direction (remapped)
+            5'd12: seq_lookup = {1'b0, 8'hDA};  // Set COM pins hardware config
+            5'd13: seq_lookup = {1'b0, 8'h02};  //   sequential, no remap (32-row)
+            5'd14: seq_lookup = {1'b0, 8'h81};  // Set contrast
+            5'd15: seq_lookup = {1'b0, 8'h8F};  //   0x8F
+            5'd16: seq_lookup = {1'b0, 8'hD9};  // Set pre-charge period
+            5'd17: seq_lookup = {1'b0, 8'hF1};  //   0xF1
+            5'd18: seq_lookup = {1'b0, 8'hDB};  // Set VCOMH deselect level
+            5'd19: seq_lookup = {1'b0, 8'h40};  //   0x40
+            5'd20: seq_lookup = {1'b0, 8'hA4};  // Entire display ON (normal)
+            5'd21: seq_lookup = {1'b0, 8'hA6};  // Normal display (not inverted)
+            5'd22: seq_lookup = {1'b0, 8'h20};  // Set memory addressing mode
+            5'd23: seq_lookup = {1'b0, 8'h02};  //   page addressing
+            default: seq_lookup = SEQ_END;       // Display ON sent separately after VBAT delay
+        endcase
+    end
+endfunction
 
 // ---------------------------------------------------------------------------
 // Main FSM
@@ -647,8 +645,8 @@ end
 // Use 9-bit arithmetic throughout to avoid Quartus truncation warning.
 wire [8:0] font_ascii9 = {1'b0, cur_ascii} - 9'h020;
 wire [8:0] font_addr   = font_ascii9 * 9'd5 + {6'd0, cur_col[2:0]};
-// Column 5 (6th pixel col) is always 0 (inter-character gap)
-wire [7:0] font_byte  = (cur_col == 3'd5) ? 8'h00 : font_lookup(font_addr[8:0]);
+// Column 5, 6, 7 are inter-character gap / padding — always 0x00
+wire [7:0] font_byte  = (cur_col >= 3'd5) ? 8'h00 : font_lookup(font_addr[8:0]);
 
 // Helper: start an SPI transaction
 task spi_send;
@@ -739,11 +737,11 @@ always @(posedge clk) begin
 
             // --- Send init sequence (all commands up to but not including Display On) ---
             ST_INIT_START: begin
-                if (seq_rom[seq_idx] == SEQ_END) begin
+                if (seq_entry == SEQ_END) begin
                     // Reached end of sequence — move on
                     state <= ST_VBAT_ON;
                 end else begin
-                    spi_send(seq_rom[seq_idx][7:0], seq_rom[seq_idx][8]);
+                    spi_send(seq_entry[7:0], seq_entry[8]);
                     state <= ST_INIT_WAIT;
                 end
             end
