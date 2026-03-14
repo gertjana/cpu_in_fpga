@@ -139,8 +139,22 @@ always @(posedge clk_12m) begin
         was_long <= 1'b1;
 end
 
-// CPU reset is active while long-press threshold is held.
-wire rst = was_long;
+// ---------------------------------------------------------------------------
+// Power-on reset — asserts rst for 32 clk_12m cycles after FPGA configuration
+// so all synchronous reset blocks fire reliably, independent of Quartus
+// register power-up values.
+// The counter starts at 0 and counts up; rst is held high until it reaches 31.
+// After that it stays at 31 forever and contributes nothing.
+// ---------------------------------------------------------------------------
+reg [4:0] por_ctr = 5'd0;
+always @(posedge clk_12m)
+    if (por_ctr != 5'd31)
+        por_ctr <= por_ctr + 1'b1;
+
+wire por_rst = (por_ctr != 5'd31);
+
+// CPU reset is active during power-on OR while long-press threshold is held.
+wire rst = por_rst | was_long;
 
 // ---------------------------------------------------------------------------
 // Release edge detector — one-cycle pulse on debounced button release.
