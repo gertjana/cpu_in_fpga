@@ -496,31 +496,14 @@ reg [2:0] cur_col;      // 0-5  (5 font cols + 1 space col per char)
 reg [1:0] page_cmd_idx;
 
 // ---------------------------------------------------------------------------
-// Power-on safe state — Quartus MAX 10 honours `initial` for registers.
-// Without this, all regs power up to 0, which means:
-//   vdd_en=0 (VDD ON immediately, before FSM controls it — tolerable)
-//   vbat_en=0 (VBAT ON immediately, violating VDD→VBAT sequencing)
-//   spi_cs_n=0 (CS asserted, garbage SPI to display)
-// The synchronous `rst` block sets the same values but `rst` is never
-// asserted at power-on (it requires a long button press).
+// Power-on reset is handled by:
+//   1. POWER_UP_LEVEL constraints in the QSF ensure pmod_vddc, pmod_vbatc,
+//      pmod_cs_n power up HIGH (OFF/deasserted) and pmod_res_n powers up LOW
+//      (display held in reset) — independent of initial block reliability.
+//   2. The synchronous rst input (driven by a 32-cycle POR counter in top.v)
+//      resets all FSM state to known values within 3 µs of configuration.
+// No initial block is needed or used for FSM registers.
 // ---------------------------------------------------------------------------
-initial begin
-    state       = 5'd0;     // ST_RESET
-    spi_cs_n    = 1'b1;     // CS deasserted
-    spi_clk     = 1'b0;
-    spi_mosi    = 1'b0;
-    spi_dc      = 1'b0;
-    spi_res_n   = 1'b0;     // hold display in reset at power-on
-    vbat_en     = 1'b1;     // VBAT OFF (active-low enable)
-    vdd_en      = 1'b1;     // VDD  OFF (active-low enable)
-    delay_ctr   = 21'd0;
-    spi_bit_ctr = 4'd0;
-    seq_idx     = 5'd0;
-    cur_line    = 2'd0;
-    cur_char    = 5'd0;
-    cur_col     = 3'd0;
-    page_cmd_idx= 2'd0;
-end
 
 // ---------------------------------------------------------------------------
 // Combinatorial ASCII character lookup — no register array, no tasks.
