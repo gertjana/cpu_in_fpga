@@ -85,303 +85,313 @@ module oled_monitor #(
 // Font ROM — 5×7 pixels per glyph, stored as 5 bytes (columns), LSB = top.
 // Covers ASCII 0x20 (space) through 0x7E (~). Index = ascii - 0x20.
 // Each byte is one column of 7 pixels: bit0=top row, bit6=bottom row.
+//
+// Implemented as a pure combinatorial function (case statement) so that
+// Quartus synthesises it as LUT-based ROM with no initial-block dependency.
 // ---------------------------------------------------------------------------
-reg [7:0] font [0:511]; // 95 chars × 5 columns = 475 entries; padded to 512 for Quartus MIF alignment
-
-// Standard 5×7 font — same bitmap as the classic Arduino/Adafruit GFX font.
-initial begin
-    // 0x20 space
-    font[0]=8'h00; font[1]=8'h00; font[2]=8'h00; font[3]=8'h00; font[4]=8'h00;
-    // 0x21 !
-    font[5]=8'h00; font[6]=8'h00; font[7]=8'h5F; font[8]=8'h00; font[9]=8'h00;
-    // 0x22 "
-    font[10]=8'h00; font[11]=8'h07; font[12]=8'h00; font[13]=8'h07; font[14]=8'h00;
-    // 0x23 #
-    font[15]=8'h14; font[16]=8'h7F; font[17]=8'h14; font[18]=8'h7F; font[19]=8'h14;
-    // 0x24 $
-    font[20]=8'h24; font[21]=8'h2A; font[22]=8'h7F; font[23]=8'h2A; font[24]=8'h12;
-    // 0x25 %
-    font[25]=8'h23; font[26]=8'h13; font[27]=8'h08; font[28]=8'h64; font[29]=8'h62;
-    // 0x26 &
-    font[30]=8'h36; font[31]=8'h49; font[32]=8'h55; font[33]=8'h22; font[34]=8'h50;
-    // 0x27 '
-    font[35]=8'h00; font[36]=8'h05; font[37]=8'h03; font[38]=8'h00; font[39]=8'h00;
-    // 0x28 (
-    font[40]=8'h00; font[41]=8'h1C; font[42]=8'h22; font[43]=8'h41; font[44]=8'h00;
-    // 0x29 )
-    font[45]=8'h00; font[46]=8'h41; font[47]=8'h22; font[48]=8'h1C; font[49]=8'h00;
-    // 0x2A *
-    font[50]=8'h14; font[51]=8'h08; font[52]=8'h3E; font[53]=8'h08; font[54]=8'h14;
-    // 0x2B +
-    font[55]=8'h08; font[56]=8'h08; font[57]=8'h3E; font[58]=8'h08; font[59]=8'h08;
-    // 0x2C ,
-    font[60]=8'h00; font[61]=8'h50; font[62]=8'h30; font[63]=8'h00; font[64]=8'h00;
-    // 0x2D -
-    font[65]=8'h08; font[66]=8'h08; font[67]=8'h08; font[68]=8'h08; font[69]=8'h08;
-    // 0x2E .
-    font[70]=8'h00; font[71]=8'h60; font[72]=8'h60; font[73]=8'h00; font[74]=8'h00;
-    // 0x2F /
-    font[75]=8'h20; font[76]=8'h10; font[77]=8'h08; font[78]=8'h04; font[79]=8'h02;
-    // 0x30 0
-    font[80]=8'h3E; font[81]=8'h51; font[82]=8'h49; font[83]=8'h45; font[84]=8'h3E;
-    // 0x31 1
-    font[85]=8'h00; font[86]=8'h42; font[87]=8'h7F; font[88]=8'h40; font[89]=8'h00;
-    // 0x32 2
-    font[90]=8'h42; font[91]=8'h61; font[92]=8'h51; font[93]=8'h49; font[94]=8'h46;
-    // 0x33 3
-    font[95]=8'h21; font[96]=8'h41; font[97]=8'h45; font[98]=8'h4B; font[99]=8'h31;
-    // 0x34 4
-    font[100]=8'h18; font[101]=8'h14; font[102]=8'h12; font[103]=8'h7F; font[104]=8'h10;
-    // 0x35 5
-    font[105]=8'h27; font[106]=8'h45; font[107]=8'h45; font[108]=8'h45; font[109]=8'h39;
-    // 0x36 6
-    font[110]=8'h3C; font[111]=8'h4A; font[112]=8'h49; font[113]=8'h49; font[114]=8'h30;
-    // 0x37 7
-    font[115]=8'h01; font[116]=8'h71; font[117]=8'h09; font[118]=8'h05; font[119]=8'h03;
-    // 0x38 8
-    font[120]=8'h36; font[121]=8'h49; font[122]=8'h49; font[123]=8'h49; font[124]=8'h36;
-    // 0x39 9
-    font[125]=8'h06; font[126]=8'h49; font[127]=8'h49; font[128]=8'h29; font[129]=8'h1E;
-    // 0x3A :
-    font[130]=8'h00; font[131]=8'h36; font[132]=8'h36; font[133]=8'h00; font[134]=8'h00;
-    // 0x3B ;
-    font[135]=8'h00; font[136]=8'h56; font[137]=8'h36; font[138]=8'h00; font[139]=8'h00;
-    // 0x3C <
-    font[140]=8'h08; font[141]=8'h14; font[142]=8'h22; font[143]=8'h41; font[144]=8'h00;
-    // 0x3D =
-    font[145]=8'h14; font[146]=8'h14; font[147]=8'h14; font[148]=8'h14; font[149]=8'h14;
-    // 0x3E >
-    font[150]=8'h00; font[151]=8'h41; font[152]=8'h22; font[153]=8'h14; font[154]=8'h08;
-    // 0x3F ?
-    font[155]=8'h02; font[156]=8'h01; font[157]=8'h51; font[158]=8'h09; font[159]=8'h06;
-    // 0x40 @
-    font[160]=8'h32; font[161]=8'h49; font[162]=8'h79; font[163]=8'h41; font[164]=8'h3E;
-    // 0x41 A
-    font[165]=8'h7E; font[166]=8'h11; font[167]=8'h11; font[168]=8'h11; font[169]=8'h7E;
-    // 0x42 B
-    font[170]=8'h7F; font[171]=8'h49; font[172]=8'h49; font[173]=8'h49; font[174]=8'h36;
-    // 0x43 C
-    font[175]=8'h3E; font[176]=8'h41; font[177]=8'h41; font[178]=8'h41; font[179]=8'h22;
-    // 0x44 D
-    font[180]=8'h7F; font[181]=8'h41; font[182]=8'h41; font[183]=8'h22; font[184]=8'h1C;
-    // 0x45 E
-    font[185]=8'h7F; font[186]=8'h49; font[187]=8'h49; font[188]=8'h49; font[189]=8'h41;
-    // 0x46 F
-    font[190]=8'h7F; font[191]=8'h09; font[192]=8'h09; font[193]=8'h09; font[194]=8'h01;
-    // 0x47 G
-    font[195]=8'h3E; font[196]=8'h41; font[197]=8'h49; font[198]=8'h49; font[199]=8'h7A;
-    // 0x48 H
-    font[200]=8'h7F; font[201]=8'h08; font[202]=8'h08; font[203]=8'h08; font[204]=8'h7F;
-    // 0x49 I
-    font[205]=8'h00; font[206]=8'h41; font[207]=8'h7F; font[208]=8'h41; font[209]=8'h00;
-    // 0x4A J
-    font[210]=8'h20; font[211]=8'h40; font[212]=8'h41; font[213]=8'h3F; font[214]=8'h01;
-    // 0x4B K
-    font[215]=8'h7F; font[216]=8'h08; font[217]=8'h14; font[218]=8'h22; font[219]=8'h41;
-    // 0x4C L
-    font[220]=8'h7F; font[221]=8'h40; font[222]=8'h40; font[223]=8'h40; font[224]=8'h40;
-    // 0x4D M
-    font[225]=8'h7F; font[226]=8'h02; font[227]=8'h0C; font[228]=8'h02; font[229]=8'h7F;
-    // 0x4E N
-    font[230]=8'h7F; font[231]=8'h04; font[232]=8'h08; font[233]=8'h10; font[234]=8'h7F;
-    // 0x4F O
-    font[235]=8'h3E; font[236]=8'h41; font[237]=8'h41; font[238]=8'h41; font[239]=8'h3E;
-    // 0x50 P
-    font[240]=8'h7F; font[241]=8'h09; font[242]=8'h09; font[243]=8'h09; font[244]=8'h06;
-    // 0x51 Q
-    font[245]=8'h3E; font[246]=8'h41; font[247]=8'h51; font[248]=8'h21; font[249]=8'h5E;
-    // 0x52 R
-    font[250]=8'h7F; font[251]=8'h09; font[252]=8'h19; font[253]=8'h29; font[254]=8'h46;
-    // 0x53 S
-    font[255]=8'h46; font[256]=8'h49; font[257]=8'h49; font[258]=8'h49; font[259]=8'h31;
-    // 0x54 T
-    font[260]=8'h01; font[261]=8'h01; font[262]=8'h7F; font[263]=8'h01; font[264]=8'h01;
-    // 0x55 U
-    font[265]=8'h3F; font[266]=8'h40; font[267]=8'h40; font[268]=8'h40; font[269]=8'h3F;
-    // 0x56 V
-    font[270]=8'h1F; font[271]=8'h20; font[272]=8'h40; font[273]=8'h20; font[274]=8'h1F;
-    // 0x57 W
-    font[275]=8'h3F; font[276]=8'h40; font[277]=8'h38; font[278]=8'h40; font[279]=8'h3F;
-    // 0x58 X
-    font[280]=8'h63; font[281]=8'h14; font[282]=8'h08; font[283]=8'h14; font[284]=8'h63;
-    // 0x59 Y
-    font[285]=8'h07; font[286]=8'h08; font[287]=8'h70; font[288]=8'h08; font[289]=8'h07;
-    // 0x5A Z
-    font[290]=8'h61; font[291]=8'h51; font[292]=8'h49; font[293]=8'h45; font[294]=8'h43;
-    // 0x5B [
-    font[295]=8'h00; font[296]=8'h7F; font[297]=8'h41; font[298]=8'h41; font[299]=8'h00;
-    // 0x5C backslash
-    font[300]=8'h02; font[301]=8'h04; font[302]=8'h08; font[303]=8'h10; font[304]=8'h20;
-    // 0x5D ]
-    font[305]=8'h00; font[306]=8'h41; font[307]=8'h41; font[308]=8'h7F; font[309]=8'h00;
-    // 0x5E ^
-    font[310]=8'h04; font[311]=8'h02; font[312]=8'h01; font[313]=8'h02; font[314]=8'h04;
-    // 0x5F _
-    font[315]=8'h40; font[316]=8'h40; font[317]=8'h40; font[318]=8'h40; font[319]=8'h40;
-    // 0x60 `
-    font[320]=8'h00; font[321]=8'h01; font[322]=8'h02; font[323]=8'h04; font[324]=8'h00;
-    // 0x61 a
-    font[325]=8'h20; font[326]=8'h54; font[327]=8'h54; font[328]=8'h54; font[329]=8'h78;
-    // 0x62 b
-    font[330]=8'h7F; font[331]=8'h48; font[332]=8'h44; font[333]=8'h44; font[334]=8'h38;
-    // 0x63 c
-    font[335]=8'h38; font[336]=8'h44; font[337]=8'h44; font[338]=8'h44; font[339]=8'h20;
-    // 0x64 d
-    font[340]=8'h38; font[341]=8'h44; font[342]=8'h44; font[343]=8'h48; font[344]=8'h7F;
-    // 0x65 e
-    font[345]=8'h38; font[346]=8'h54; font[347]=8'h54; font[348]=8'h54; font[349]=8'h18;
-    // 0x66 f
-    font[350]=8'h08; font[351]=8'h7E; font[352]=8'h09; font[353]=8'h01; font[354]=8'h02;
-    // 0x67 g
-    font[355]=8'h0C; font[356]=8'h52; font[357]=8'h52; font[358]=8'h52; font[359]=8'h3E;
-    // 0x68 h
-    font[360]=8'h7F; font[361]=8'h08; font[362]=8'h04; font[363]=8'h04; font[364]=8'h78;
-    // 0x69 i
-    font[365]=8'h00; font[366]=8'h44; font[367]=8'h7D; font[368]=8'h40; font[369]=8'h00;
-    // 0x6A j
-    font[370]=8'h20; font[371]=8'h40; font[372]=8'h44; font[373]=8'h3D; font[374]=8'h00;
-    // 0x6B k
-    font[375]=8'h7F; font[376]=8'h10; font[377]=8'h28; font[378]=8'h44; font[379]=8'h00;
-    // 0x6C l
-    font[380]=8'h00; font[381]=8'h41; font[382]=8'h7F; font[383]=8'h40; font[384]=8'h00;
-    // 0x6D m
-    font[385]=8'h7C; font[386]=8'h04; font[387]=8'h18; font[388]=8'h04; font[389]=8'h78;
-    // 0x6E n
-    font[390]=8'h7C; font[391]=8'h08; font[392]=8'h04; font[393]=8'h04; font[394]=8'h78;
-    // 0x6F o
-    font[395]=8'h38; font[396]=8'h44; font[397]=8'h44; font[398]=8'h44; font[399]=8'h38;
-    // 0x70 p
-    font[400]=8'h7C; font[401]=8'h14; font[402]=8'h14; font[403]=8'h14; font[404]=8'h08;
-    // 0x71 q
-    font[405]=8'h08; font[406]=8'h14; font[407]=8'h14; font[408]=8'h18; font[409]=8'h7C;
-    // 0x72 r
-    font[410]=8'h7C; font[411]=8'h08; font[412]=8'h04; font[413]=8'h04; font[414]=8'h08;
-    // 0x73 s
-    font[415]=8'h48; font[416]=8'h54; font[417]=8'h54; font[418]=8'h54; font[419]=8'h20;
-    // 0x74 t
-    font[420]=8'h04; font[421]=8'h3F; font[422]=8'h44; font[423]=8'h40; font[424]=8'h20;
-    // 0x75 u
-    font[425]=8'h3C; font[426]=8'h40; font[427]=8'h40; font[428]=8'h20; font[429]=8'h7C;
-    // 0x76 v
-    font[430]=8'h1C; font[431]=8'h20; font[432]=8'h40; font[433]=8'h20; font[434]=8'h1C;
-    // 0x77 w
-    font[435]=8'h3C; font[436]=8'h40; font[437]=8'h30; font[438]=8'h40; font[439]=8'h3C;
-    // 0x78 x
-    font[440]=8'h44; font[441]=8'h28; font[442]=8'h10; font[443]=8'h28; font[444]=8'h44;
-    // 0x79 y
-    font[445]=8'h0C; font[446]=8'h50; font[447]=8'h50; font[448]=8'h50; font[449]=8'h3C;
-    // 0x7A z
-    font[450]=8'h44; font[451]=8'h64; font[452]=8'h54; font[453]=8'h4C; font[454]=8'h44;
-    // 0x7B {
-    font[455]=8'h00; font[456]=8'h08; font[457]=8'h36; font[458]=8'h41; font[459]=8'h00;
-    // 0x7C |
-    font[460]=8'h00; font[461]=8'h00; font[462]=8'h7F; font[463]=8'h00; font[464]=8'h00;
-    // 0x7D }
-    font[465]=8'h00; font[466]=8'h41; font[467]=8'h36; font[468]=8'h08; font[469]=8'h00;
-    // 0x7E ~
-    font[470]=8'h10; font[471]=8'h08; font[472]=8'h08; font[473]=8'h10; font[474]=8'h08;
-end
-
-// ---------------------------------------------------------------------------
-// Text buffer — 4 lines × 21 characters (registers sampled each refresh)
-// We build the text into a flat array of 84 bytes: [line][col] = text[line*21+col]
-// ---------------------------------------------------------------------------
-reg [7:0] text [0:83];   // 4 × 21 = 84 bytes
-
-// Hex nibble to ASCII
-function [7:0] hex_char;
-    input [3:0] nibble;
+function [7:0] font_lookup;
+    input [8:0] addr;
     begin
-        hex_char = (nibble < 4'd10) ? (8'h30 + nibble) : (8'h41 + nibble - 4'd10);
+        case (addr)
+            // 0x20 space
+            9'd0:  font_lookup=8'h00; 9'd1:  font_lookup=8'h00;
+            9'd2:  font_lookup=8'h00; 9'd3:  font_lookup=8'h00; 9'd4:  font_lookup=8'h00;
+            // 0x21 !
+            9'd5:  font_lookup=8'h00; 9'd6:  font_lookup=8'h00;
+            9'd7:  font_lookup=8'h5F; 9'd8:  font_lookup=8'h00; 9'd9:  font_lookup=8'h00;
+            // 0x22 "
+            9'd10: font_lookup=8'h00; 9'd11: font_lookup=8'h07;
+            9'd12: font_lookup=8'h00; 9'd13: font_lookup=8'h07; 9'd14: font_lookup=8'h00;
+            // 0x23 #
+            9'd15: font_lookup=8'h14; 9'd16: font_lookup=8'h7F;
+            9'd17: font_lookup=8'h14; 9'd18: font_lookup=8'h7F; 9'd19: font_lookup=8'h14;
+            // 0x24 $
+            9'd20: font_lookup=8'h24; 9'd21: font_lookup=8'h2A;
+            9'd22: font_lookup=8'h7F; 9'd23: font_lookup=8'h2A; 9'd24: font_lookup=8'h12;
+            // 0x25 %
+            9'd25: font_lookup=8'h23; 9'd26: font_lookup=8'h13;
+            9'd27: font_lookup=8'h08; 9'd28: font_lookup=8'h64; 9'd29: font_lookup=8'h62;
+            // 0x26 &
+            9'd30: font_lookup=8'h36; 9'd31: font_lookup=8'h49;
+            9'd32: font_lookup=8'h55; 9'd33: font_lookup=8'h22; 9'd34: font_lookup=8'h50;
+            // 0x27 '
+            9'd35: font_lookup=8'h00; 9'd36: font_lookup=8'h05;
+            9'd37: font_lookup=8'h03; 9'd38: font_lookup=8'h00; 9'd39: font_lookup=8'h00;
+            // 0x28 (
+            9'd40: font_lookup=8'h00; 9'd41: font_lookup=8'h1C;
+            9'd42: font_lookup=8'h22; 9'd43: font_lookup=8'h41; 9'd44: font_lookup=8'h00;
+            // 0x29 )
+            9'd45: font_lookup=8'h00; 9'd46: font_lookup=8'h41;
+            9'd47: font_lookup=8'h22; 9'd48: font_lookup=8'h1C; 9'd49: font_lookup=8'h00;
+            // 0x2A *
+            9'd50: font_lookup=8'h14; 9'd51: font_lookup=8'h08;
+            9'd52: font_lookup=8'h3E; 9'd53: font_lookup=8'h08; 9'd54: font_lookup=8'h14;
+            // 0x2B +
+            9'd55: font_lookup=8'h08; 9'd56: font_lookup=8'h08;
+            9'd57: font_lookup=8'h3E; 9'd58: font_lookup=8'h08; 9'd59: font_lookup=8'h08;
+            // 0x2C ,
+            9'd60: font_lookup=8'h00; 9'd61: font_lookup=8'h50;
+            9'd62: font_lookup=8'h30; 9'd63: font_lookup=8'h00; 9'd64: font_lookup=8'h00;
+            // 0x2D -
+            9'd65: font_lookup=8'h08; 9'd66: font_lookup=8'h08;
+            9'd67: font_lookup=8'h08; 9'd68: font_lookup=8'h08; 9'd69: font_lookup=8'h08;
+            // 0x2E .
+            9'd70: font_lookup=8'h00; 9'd71: font_lookup=8'h60;
+            9'd72: font_lookup=8'h60; 9'd73: font_lookup=8'h00; 9'd74: font_lookup=8'h00;
+            // 0x2F /
+            9'd75: font_lookup=8'h20; 9'd76: font_lookup=8'h10;
+            9'd77: font_lookup=8'h08; 9'd78: font_lookup=8'h04; 9'd79: font_lookup=8'h02;
+            // 0x30 0
+            9'd80: font_lookup=8'h3E; 9'd81: font_lookup=8'h51;
+            9'd82: font_lookup=8'h49; 9'd83: font_lookup=8'h45; 9'd84: font_lookup=8'h3E;
+            // 0x31 1
+            9'd85: font_lookup=8'h00; 9'd86: font_lookup=8'h42;
+            9'd87: font_lookup=8'h7F; 9'd88: font_lookup=8'h40; 9'd89: font_lookup=8'h00;
+            // 0x32 2
+            9'd90: font_lookup=8'h42; 9'd91: font_lookup=8'h61;
+            9'd92: font_lookup=8'h51; 9'd93: font_lookup=8'h49; 9'd94: font_lookup=8'h46;
+            // 0x33 3
+            9'd95: font_lookup=8'h21; 9'd96: font_lookup=8'h41;
+            9'd97: font_lookup=8'h45; 9'd98: font_lookup=8'h4B; 9'd99: font_lookup=8'h31;
+            // 0x34 4
+            9'd100: font_lookup=8'h18; 9'd101: font_lookup=8'h14;
+            9'd102: font_lookup=8'h12; 9'd103: font_lookup=8'h7F; 9'd104: font_lookup=8'h10;
+            // 0x35 5
+            9'd105: font_lookup=8'h27; 9'd106: font_lookup=8'h45;
+            9'd107: font_lookup=8'h45; 9'd108: font_lookup=8'h45; 9'd109: font_lookup=8'h39;
+            // 0x36 6
+            9'd110: font_lookup=8'h3C; 9'd111: font_lookup=8'h4A;
+            9'd112: font_lookup=8'h49; 9'd113: font_lookup=8'h49; 9'd114: font_lookup=8'h30;
+            // 0x37 7
+            9'd115: font_lookup=8'h01; 9'd116: font_lookup=8'h71;
+            9'd117: font_lookup=8'h09; 9'd118: font_lookup=8'h05; 9'd119: font_lookup=8'h03;
+            // 0x38 8
+            9'd120: font_lookup=8'h36; 9'd121: font_lookup=8'h49;
+            9'd122: font_lookup=8'h49; 9'd123: font_lookup=8'h49; 9'd124: font_lookup=8'h36;
+            // 0x39 9
+            9'd125: font_lookup=8'h06; 9'd126: font_lookup=8'h49;
+            9'd127: font_lookup=8'h49; 9'd128: font_lookup=8'h29; 9'd129: font_lookup=8'h1E;
+            // 0x3A :
+            9'd130: font_lookup=8'h00; 9'd131: font_lookup=8'h36;
+            9'd132: font_lookup=8'h36; 9'd133: font_lookup=8'h00; 9'd134: font_lookup=8'h00;
+            // 0x3B ;
+            9'd135: font_lookup=8'h00; 9'd136: font_lookup=8'h56;
+            9'd137: font_lookup=8'h36; 9'd138: font_lookup=8'h00; 9'd139: font_lookup=8'h00;
+            // 0x3C <
+            9'd140: font_lookup=8'h08; 9'd141: font_lookup=8'h14;
+            9'd142: font_lookup=8'h22; 9'd143: font_lookup=8'h41; 9'd144: font_lookup=8'h00;
+            // 0x3D =
+            9'd145: font_lookup=8'h14; 9'd146: font_lookup=8'h14;
+            9'd147: font_lookup=8'h14; 9'd148: font_lookup=8'h14; 9'd149: font_lookup=8'h14;
+            // 0x3E >
+            9'd150: font_lookup=8'h00; 9'd151: font_lookup=8'h41;
+            9'd152: font_lookup=8'h22; 9'd153: font_lookup=8'h14; 9'd154: font_lookup=8'h08;
+            // 0x3F ?
+            9'd155: font_lookup=8'h02; 9'd156: font_lookup=8'h01;
+            9'd157: font_lookup=8'h51; 9'd158: font_lookup=8'h09; 9'd159: font_lookup=8'h06;
+            // 0x40 @
+            9'd160: font_lookup=8'h32; 9'd161: font_lookup=8'h49;
+            9'd162: font_lookup=8'h79; 9'd163: font_lookup=8'h41; 9'd164: font_lookup=8'h3E;
+            // 0x41 A
+            9'd165: font_lookup=8'h7E; 9'd166: font_lookup=8'h11;
+            9'd167: font_lookup=8'h11; 9'd168: font_lookup=8'h11; 9'd169: font_lookup=8'h7E;
+            // 0x42 B
+            9'd170: font_lookup=8'h7F; 9'd171: font_lookup=8'h49;
+            9'd172: font_lookup=8'h49; 9'd173: font_lookup=8'h49; 9'd174: font_lookup=8'h36;
+            // 0x43 C
+            9'd175: font_lookup=8'h3E; 9'd176: font_lookup=8'h41;
+            9'd177: font_lookup=8'h41; 9'd178: font_lookup=8'h41; 9'd179: font_lookup=8'h22;
+            // 0x44 D
+            9'd180: font_lookup=8'h7F; 9'd181: font_lookup=8'h41;
+            9'd182: font_lookup=8'h41; 9'd183: font_lookup=8'h22; 9'd184: font_lookup=8'h1C;
+            // 0x45 E
+            9'd185: font_lookup=8'h7F; 9'd186: font_lookup=8'h49;
+            9'd187: font_lookup=8'h49; 9'd188: font_lookup=8'h49; 9'd189: font_lookup=8'h41;
+            // 0x46 F
+            9'd190: font_lookup=8'h7F; 9'd191: font_lookup=8'h09;
+            9'd192: font_lookup=8'h09; 9'd193: font_lookup=8'h09; 9'd194: font_lookup=8'h01;
+            // 0x47 G
+            9'd195: font_lookup=8'h3E; 9'd196: font_lookup=8'h41;
+            9'd197: font_lookup=8'h49; 9'd198: font_lookup=8'h49; 9'd199: font_lookup=8'h7A;
+            // 0x48 H
+            9'd200: font_lookup=8'h7F; 9'd201: font_lookup=8'h08;
+            9'd202: font_lookup=8'h08; 9'd203: font_lookup=8'h08; 9'd204: font_lookup=8'h7F;
+            // 0x49 I
+            9'd205: font_lookup=8'h00; 9'd206: font_lookup=8'h41;
+            9'd207: font_lookup=8'h7F; 9'd208: font_lookup=8'h41; 9'd209: font_lookup=8'h00;
+            // 0x4A J
+            9'd210: font_lookup=8'h20; 9'd211: font_lookup=8'h40;
+            9'd212: font_lookup=8'h41; 9'd213: font_lookup=8'h3F; 9'd214: font_lookup=8'h01;
+            // 0x4B K
+            9'd215: font_lookup=8'h7F; 9'd216: font_lookup=8'h08;
+            9'd217: font_lookup=8'h14; 9'd218: font_lookup=8'h22; 9'd219: font_lookup=8'h41;
+            // 0x4C L
+            9'd220: font_lookup=8'h7F; 9'd221: font_lookup=8'h40;
+            9'd222: font_lookup=8'h40; 9'd223: font_lookup=8'h40; 9'd224: font_lookup=8'h40;
+            // 0x4D M
+            9'd225: font_lookup=8'h7F; 9'd226: font_lookup=8'h02;
+            9'd227: font_lookup=8'h0C; 9'd228: font_lookup=8'h02; 9'd229: font_lookup=8'h7F;
+            // 0x4E N
+            9'd230: font_lookup=8'h7F; 9'd231: font_lookup=8'h04;
+            9'd232: font_lookup=8'h08; 9'd233: font_lookup=8'h10; 9'd234: font_lookup=8'h7F;
+            // 0x4F O
+            9'd235: font_lookup=8'h3E; 9'd236: font_lookup=8'h41;
+            9'd237: font_lookup=8'h41; 9'd238: font_lookup=8'h41; 9'd239: font_lookup=8'h3E;
+            // 0x50 P
+            9'd240: font_lookup=8'h7F; 9'd241: font_lookup=8'h09;
+            9'd242: font_lookup=8'h09; 9'd243: font_lookup=8'h09; 9'd244: font_lookup=8'h06;
+            // 0x51 Q
+            9'd245: font_lookup=8'h3E; 9'd246: font_lookup=8'h41;
+            9'd247: font_lookup=8'h51; 9'd248: font_lookup=8'h21; 9'd249: font_lookup=8'h5E;
+            // 0x52 R
+            9'd250: font_lookup=8'h7F; 9'd251: font_lookup=8'h09;
+            9'd252: font_lookup=8'h19; 9'd253: font_lookup=8'h29; 9'd254: font_lookup=8'h46;
+            // 0x53 S
+            9'd255: font_lookup=8'h46; 9'd256: font_lookup=8'h49;
+            9'd257: font_lookup=8'h49; 9'd258: font_lookup=8'h49; 9'd259: font_lookup=8'h31;
+            // 0x54 T
+            9'd260: font_lookup=8'h01; 9'd261: font_lookup=8'h01;
+            9'd262: font_lookup=8'h7F; 9'd263: font_lookup=8'h01; 9'd264: font_lookup=8'h01;
+            // 0x55 U
+            9'd265: font_lookup=8'h3F; 9'd266: font_lookup=8'h40;
+            9'd267: font_lookup=8'h40; 9'd268: font_lookup=8'h40; 9'd269: font_lookup=8'h3F;
+            // 0x56 V
+            9'd270: font_lookup=8'h1F; 9'd271: font_lookup=8'h20;
+            9'd272: font_lookup=8'h40; 9'd273: font_lookup=8'h20; 9'd274: font_lookup=8'h1F;
+            // 0x57 W
+            9'd275: font_lookup=8'h3F; 9'd276: font_lookup=8'h40;
+            9'd277: font_lookup=8'h38; 9'd278: font_lookup=8'h40; 9'd279: font_lookup=8'h3F;
+            // 0x58 X
+            9'd280: font_lookup=8'h63; 9'd281: font_lookup=8'h14;
+            9'd282: font_lookup=8'h08; 9'd283: font_lookup=8'h14; 9'd284: font_lookup=8'h63;
+            // 0x59 Y
+            9'd285: font_lookup=8'h07; 9'd286: font_lookup=8'h08;
+            9'd287: font_lookup=8'h70; 9'd288: font_lookup=8'h08; 9'd289: font_lookup=8'h07;
+            // 0x5A Z
+            9'd290: font_lookup=8'h61; 9'd291: font_lookup=8'h51;
+            9'd292: font_lookup=8'h49; 9'd293: font_lookup=8'h45; 9'd294: font_lookup=8'h43;
+            // 0x5B [
+            9'd295: font_lookup=8'h00; 9'd296: font_lookup=8'h7F;
+            9'd297: font_lookup=8'h41; 9'd298: font_lookup=8'h41; 9'd299: font_lookup=8'h00;
+            // 0x5C backslash
+            9'd300: font_lookup=8'h02; 9'd301: font_lookup=8'h04;
+            9'd302: font_lookup=8'h08; 9'd303: font_lookup=8'h10; 9'd304: font_lookup=8'h20;
+            // 0x5D ]
+            9'd305: font_lookup=8'h00; 9'd306: font_lookup=8'h41;
+            9'd307: font_lookup=8'h41; 9'd308: font_lookup=8'h7F; 9'd309: font_lookup=8'h00;
+            // 0x5E ^
+            9'd310: font_lookup=8'h04; 9'd311: font_lookup=8'h02;
+            9'd312: font_lookup=8'h01; 9'd313: font_lookup=8'h02; 9'd314: font_lookup=8'h04;
+            // 0x5F _
+            9'd315: font_lookup=8'h40; 9'd316: font_lookup=8'h40;
+            9'd317: font_lookup=8'h40; 9'd318: font_lookup=8'h40; 9'd319: font_lookup=8'h40;
+            // 0x60 `
+            9'd320: font_lookup=8'h00; 9'd321: font_lookup=8'h01;
+            9'd322: font_lookup=8'h02; 9'd323: font_lookup=8'h04; 9'd324: font_lookup=8'h00;
+            // 0x61 a
+            9'd325: font_lookup=8'h20; 9'd326: font_lookup=8'h54;
+            9'd327: font_lookup=8'h54; 9'd328: font_lookup=8'h54; 9'd329: font_lookup=8'h78;
+            // 0x62 b
+            9'd330: font_lookup=8'h7F; 9'd331: font_lookup=8'h48;
+            9'd332: font_lookup=8'h44; 9'd333: font_lookup=8'h44; 9'd334: font_lookup=8'h38;
+            // 0x63 c
+            9'd335: font_lookup=8'h38; 9'd336: font_lookup=8'h44;
+            9'd337: font_lookup=8'h44; 9'd338: font_lookup=8'h44; 9'd339: font_lookup=8'h20;
+            // 0x64 d
+            9'd340: font_lookup=8'h38; 9'd341: font_lookup=8'h44;
+            9'd342: font_lookup=8'h44; 9'd343: font_lookup=8'h48; 9'd344: font_lookup=8'h7F;
+            // 0x65 e
+            9'd345: font_lookup=8'h38; 9'd346: font_lookup=8'h54;
+            9'd347: font_lookup=8'h54; 9'd348: font_lookup=8'h54; 9'd349: font_lookup=8'h18;
+            // 0x66 f
+            9'd350: font_lookup=8'h08; 9'd351: font_lookup=8'h7E;
+            9'd352: font_lookup=8'h09; 9'd353: font_lookup=8'h01; 9'd354: font_lookup=8'h02;
+            // 0x67 g
+            9'd355: font_lookup=8'h0C; 9'd356: font_lookup=8'h52;
+            9'd357: font_lookup=8'h52; 9'd358: font_lookup=8'h52; 9'd359: font_lookup=8'h3E;
+            // 0x68 h
+            9'd360: font_lookup=8'h7F; 9'd361: font_lookup=8'h08;
+            9'd362: font_lookup=8'h04; 9'd363: font_lookup=8'h04; 9'd364: font_lookup=8'h78;
+            // 0x69 i
+            9'd365: font_lookup=8'h00; 9'd366: font_lookup=8'h44;
+            9'd367: font_lookup=8'h7D; 9'd368: font_lookup=8'h40; 9'd369: font_lookup=8'h00;
+            // 0x6A j
+            9'd370: font_lookup=8'h20; 9'd371: font_lookup=8'h40;
+            9'd372: font_lookup=8'h44; 9'd373: font_lookup=8'h3D; 9'd374: font_lookup=8'h00;
+            // 0x6B k
+            9'd375: font_lookup=8'h7F; 9'd376: font_lookup=8'h10;
+            9'd377: font_lookup=8'h28; 9'd378: font_lookup=8'h44; 9'd379: font_lookup=8'h00;
+            // 0x6C l
+            9'd380: font_lookup=8'h00; 9'd381: font_lookup=8'h41;
+            9'd382: font_lookup=8'h7F; 9'd383: font_lookup=8'h40; 9'd384: font_lookup=8'h00;
+            // 0x6D m
+            9'd385: font_lookup=8'h7C; 9'd386: font_lookup=8'h04;
+            9'd387: font_lookup=8'h18; 9'd388: font_lookup=8'h04; 9'd389: font_lookup=8'h78;
+            // 0x6E n
+            9'd390: font_lookup=8'h7C; 9'd391: font_lookup=8'h08;
+            9'd392: font_lookup=8'h04; 9'd393: font_lookup=8'h04; 9'd394: font_lookup=8'h78;
+            // 0x6F o
+            9'd395: font_lookup=8'h38; 9'd396: font_lookup=8'h44;
+            9'd397: font_lookup=8'h44; 9'd398: font_lookup=8'h44; 9'd399: font_lookup=8'h38;
+            // 0x70 p
+            9'd400: font_lookup=8'h7C; 9'd401: font_lookup=8'h14;
+            9'd402: font_lookup=8'h14; 9'd403: font_lookup=8'h14; 9'd404: font_lookup=8'h08;
+            // 0x71 q
+            9'd405: font_lookup=8'h08; 9'd406: font_lookup=8'h14;
+            9'd407: font_lookup=8'h14; 9'd408: font_lookup=8'h18; 9'd409: font_lookup=8'h7C;
+            // 0x72 r
+            9'd410: font_lookup=8'h7C; 9'd411: font_lookup=8'h08;
+            9'd412: font_lookup=8'h04; 9'd413: font_lookup=8'h04; 9'd414: font_lookup=8'h08;
+            // 0x73 s
+            9'd415: font_lookup=8'h48; 9'd416: font_lookup=8'h54;
+            9'd417: font_lookup=8'h54; 9'd418: font_lookup=8'h54; 9'd419: font_lookup=8'h20;
+            // 0x74 t
+            9'd420: font_lookup=8'h04; 9'd421: font_lookup=8'h3F;
+            9'd422: font_lookup=8'h44; 9'd423: font_lookup=8'h40; 9'd424: font_lookup=8'h20;
+            // 0x75 u
+            9'd425: font_lookup=8'h3C; 9'd426: font_lookup=8'h40;
+            9'd427: font_lookup=8'h40; 9'd428: font_lookup=8'h20; 9'd429: font_lookup=8'h7C;
+            // 0x76 v
+            9'd430: font_lookup=8'h1C; 9'd431: font_lookup=8'h20;
+            9'd432: font_lookup=8'h40; 9'd433: font_lookup=8'h20; 9'd434: font_lookup=8'h1C;
+            // 0x77 w
+            9'd435: font_lookup=8'h3C; 9'd436: font_lookup=8'h40;
+            9'd437: font_lookup=8'h30; 9'd438: font_lookup=8'h40; 9'd439: font_lookup=8'h3C;
+            // 0x78 x
+            9'd440: font_lookup=8'h44; 9'd441: font_lookup=8'h28;
+            9'd442: font_lookup=8'h10; 9'd443: font_lookup=8'h28; 9'd444: font_lookup=8'h44;
+            // 0x79 y
+            9'd445: font_lookup=8'h0C; 9'd446: font_lookup=8'h50;
+            9'd447: font_lookup=8'h50; 9'd448: font_lookup=8'h50; 9'd449: font_lookup=8'h3C;
+            // 0x7A z
+            9'd450: font_lookup=8'h44; 9'd451: font_lookup=8'h64;
+            9'd452: font_lookup=8'h54; 9'd453: font_lookup=8'h4C; 9'd454: font_lookup=8'h44;
+            // 0x7B {
+            9'd455: font_lookup=8'h00; 9'd456: font_lookup=8'h08;
+            9'd457: font_lookup=8'h36; 9'd458: font_lookup=8'h41; 9'd459: font_lookup=8'h00;
+            // 0x7C |
+            9'd460: font_lookup=8'h00; 9'd461: font_lookup=8'h00;
+            9'd462: font_lookup=8'h7F; 9'd463: font_lookup=8'h00; 9'd464: font_lookup=8'h00;
+            // 0x7D }
+            9'd465: font_lookup=8'h00; 9'd466: font_lookup=8'h41;
+            9'd467: font_lookup=8'h36; 9'd468: font_lookup=8'h08; 9'd469: font_lookup=8'h00;
+            // 0x7E ~
+            9'd470: font_lookup=8'h10; 9'd471: font_lookup=8'h08;
+            9'd472: font_lookup=8'h08; 9'd473: font_lookup=8'h10; 9'd474: font_lookup=8'h08;
+            default: font_lookup=8'h00;
+        endcase
     end
 endfunction
 
-// Build all 4 text lines from live CPU state.
-//
-// Layout (21 chars per line):
-//   Line 0: "C R0-R3:  XX XX XX XX"
-//   Line 1: "Z R4-R7:  XX XX XX XX"
-//   Line 2: "N PC:     XXXX       "
-//   Line 3: "V <PROG_NAME 19 chars>"
-//
-// Flags: letter shown when set, space when clear.
-// Register values are 2-digit hex; PC is 4-digit hex (zero-extended).
-
-task build_text_line;
-    input [4:0] line;
-    input [7:0] r_a, r_b, r_c, r_d;  // 4 registers for lines 0/1; ignored for 2/3
+// ---------------------------------------------------------------------------
+// Hex nibble to ASCII — pure combinatorial function used in cur_ascii logic.
+// ---------------------------------------------------------------------------
+function [7:0] hex_char;
+    input [3:0] nibble;
     begin
-        case (line)
-            // --- Line 0: "C R0-R3:  XX XX XX XX" ---
-            5'd0: begin
-                text[0]  = flag_c ? "C" : " ";
-                text[1]  = " ";
-                text[2]  = "R"; text[3]  = "0"; text[4]  = "-";
-                text[5]  = "R"; text[6]  = "3"; text[7]  = ":";
-                text[8]  = " "; text[9]  = " ";   // two spaces after colon
-                text[10] = hex_char(r_a[7:4]); text[11] = hex_char(r_a[3:0]);
-                text[12] = " ";
-                text[13] = hex_char(r_b[7:4]); text[14] = hex_char(r_b[3:0]);
-                text[15] = " ";
-                text[16] = hex_char(r_c[7:4]); text[17] = hex_char(r_c[3:0]);
-                text[18] = " ";
-                text[19] = hex_char(r_d[7:4]); text[20] = hex_char(r_d[3:0]);
-            end
-            // --- Line 1: "Z R4-R7:  XX XX XX XX" ---
-            5'd1: begin
-                text[21] = flag_z ? "Z" : " ";
-                text[22] = " ";
-                text[23] = "R"; text[24] = "4"; text[25] = "-";
-                text[26] = "R"; text[27] = "7"; text[28] = ":";
-                text[29] = " "; text[30] = " ";   // two spaces after colon
-                text[31] = hex_char(r_a[7:4]); text[32] = hex_char(r_a[3:0]);
-                text[33] = " ";
-                text[34] = hex_char(r_b[7:4]); text[35] = hex_char(r_b[3:0]);
-                text[36] = " ";
-                text[37] = hex_char(r_c[7:4]); text[38] = hex_char(r_c[3:0]);
-                text[39] = " ";
-                text[40] = hex_char(r_d[7:4]); text[41] = hex_char(r_d[3:0]);
-            end
-            // --- Line 2: "N PC:     XXXX       " ---
-            5'd2: begin
-                text[42] = flag_n ? "N" : " ";
-                text[43] = " ";
-                text[44] = "P"; text[45] = "C"; text[46] = ":";
-                text[47] = " "; text[48] = " "; text[49] = " ";
-                text[50] = " "; text[51] = " ";   // five spaces after colon
-                text[52] = "0"; text[53] = "0";   // PC is 8-bit; zero-extend to 4 digits
-                text[54] = hex_char(pc[7:4]); text[55] = hex_char(pc[3:0]);
-                text[56] = " "; text[57] = " "; text[58] = " ";
-                text[59] = " "; text[60] = " "; text[61] = " ";
-                text[62] = " ";
-            end
-            // --- Line 3: "V <PROG_NAME, first 19 chars>" ---
-            default: begin
-                text[63] = flag_v ? "V" : " ";
-                text[64] = " ";
-                text[65] = PROG_NAME[151:144];
-                text[66] = PROG_NAME[143:136];
-                text[67] = PROG_NAME[135:128];
-                text[68] = PROG_NAME[127:120];
-                text[69] = PROG_NAME[119:112];
-                text[70] = PROG_NAME[111:104];
-                text[71] = PROG_NAME[103:96];
-                text[72] = PROG_NAME[95:88];
-                text[73] = PROG_NAME[87:80];
-                text[74] = PROG_NAME[79:72];
-                text[75] = PROG_NAME[71:64];
-                text[76] = PROG_NAME[63:56];
-                text[77] = PROG_NAME[55:48];
-                text[78] = PROG_NAME[47:40];
-                text[79] = PROG_NAME[39:32];
-                text[80] = PROG_NAME[31:24];
-                text[81] = PROG_NAME[23:16];
-                text[82] = PROG_NAME[15:8];
-                text[83] = PROG_NAME[7:0];
-            end
-        endcase
+        hex_char = (nibble < 4'd10) ? (8'h30 + {4'd0, nibble}) : (8'h37 + {4'd0, nibble});
     end
-endtask
+endfunction
 
 // ---------------------------------------------------------------------------
 // Delay counter — used throughout the FSM for timed waits.
@@ -514,10 +524,123 @@ initial begin
     page_cmd_idx= 2'd0;
 end
 
-// Current font byte being sent
-// text buffer index: line*21 + char (max 3*21+20 = 83, fits in 7 bits)
-wire [6:0] cur_text_idx = {5'd0, cur_line} * 7'd21 + {2'd0, cur_char};
-wire [7:0] cur_ascii    = text[cur_text_idx];
+// ---------------------------------------------------------------------------
+// Combinatorial ASCII character lookup — no register array, no tasks.
+// Computed directly from cur_line, cur_char and live CPU inputs.
+//
+// Layout (21 chars per line, 0-indexed):
+//   Line 0: "C R0-R3:  XX XX XX XX"
+//   Line 1: "Z R4-R7:  XX XX XX XX"
+//   Line 2: "N PC:     XXXX       "
+//   Line 3: "V <PROG_NAME 19 chars>"
+// ---------------------------------------------------------------------------
+reg [7:0] cur_ascii;
+
+always @(*) begin
+    case (cur_line)
+        // --- Line 0: "C R0-R3:  XX XX XX XX" ---
+        2'd0: begin
+            case (cur_char)
+                5'd0:  cur_ascii = flag_c ? "C" : " ";
+                5'd1:  cur_ascii = " ";
+                5'd2:  cur_ascii = "R";
+                5'd3:  cur_ascii = "0";
+                5'd4:  cur_ascii = "-";
+                5'd5:  cur_ascii = "R";
+                5'd6:  cur_ascii = "3";
+                5'd7:  cur_ascii = ":";
+                5'd8:  cur_ascii = " ";
+                5'd9:  cur_ascii = " ";
+                5'd10: cur_ascii = hex_char(r0[7:4]);
+                5'd11: cur_ascii = hex_char(r0[3:0]);
+                5'd12: cur_ascii = " ";
+                5'd13: cur_ascii = hex_char(r1[7:4]);
+                5'd14: cur_ascii = hex_char(r1[3:0]);
+                5'd15: cur_ascii = " ";
+                5'd16: cur_ascii = hex_char(r2[7:4]);
+                5'd17: cur_ascii = hex_char(r2[3:0]);
+                5'd18: cur_ascii = " ";
+                5'd19: cur_ascii = hex_char(r3[7:4]);
+                5'd20: cur_ascii = hex_char(r3[3:0]);
+                default: cur_ascii = " ";
+            endcase
+        end
+        // --- Line 1: "Z R4-R7:  XX XX XX XX" ---
+        2'd1: begin
+            case (cur_char)
+                5'd0:  cur_ascii = flag_z ? "Z" : " ";
+                5'd1:  cur_ascii = " ";
+                5'd2:  cur_ascii = "R";
+                5'd3:  cur_ascii = "4";
+                5'd4:  cur_ascii = "-";
+                5'd5:  cur_ascii = "R";
+                5'd6:  cur_ascii = "7";
+                5'd7:  cur_ascii = ":";
+                5'd8:  cur_ascii = " ";
+                5'd9:  cur_ascii = " ";
+                5'd10: cur_ascii = hex_char(r4[7:4]);
+                5'd11: cur_ascii = hex_char(r4[3:0]);
+                5'd12: cur_ascii = " ";
+                5'd13: cur_ascii = hex_char(r5[7:4]);
+                5'd14: cur_ascii = hex_char(r5[3:0]);
+                5'd15: cur_ascii = " ";
+                5'd16: cur_ascii = hex_char(r6[7:4]);
+                5'd17: cur_ascii = hex_char(r6[3:0]);
+                5'd18: cur_ascii = " ";
+                5'd19: cur_ascii = hex_char(r7[7:4]);
+                5'd20: cur_ascii = hex_char(r7[3:0]);
+                default: cur_ascii = " ";
+            endcase
+        end
+        // --- Line 2: "N PC:     XXXX       " ---
+        2'd2: begin
+            case (cur_char)
+                5'd0:  cur_ascii = flag_n ? "N" : " ";
+                5'd1:  cur_ascii = " ";
+                5'd2:  cur_ascii = "P";
+                5'd3:  cur_ascii = "C";
+                5'd4:  cur_ascii = ":";
+                5'd5:  cur_ascii = " ";
+                5'd6:  cur_ascii = " ";
+                5'd7:  cur_ascii = " ";
+                5'd8:  cur_ascii = " ";
+                5'd9:  cur_ascii = " ";
+                5'd10: cur_ascii = "0";   // PC is 8-bit, zero-pad to 4 digits
+                5'd11: cur_ascii = "0";
+                5'd12: cur_ascii = hex_char(pc[7:4]);
+                5'd13: cur_ascii = hex_char(pc[3:0]);
+                default: cur_ascii = " ";
+            endcase
+        end
+        // --- Line 3: "V <PROG_NAME 19 chars>" ---
+        default: begin
+            case (cur_char)
+                5'd0:  cur_ascii = flag_v ? "V" : " ";
+                5'd1:  cur_ascii = " ";
+                5'd2:  cur_ascii = PROG_NAME[151:144];
+                5'd3:  cur_ascii = PROG_NAME[143:136];
+                5'd4:  cur_ascii = PROG_NAME[135:128];
+                5'd5:  cur_ascii = PROG_NAME[127:120];
+                5'd6:  cur_ascii = PROG_NAME[119:112];
+                5'd7:  cur_ascii = PROG_NAME[111:104];
+                5'd8:  cur_ascii = PROG_NAME[103:96];
+                5'd9:  cur_ascii = PROG_NAME[95:88];
+                5'd10: cur_ascii = PROG_NAME[87:80];
+                5'd11: cur_ascii = PROG_NAME[79:72];
+                5'd12: cur_ascii = PROG_NAME[71:64];
+                5'd13: cur_ascii = PROG_NAME[63:56];
+                5'd14: cur_ascii = PROG_NAME[55:48];
+                5'd15: cur_ascii = PROG_NAME[47:40];
+                5'd16: cur_ascii = PROG_NAME[39:32];
+                5'd17: cur_ascii = PROG_NAME[31:24];
+                5'd18: cur_ascii = PROG_NAME[23:16];
+                5'd19: cur_ascii = PROG_NAME[15:8];
+                5'd20: cur_ascii = PROG_NAME[7:0];
+                default: cur_ascii = " ";
+            endcase
+        end
+    endcase
+end
 
 // Font ROM address: (ascii - 0x20) * 5 + cur_col
 // Max address: (0x7E-0x20)*5 + 4 = 94*5 + 4 = 474, fits in 9 bits.
@@ -525,7 +648,7 @@ wire [7:0] cur_ascii    = text[cur_text_idx];
 wire [8:0] font_ascii9 = {1'b0, cur_ascii} - 9'h020;
 wire [8:0] font_addr   = font_ascii9 * 9'd5 + {6'd0, cur_col[2:0]};
 // Column 5 (6th pixel col) is always 0 (inter-character gap)
-wire [7:0] font_byte  = (cur_col == 3'd5) ? 8'h00 : font[font_addr[8:0]];
+wire [7:0] font_byte  = (cur_col == 3'd5) ? 8'h00 : font_lookup(font_addr[8:0]);
 
 // Helper: start an SPI transaction
 task spi_send;
@@ -659,13 +782,8 @@ always @(posedge clk) begin
 
             // --- Begin a fresh screen refresh cycle ---
             ST_REFRESH_START: begin
-                // Snapshot register values into text buffer
-                // (tasks called sequentially — Verilog tasks are synthesisable
-                //  when they only write to variables and use no time controls)
-                build_text_line(0, r0, r1, r2, r3);
-                build_text_line(1, r4, r5, r6, r7);
-                build_text_line(2, 8'h0, 8'h0, 8'h0, 8'h0); // flags handled inside task
-                build_text_line(3, 8'h0, 8'h0, 8'h0, 8'h0); // PROG_NAME
+                // cur_ascii is now purely combinatorial from cur_line/cur_char,
+                // so no text buffer snapshot is needed — just reset scan position.
                 cur_line     <= 2'd0;
                 cur_char     <= 5'd0;
                 cur_col      <= 3'd0;
