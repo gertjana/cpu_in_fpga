@@ -1,5 +1,6 @@
 ; led_test.asm — count R7 from 0 to 255 once, then halt.
 ; clk_div: 20
+; name: LED Test
 ;           12 MHz / 2^20 ≈ 11.4 Hz
 ;
 

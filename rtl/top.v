@@ -347,6 +347,7 @@ oled_monitor #(
     .r5       (dbg_r5),
     .r6       (dbg_r6),
     .r7       (dbg_r7),
+    .pc       (dbg_pc),
     .flag_c   (dbg_flag_c),
     .flag_z   (dbg_flag_z),
     .flag_n   (dbg_flag_n),

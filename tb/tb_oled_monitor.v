@@ -19,7 +19,7 @@
 
 // Provide the build_config.vh include expected by top.v (not needed here
 // since we instantiate oled_monitor directly, but include for compatibility).
-`define PROG_NAME "TB TEST             "
+`define PROG_NAME "TB TEST            "
 
 module tb_oled_monitor;
 
@@ -29,6 +29,7 @@ module tb_oled_monitor;
 reg        clk;
 reg        rst;
 reg  [7:0] r0, r1, r2, r3, r4, r5, r6, r7;
+reg  [7:0] pc;
 reg        flag_c, flag_z, flag_n, flag_v;
 
 wire       spi_cs_n;
@@ -43,12 +44,13 @@ wire       vdd_en;
 // DUT instantiation
 // ---------------------------------------------------------------------------
 oled_monitor #(
-    .PROG_NAME("TB TEST             ")  // 21 chars
+    .PROG_NAME("TB TEST            ")  // 19 chars
 ) dut (
     .clk      (clk),
     .rst      (rst),
     .r0       (r0),  .r1 (r1), .r2 (r2), .r3 (r3),
     .r4       (r4),  .r5 (r5), .r6 (r6), .r7 (r7),
+    .pc       (pc),
     .flag_c   (flag_c),
     .flag_z   (flag_z),
     .flag_n   (flag_n),
@@ -164,9 +166,10 @@ initial begin
     capturing     = 1'b0;
     spi_clk_prev  = 1'b0;
 
-    // Registers and flags
+    // Registers, PC, and flags
     r0 = 8'hAB; r1 = 8'hCD; r2 = 8'hEF; r3 = 8'h12;
     r4 = 8'h34; r5 = 8'h56; r6 = 8'h78; r7 = 8'h9A;
+    pc = 8'h42;
     flag_c = 1'b1; flag_z = 1'b0; flag_n = 1'b1; flag_v = 1'b0;
 
     // Apply reset for 10 cycles

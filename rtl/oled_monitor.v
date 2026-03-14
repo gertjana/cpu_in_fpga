@@ -5,11 +5,11 @@
 // are read-only inputs — the CPU never has to write to any port to update
 // the display.
 //
-// Display layout (4 lines × 21 characters at 6×8 px per char, 126 px wide):
-//   Line 0: "R0-3:XX XX XX XX" (R0..R3 in hex, 17 chars)
-//   Line 1: "R4-7:XX XX XX XX" (R4..R7 in hex, 17 chars)
-//   Line 2: "C Z N V <name>"   (flags — letter shown when set, space when clear)
-//   Line 3: "<PROGRAM_NAME>"   (up to 21 chars, injected at synthesis time)
+// Display layout (4 lines × 21 characters at 6×8 px per char, 128 px wide):
+//   Line 0: "C R0-R3:  XX XX XX XX"  flag C + R0..R3 in hex
+//   Line 1: "Z R4-R7:  XX XX XX XX"  flag Z + R4..R7 in hex
+//   Line 2: "N PC:     XXXX         " flag N + PC as 4-digit hex
+//   Line 3: "V <PROGRAM_NAME 19c>  " flag V + up to 19-char program name
 //
 // SPI interface (SSD1306 write-only):
 //   spi_clk  — SCLK, derived as clk_12m toggled every cycle → 6 MHz
@@ -44,9 +44,10 @@
 // =============================================================================
 
 module oled_monitor #(
-    // Up to 21 ASCII characters for the program name shown on line 3.
+    // Up to 19 ASCII characters for the program name shown on line 3
+    // (2 characters are used by the flag letter and a space prefix).
     // Pad with spaces on the right if shorter.
-    parameter [167:0] PROG_NAME = "UNKNOWN            "  // 21 chars
+    parameter [151:0] PROG_NAME = "UNKNOWN            "  // 19 chars
 ) (
     input  wire        clk,        // 12 MHz board clock
     input  wire        rst,        // synchronous reset (active high)
@@ -60,6 +61,9 @@ module oled_monitor #(
     input  wire [7:0]  r5,
     input  wire [7:0]  r6,
     input  wire [7:0]  r7,
+
+    // Live program counter
+    input  wire [7:0]  pc,
 
     // Live CPU flags
     input  wire        flag_c,
@@ -292,68 +296,69 @@ function [7:0] hex_char;
     end
 endfunction
 
-// Build all 4 text lines combinationally from live CPU state.
-// Line 0: "R0-3:XX XX XX XX" padded to 21 chars
-// Line 1: "R4-7:XX XX XX XX"
-// Line 2: flags "C Z N V " then 13 spaces (name goes on line 3)
-// Line 3: PROG_NAME (21 chars)
+// Build all 4 text lines from live CPU state.
+//
+// Layout (21 chars per line):
+//   Line 0: "C R0-R3:  XX XX XX XX"
+//   Line 1: "Z R4-R7:  XX XX XX XX"
+//   Line 2: "N PC:     XXXX       "
+//   Line 3: "V <PROG_NAME 19 chars>"
+//
+// Flags: letter shown when set, space when clear.
+// Register values are 2-digit hex; PC is 4-digit hex (zero-extended).
 
 task build_text_line;
     input [4:0] line;
     input [7:0] r_a, r_b, r_c, r_d;  // 4 registers for lines 0/1; ignored for 2/3
-    integer col;
-    reg [7:0] ch;
     begin
         case (line)
-            // --- Line 0: R0-3:XX XX XX XX ---
+            // --- Line 0: "C R0-R3:  XX XX XX XX" ---
             5'd0: begin
-                // "R0-3:"
-                text[0]  = "R"; text[1]  = "0"; text[2]  = "-";
-                text[3]  = "3"; text[4]  = ":";
-                text[5]  = hex_char(r_a[7:4]); text[6]  = hex_char(r_a[3:0]);
-                text[7]  = " ";
-                text[8]  = hex_char(r_b[7:4]); text[9]  = hex_char(r_b[3:0]);
-                text[10] = " ";
-                text[11] = hex_char(r_c[7:4]); text[12] = hex_char(r_c[3:0]);
-                text[13] = " ";
-                text[14] = hex_char(r_d[7:4]); text[15] = hex_char(r_d[3:0]);
-                text[16] = " "; text[17] = " "; text[18] = " ";
-                text[19] = " "; text[20] = " ";
+                text[0]  = flag_c ? "C" : " ";
+                text[1]  = " ";
+                text[2]  = "R"; text[3]  = "0"; text[4]  = "-";
+                text[5]  = "R"; text[6]  = "3"; text[7]  = ":";
+                text[8]  = " "; text[9]  = " ";   // two spaces after colon
+                text[10] = hex_char(r_a[7:4]); text[11] = hex_char(r_a[3:0]);
+                text[12] = " ";
+                text[13] = hex_char(r_b[7:4]); text[14] = hex_char(r_b[3:0]);
+                text[15] = " ";
+                text[16] = hex_char(r_c[7:4]); text[17] = hex_char(r_c[3:0]);
+                text[18] = " ";
+                text[19] = hex_char(r_d[7:4]); text[20] = hex_char(r_d[3:0]);
             end
-            // --- Line 1: R4-7:XX XX XX XX ---
+            // --- Line 1: "Z R4-R7:  XX XX XX XX" ---
             5'd1: begin
-                text[21] = "R"; text[22] = "4"; text[23] = "-";
-                text[24] = "7"; text[25] = ":";
-                text[26] = hex_char(r_a[7:4]); text[27] = hex_char(r_a[3:0]);
-                text[28] = " ";
-                text[29] = hex_char(r_b[7:4]); text[30] = hex_char(r_b[3:0]);
-                text[31] = " ";
-                text[32] = hex_char(r_c[7:4]); text[33] = hex_char(r_c[3:0]);
-                text[34] = " ";
-                text[35] = hex_char(r_d[7:4]); text[36] = hex_char(r_d[3:0]);
-                text[37] = " "; text[38] = " "; text[39] = " ";
-                text[40] = " "; text[41] = " ";
+                text[21] = flag_z ? "Z" : " ";
+                text[22] = " ";
+                text[23] = "R"; text[24] = "4"; text[25] = "-";
+                text[26] = "R"; text[27] = "7"; text[28] = ":";
+                text[29] = " "; text[30] = " ";   // two spaces after colon
+                text[31] = hex_char(r_a[7:4]); text[32] = hex_char(r_a[3:0]);
+                text[33] = " ";
+                text[34] = hex_char(r_b[7:4]); text[35] = hex_char(r_b[3:0]);
+                text[36] = " ";
+                text[37] = hex_char(r_c[7:4]); text[38] = hex_char(r_c[3:0]);
+                text[39] = " ";
+                text[40] = hex_char(r_d[7:4]); text[41] = hex_char(r_d[3:0]);
             end
-            // --- Line 2: flags (C Z N V, letter when set, space when clear) ---
+            // --- Line 2: "N PC:     XXXX       " ---
             5'd2: begin
-                text[42] = flag_c ? "C" : " ";
+                text[42] = flag_n ? "N" : " ";
                 text[43] = " ";
-                text[44] = flag_z ? "Z" : " ";
-                text[45] = " ";
-                text[46] = flag_n ? "N" : " ";
-                text[47] = " ";
-                text[48] = flag_v ? "V" : " ";
-                text[49] = " ";
-                text[50] = " "; text[51] = " "; text[52] = " ";
-                text[53] = " "; text[54] = " "; text[55] = " ";
+                text[44] = "P"; text[45] = "C"; text[46] = ":";
+                text[47] = " "; text[48] = " "; text[49] = " ";
+                text[50] = " "; text[51] = " ";   // five spaces after colon
+                text[52] = "0"; text[53] = "0";   // PC is 8-bit; zero-extend to 4 digits
+                text[54] = hex_char(pc[7:4]); text[55] = hex_char(pc[3:0]);
                 text[56] = " "; text[57] = " "; text[58] = " ";
                 text[59] = " "; text[60] = " "; text[61] = " ";
                 text[62] = " ";
             end
-            // --- Line 3: PROG_NAME (21 chars from parameter, MSB first) ---
+            // --- Line 3: "V <PROG_NAME, first 19 chars>" ---
             default: begin
-                text[63] = PROG_NAME[167:160];
-                text[64] = PROG_NAME[159:152];
+                text[63] = flag_v ? "V" : " ";
+                text[64] = " ";
                 text[65] = PROG_NAME[151:144];
                 text[66] = PROG_NAME[143:136];
                 text[67] = PROG_NAME[135:128];
@@ -436,14 +441,14 @@ initial begin
     seq_rom[20] = {SEQ_CMD, 8'hA4};  // Entire display ON (normal)
     seq_rom[21] = {SEQ_CMD, 8'hA6};  // Normal display (not inverted)
     seq_rom[22] = {SEQ_CMD, 8'h20};  // Set memory addressing mode
-    seq_rom[23] = {SEQ_CMD, 8'h00};  //   horizontal addressing
-    seq_rom[24] = {SEQ_CMD, 8'h21};  // Set column address range
-    seq_rom[25] = {SEQ_CMD, 8'h00};  //   start = 0
-    seq_rom[26] = {SEQ_CMD, 8'h7F};  //   end   = 127
-    seq_rom[27] = {SEQ_CMD, 8'h22};  // Set page address range
-    seq_rom[28] = {SEQ_CMD, 8'h00};  //   start = 0
-    seq_rom[29] = {SEQ_CMD, 8'h03};  //   end   = 3 (pages 0-3 = 32 rows)
-    seq_rom[30] = {1'b0,    8'hAF};  // Display ON
+    seq_rom[23] = {SEQ_CMD, 8'h02};  //   page addressing (matches FSM refresh loop)
+    seq_rom[24] = SEQ_END;            // Display ON sent separately after VBAT delay
+    seq_rom[25] = SEQ_END;            // (padding — unreachable)
+    seq_rom[26] = SEQ_END;
+    seq_rom[27] = SEQ_END;
+    seq_rom[28] = SEQ_END;
+    seq_rom[29] = SEQ_END;
+    seq_rom[30] = SEQ_END;
     seq_rom[31] = SEQ_END;
 end
 
@@ -461,14 +466,15 @@ localparam [4:0]
     ST_INIT_NEXT    = 5'd7,   // advance to next byte or finish
     ST_VBAT_ON      = 5'd8,   // enable VBAT display power
     ST_VBAT_WAIT    = 5'd9,   // wait 100 ms
-    ST_DISP_ON      = 5'd10,  // send Display On (already in seq_rom[30])
-    ST_REFRESH_START= 5'd11,  // begin screen refresh: rebuild text buffer
-    ST_PAGE_CMD     = 5'd12,  // send page-set command sequence
-    ST_PAGE_WAIT    = 5'd13,  // wait for SPI
-    ST_COL_DATA     = 5'd14,  // send one column of font data
-    ST_COL_WAIT     = 5'd15,  // wait for SPI
-    ST_NEXT_COL     = 5'd16,  // advance column / character / line
-    ST_DONE         = 5'd17;  // loop back to refresh
+    ST_DISP_ON      = 5'd10,  // send Display On command (0xAF)
+    ST_DISP_WAIT    = 5'd11,  // wait for Display On SPI to finish
+    ST_REFRESH_START= 5'd12,  // begin screen refresh: rebuild text buffer
+    ST_PAGE_CMD     = 5'd13,  // send page-set command sequence
+    ST_PAGE_WAIT    = 5'd14,  // wait for SPI
+    ST_COL_DATA     = 5'd15,  // send one column of font data
+    ST_COL_WAIT     = 5'd16,  // wait for SPI
+    ST_NEXT_COL     = 5'd17,  // advance column / character / line
+    ST_DONE         = 5'd18;  // loop back to refresh
 
 reg [4:0] state;
 
@@ -610,6 +616,17 @@ always @(posedge clk) begin
                 if (!delay_done)
                     delay_ctr <= delay_ctr - 21'd1;
                 else
+                    state <= ST_DISP_ON;
+            end
+
+            // --- Send Display On command (0xAF) after VBAT + 100 ms delay ---
+            ST_DISP_ON: begin
+                spi_send(8'hAF, 1'b0);  // Display ON, DC=0 (command)
+                state <= ST_DISP_WAIT;
+            end
+
+            ST_DISP_WAIT: begin
+                if (spi_done)
                     state <= ST_REFRESH_START;
             end
 
@@ -644,7 +661,8 @@ always @(posedge clk) begin
                 if (spi_done) begin
                     if (page_cmd_idx == 2'd2) begin
                         page_cmd_idx <= 2'd0;
-                        state <= ST_COL_DATA;
+                        spi_dc       <= 1'b1;  // pre-set DC=data one cycle before CS falls
+                        state        <= ST_COL_DATA;
                     end else begin
                         page_cmd_idx <= page_cmd_idx + 2'd1;
                         state <= ST_PAGE_CMD;
@@ -665,11 +683,17 @@ always @(posedge clk) begin
 
             // --- Advance position: col → char → line → next refresh ---
             ST_NEXT_COL: begin
-                if (cur_col == 3'd5) begin
-                    // Finished all 6 columns of this character
+                // The last character (char 20) gets 2 extra zero-byte padding
+                // columns (indices 6 and 7) so that all 128 display columns are
+                // written and the 2 rightmost GDDRAM cells are cleared.
+                // font_byte already returns 0x00 for cur_col >= 5, so no extra
+                // logic is needed for the data value.
+                // Total per line: 20 chars × 6 cols + 1 char × 8 cols = 128.
+                if (cur_col == (cur_char == 5'd20 ? 3'd7 : 3'd5)) begin
+                    // Finished all columns of this character
                     cur_col <= 3'd0;
                     if (cur_char == 5'd20) begin
-                        // Finished all 21 chars on this line
+                        // Finished all 21 chars on this line (128 columns sent)
                         cur_char <= 5'd0;
                         if (cur_line == 2'd3) begin
                             // Finished all 4 lines — restart refresh

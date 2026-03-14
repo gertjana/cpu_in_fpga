@@ -49,12 +49,13 @@ info "Clock divider : CPU_CLK_DIV_BITS=${CLK_DIV}  (12 MHz / 2^${CLK_DIV})"
 
 # ---------------------------------------------------------------------------
 # 2b. Read prog_name from the .asm header ("; name: <NAME>"), default to NAME
-#     Truncated/padded to exactly 21 characters for the OLED display.
+#     Truncated/padded to exactly 19 characters for the OLED display.
+#     (2 columns are reserved for the flag V indicator and a space prefix.)
 # ---------------------------------------------------------------------------
 RAW_NAME=$(grep -m1 '^[[:space:]]*;[[:space:]]*name[[:space:]]*:' "$PROGRAM" | sed 's/.*name[[:space:]]*:[[:space:]]*//' | tr -d '\r\n')
 RAW_NAME="${RAW_NAME:-${NAME}}"
-# Pad or truncate to exactly 21 characters
-PROG_NAME=$(printf "%-21.21s" "${RAW_NAME}")
+# Pad or truncate to exactly 19 characters
+PROG_NAME=$(printf "%-19.19s" "${RAW_NAME}")
 info "Program name  : \"${PROG_NAME}\""
 
 # ---------------------------------------------------------------------------

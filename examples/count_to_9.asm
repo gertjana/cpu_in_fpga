@@ -1,5 +1,6 @@
 ; count_to_9.asm — count from 0 to 9, then halt
 ; clk_div: 20
+; name: Count to 9
 ;           12 MHz / 2^20 ≈ 11.4 Hz
 ;
 ; R0 = counter (starts at 0, increments to 9)
