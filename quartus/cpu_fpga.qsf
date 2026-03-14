@@ -160,12 +160,7 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_res_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vbatc
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vddc
 
-# Power-up levels for PMOD control signals.
-# VDDC and VBATC are active-low enables: drive HIGH at power-up to keep
-# display power OFF until the FSM sequencer takes control.
-# RES is active-low reset: drive LOW at power-up to hold display in reset.
-# CS is active-low: drive HIGH at power-up to deassert chip select.
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to pmod_vddc
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to pmod_vbatc
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to pmod_cs_n
-set_instance_assignment -name POWER_UP_LEVEL LOW  -to pmod_res_n
+# Power-up levels for PMOD control signals are handled via inline initial
+# values on output registers in oled_monitor.v (vdd_en=1, vbat_en=1,
+# spi_cs_n=1, spi_res_n=0). Quartus synthesises scalar register initial
+# values reliably as FF power-up states. No QSF constraints needed.

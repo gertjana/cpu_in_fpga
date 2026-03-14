@@ -72,13 +72,13 @@ module oled_monitor #(
     input  wire        flag_v,
 
     // PmodOLED SPI signals
-    output reg         spi_cs_n,   // Chip Select (active low)
-    output reg         spi_clk,    // SPI clock (6 MHz)
-    output reg         spi_mosi,   // MOSI
-    output reg         spi_dc,     // Data(1) / Command(0)
-    output reg         spi_res_n,  // Reset (active low)
-    output reg         vbat_en,    // VBATC — drive low to power display panel
-    output reg         vdd_en      // VDDC  — drive low to power logic
+    output reg         spi_cs_n  = 1'b1,  // Chip Select (active low)
+    output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
+    output reg         spi_mosi  = 1'b0,  // MOSI
+    output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
+    output reg         spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
+    output reg         vbat_en = 1'b1,  // VBATC — drive low to power display panel
+    output reg         vdd_en  = 1'b1   // VDDC  — drive low to power logic
 );
 
 // ---------------------------------------------------------------------------
@@ -496,13 +496,17 @@ reg [2:0] cur_col;      // 0-5  (5 font cols + 1 space col per char)
 reg [1:0] page_cmd_idx;
 
 // ---------------------------------------------------------------------------
-// Power-on reset is handled by:
-//   1. POWER_UP_LEVEL constraints in the QSF ensure pmod_vddc, pmod_vbatc,
-//      pmod_cs_n power up HIGH (OFF/deasserted) and pmod_res_n powers up LOW
-//      (display held in reset) — independent of initial block reliability.
+// Power-on reset is handled by two complementary mechanisms:
+//   1. Inline initial values on output registers:
+//        vdd_en=1, vbat_en=1 (both supplies OFF — prevents VBAT before VDD)
+//        spi_cs_n=1 (CS deasserted), spi_res_n=0 (display held in reset)
+//      Quartus synthesises inline `= value` initial values for simple scalar
+//      registers as the FF power-up state, reliably and independently of the
+//      synchronous reset path.
 //   2. The synchronous rst input (driven by a 32-cycle POR counter in top.v)
-//      resets all FSM state to known values within 3 µs of configuration.
-// No initial block is needed or used for FSM registers.
+//      drives all FSM state to known values within 3 µs of configuration.
+// Together these ensure correct power sequencing even if the POR counter
+// itself powers up in an unexpected state.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
