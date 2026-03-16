@@ -463,19 +463,33 @@ endfunction
 // ---------------------------------------------------------------------------
 // Main FSM
 // ---------------------------------------------------------------------------
+// Power-on sequence (matches Digilent PmodOLED reference driver):
+//   1. VDD on (VDDC low)                          — ST_VDD_ON
+//   2. Wait 1 ms for VDD to stabilise             — ST_VDD_WAIT
+//   3. Release RES (high) for 1 ms                — ST_RES_HIGH
+//   4. Send Display Off (0xAE)                    — (first entry in seq_lookup)
+//   5. Assert RES (low) for 1 ms                  — ST_RESET
+//   6. Release RES (high)                         — ST_RESET_WAIT
+//   7. Send init sequence                         — ST_INIT_START / ST_INIT_WAIT
+//   8. VBAT on (VBATC low)                        — ST_VBAT_ON
+//   9. Wait 100 ms                                — ST_VBAT_WAIT
+//  10. Send Display On (0xAF)                     — ST_DISP_ON / ST_DISP_WAIT
+//  11. Continuously refresh all 4 text lines      — ST_REFRESH_START … ST_DONE
+// ---------------------------------------------------------------------------
 localparam [4:0]
-    ST_RESET        = 5'd0,   // drive RES low
-    ST_RESET_WAIT   = 5'd1,   // hold RES low for 3 µs
-    ST_VDD_ON       = 5'd2,   // enable VDD logic power
-    ST_VDD_WAIT     = 5'd3,   // wait 10 ms for VDD stable
-    ST_INIT_START   = 5'd4,   // begin sending init sequence
-    ST_INIT_SEND    = 5'd5,   // shift out one byte of init sequence
-    ST_INIT_WAIT    = 5'd6,   // wait for SPI to finish
-    ST_INIT_NEXT    = 5'd7,   // advance to next byte or finish
-    ST_VBAT_ON      = 5'd8,   // enable VBAT display power
-    ST_VBAT_WAIT    = 5'd9,   // wait 100 ms
-    ST_DISP_ON      = 5'd10,  // send Display On command (0xAF)
-    ST_DISP_WAIT    = 5'd11,  // wait for Display On SPI to finish
+    ST_VDD_ON       = 5'd0,   // enable VDD logic power  (first state at power-up)
+    ST_VDD_WAIT     = 5'd1,   // wait 1 ms for VDD stable
+    ST_RES_HIGH     = 5'd2,   // release RES for 1 ms (SSD1306 sees rising edge)
+    ST_RESET        = 5'd3,   // drive RES low again for 1 ms (proper reset pulse)
+    ST_RESET_WAIT   = 5'd4,   // release RES, wait for SSD1306 to come out of reset
+    ST_INIT_START   = 5'd5,   // begin sending init sequence
+    ST_INIT_SEND    = 5'd6,   // (unused — kept for numbering continuity)
+    ST_INIT_WAIT    = 5'd7,   // wait for SPI to finish
+    ST_INIT_NEXT    = 5'd8,   // (unused)
+    ST_VBAT_ON      = 5'd9,   // enable VBAT display power
+    ST_VBAT_WAIT    = 5'd10,  // wait 100 ms
+    ST_DISP_ON      = 5'd11,  // send Display On command (0xAF)
+    ST_DISP_WAIT    = 5'd12,  // wait for Display On SPI to finish
     ST_REFRESH_START= 5'd12,  // begin screen refresh: rebuild text buffer
     ST_PAGE_CMD     = 5'd13,  // send page-set command sequence
     ST_PAGE_WAIT    = 5'd14,  // wait for SPI
@@ -649,7 +663,7 @@ endtask
 
 always @(posedge clk) begin
     if (rst) begin
-        state       <= ST_RESET;
+        state       <= ST_VDD_ON;  // ST_VDD_ON=5'd0 is the first state
         spi_cs_n    <= 1'b1;
         spi_clk     <= 1'b0;
         spi_mosi    <= 1'b0;
@@ -690,30 +704,48 @@ always @(posedge clk) begin
         // ---------------------------------------------------------------
         case (state)
 
-            // --- Apply reset pulse to SSD1306 ---
-            ST_RESET: begin
-                spi_res_n <= 1'b0;          // hold RES low
-                delay_ctr <= 21'd36;        // 3 µs at 12 MHz
-                state     <= ST_RESET_WAIT;
-            end
-
-            ST_RESET_WAIT: begin
-                if (!delay_done)
-                    delay_ctr <= delay_ctr - 21'd1;
-                else begin
-                    spi_res_n <= 1'b1;      // release reset
-                    state     <= ST_VDD_ON;
-                end
-            end
-
-            // --- Power on VDD (logic) ---
+            // --- Power on VDD (logic), keep RES low during ramp ---
             ST_VDD_ON: begin
                 vdd_en    <= 1'b0;          // VDDC low = power ON
-                delay_ctr <= 21'd120_000;   // 10 ms
+                spi_res_n <= 1'b0;          // hold RES low during power ramp
+                delay_ctr <= 21'd12_000;    // 1 ms at 12 MHz
                 state     <= ST_VDD_WAIT;
             end
 
             ST_VDD_WAIT: begin
+                if (!delay_done)
+                    delay_ctr <= delay_ctr - 21'd1;
+                else begin
+                    // VDD stable — release RES high briefly
+                    spi_res_n <= 1'b1;
+                    delay_ctr <= 21'd12_000; // 1 ms
+                    state     <= ST_RES_HIGH;
+                end
+            end
+
+            // --- RES high for 1 ms, then pulse low for 1 ms ---
+            ST_RES_HIGH: begin
+                if (!delay_done)
+                    delay_ctr <= delay_ctr - 21'd1;
+                else begin
+                    spi_res_n <= 1'b0;      // assert RES low
+                    delay_ctr <= 21'd12_000; // 1 ms
+                    state     <= ST_RESET;
+                end
+            end
+
+            // --- Apply reset pulse to SSD1306 ---
+            ST_RESET: begin
+                if (!delay_done)
+                    delay_ctr <= delay_ctr - 21'd1;
+                else begin
+                    spi_res_n <= 1'b1;      // release RES
+                    delay_ctr <= 21'd12_000; // 1 ms settle
+                    state     <= ST_RESET_WAIT;
+                end
+            end
+
+            ST_RESET_WAIT: begin
                 if (!delay_done)
                     delay_ctr <= delay_ctr - 21'd1;
                 else begin
