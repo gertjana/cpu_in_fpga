@@ -490,13 +490,13 @@ localparam [4:0]
     ST_VBAT_WAIT    = 5'd10,  // wait 100 ms
     ST_DISP_ON      = 5'd11,  // send Display On command (0xAF)
     ST_DISP_WAIT    = 5'd12,  // wait for Display On SPI to finish
-    ST_REFRESH_START= 5'd12,  // begin screen refresh: rebuild text buffer
-    ST_PAGE_CMD     = 5'd13,  // send page-set command sequence
-    ST_PAGE_WAIT    = 5'd14,  // wait for SPI
-    ST_COL_DATA     = 5'd15,  // send one column of font data
-    ST_COL_WAIT     = 5'd16,  // wait for SPI
-    ST_NEXT_COL     = 5'd17,  // advance column / character / line
-    ST_DONE         = 5'd18;  // loop back to refresh
+    ST_REFRESH_START= 5'd13,  // begin screen refresh: rebuild text buffer
+    ST_PAGE_CMD     = 5'd14,  // send page-set command sequence
+    ST_PAGE_WAIT    = 5'd15,  // wait for SPI
+    ST_COL_DATA     = 5'd16,  // send one column of font data
+    ST_COL_WAIT     = 5'd17,  // wait for SPI
+    ST_NEXT_COL     = 5'd18,  // advance column / character / line
+    ST_DONE         = 5'd19;  // loop back to refresh
 
 reg [4:0] state;
 
