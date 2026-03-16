@@ -41,9 +41,9 @@ on:
         default: "examples/infinite_counter.asm"
         type: string
       name:
-        description: "Short name for the program (used to name the artifact)"
-        required: true
-        default: "infinite_counter"
+        description: "Short name for the program (used to name the artifact, defaults to basename of program without extension)"
+        required: false
+        default: ""
         type: string
       clk_div:
         description: "CPU_CLK_DIV_BITS — set automatically from '; clk_div: N' in the .asm header. 12 MHz / 2^N."
@@ -76,9 +76,31 @@ jobs:
         with:
           python-version: "3.x"
 
+      # -----------------------------------------------------------------------
+      # 2a. Resolve the program path and artifact name from inputs.program.
+      #     Accepts bare names (fibonacci), filenames (fibonacci.asm), or
+      #     full paths (examples/fibonacci.asm).
+      # -----------------------------------------------------------------------
+      - name: Resolve program path and artifact name
+        id: resolve_name
+        run: |
+          INPUT="${{ inputs.program }}"
+          # Strip leading examples/ and trailing .asm if present
+          BARE=$(basename "$INPUT" .asm)
+          PROGRAM="examples/${BARE}.asm"
+          # Artifact name: use inputs.name if given, otherwise the bare program name
+          NAME="${{ inputs.name }}"
+          if [ -z "$NAME" ]; then
+            NAME="$BARE"
+          fi
+          echo "Program path: $PROGRAM"
+          echo "Effective artifact name: $NAME"
+          echo "program=$PROGRAM" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
       - name: Assemble program into quartus/program.hex
         run: |
-          PROGRAM="${{ inputs.program }}"
+          PROGRAM="${{ steps.resolve_name.outputs.program }}"
           echo "Building ROM from: $PROGRAM"
           python3 tools/assembler.py -o quartus/program.hex "$PROGRAM"
           echo "--- quartus/program.hex ---"
@@ -156,7 +178,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: quartus-output-${{ inputs.name }}
+          name: quartus-output-${{ steps.resolve_name.outputs.name }}
           path: |
             quartus/output_files/cpu_fpga.sof
             quartus/output_files/cpu_fpga.pof
