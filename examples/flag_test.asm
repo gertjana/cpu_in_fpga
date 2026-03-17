@@ -1,6 +1,6 @@
 ; flag_test.asm — exercise Z, C, N, V flags and halt with C=1, V=1
 ; clk_div: 20
-; name: Flag Test
+; name: Flagtest
 ;
 ; ── test Z ────────────────────────────────────────────────────────────────────
         XOR  R0, R0, R0     ; R0 = 0x00 → Z=1
