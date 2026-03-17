@@ -1,33 +1,58 @@
 // =============================================================================
 // decoder.v — Instruction Decoder (Control Unit)
 //
-// Instruction formats (all 16-bit fixed width):
+// All instructions are 24 bits wide.
 //
-//  R-format:  [15:12] group | [11:9] Rd | [8:6] Ra | [5:3] Rb | [2:0] sub
-//  I-format:  [15:12] group | [11:9] Rd | [8:6] Ra | [5:0] imm6
-//  I8-format: [15:12] group | [11:9] Rd/sub | [8] unused | [7:0] imm8
+// Instruction formats:
+//
+//  R-format:   [23:20] group | [19:17] Rd/sub | [16:14] Ra | [13:11] Rb | [10:8] sub | [7:0] unused
+//  I6-format:  [23:20] group | [19:17] Rd      | [16:14] Ra | [13:8] imm6             | [7:0] unused
+//  I8-format:  [23:20] group | [19:17] Rd/sub  | [16:14] Ra |                           [7:0] imm8
+//  I16-format: [23:20] group | [19:17] sub      | [18] unused |                         [15:0] addr16
+//
+// ALU group (0) uses an extended 4-bit sub-opcode field — field positions
+// differ from all other groups:
+//
+//  ALU:        [23:20] group | [19:16] alu_op(4b) | [15:13] Rd | [12:10] Ra | [9:7] Rb | [6:0] unused
+//
+//   alu_op[2:0] selects the ALU operation (same codes as before).
+//   alu_op[3]   is the carry-in enable bit: when set, ADD becomes ADC
+//               (a + b + flag_c).  This gives 8 carry-capable variants:
+//                 0b1000 ADC — add with carry
+//                 0b1001 SBC — subtract with borrow (reserved, not yet used)
+//                 0b1010..0b1111 — reserved
+//
+// Field summary (non-ALU groups):
+//   [23:20] group       — instruction group (4 bits)
+//   [19:17] f_rd        — Rd / sub-opcode (3 bits)
+//   [16:14] f_ra        — Ra (3 bits)
+//   [13:11] f_rb        — Rb (3 bits)
+//   [10:8]  f_sub       — sub field / Rb extra (3 bits)
+//   [13:8]  f_imm6      — 6-bit immediate (I6-format: ADDI, CMPI)
+//   [7:0]   f_imm8      — 8-bit immediate (I8-format: LDI)
+//   [15:0]  f_addr16    — 16-bit address  (I16-format: JMP, Jcc, CALL)
 //
 // Groups:
-//   4'h0  ALU reg-reg    sub-op in [2:0]
-//   4'h1  ADDI           Rd = Ra + imm6   (I-format)
-//   4'h2  Mem            sub-op in [11:9] (mixed)
-//          LDI: 0010 000 ddd iiiiii  (I-format: dest in Ra field [8:6], imm6)
-//          LD:  0010 001 ddd aaa xxx (R-format: dest in Ra field [8:6])
-//          ST:  0010 010 xxx aaa bbb (R-format: addr in Rb [5:3], data in sub [2:0])
-//   4'h3  MOV            Rd = Ra          (R-format)
-//   4'h4  Jump/Branch    sub-op in [11:9] (I8/R)
-//   4'h5  Stack/Call     sub-op in [11:9] (I8/R)
-//   4'h6  CMP            Ra - Rb flags    (R-format)
-//   4'h7  CMPI           Ra - imm6 flags  (I-format)
-//   4'h8  IN             Rd = peripheral[port]  (R-format: dest in [11:9], port in [8:6])
-//   4'h9  OUT            peripheral[port] = Ra  (R-format: src  in [11:9], port in [8:6])
+//   4'h0  ALU reg-reg    4-bit sub-op in [19:16]; Rd/Ra/Rb in [15:13]/[12:10]/[9:7]
+//   4'h1  ADDI           Rd = Ra + imm6   (I6-format)
+//   4'h2  Mem            sub-op in [19:17] (mixed)
+//          LDI: 0010 000 ddd xxxxxx iiiiiiii  (I8-format: dest=Ra field, imm8 in [7:0])
+//          LD:  0010 001 ddd aaa xxxxxxxxxx   (R-format: dest=Ra field)
+//          ST:  0010 010 xxx aaa bbb xxxxxxxx (R-format)
+//   4'h3  MOV            Rd = Ra           (R-format)
+//   4'h4  Jump/Branch    sub-op in [19:17] (I16/R)
+//   4'h5  Stack/Call     sub-op in [19:17] (I16/R)
+//   4'h6  CMP            Ra - Rb flags     (R-format)
+//   4'h7  CMPI           Ra - imm6 flags   (I6-format)
+//   4'h8  IN             Rd = peripheral[port]  (R-format)
+//   4'h9  OUT            peripheral[port] = Ra  (R-format)
 //   4'hE  NOP
 //   4'hF  HALT
 // =============================================================================
 
 module decoder (
-    // Instruction word
-    input  wire [15:0] instr,
+    // Instruction word (24-bit)
+    input  wire [23:0] instr,
 
     // Current flags
     input  wire        flag_z,
@@ -44,6 +69,7 @@ module decoder (
     // ALU
     output reg  [2:0]  alu_op,
     output reg         alu_src_b,  // 0=Rb, 1=immediate
+    output reg         alu_cin,    // 1=carry-in enabled (ADC); 0=normal ADD
     output reg  [7:0]  imm,        // immediate value (imm6 zero-ext or imm8)
 
     // Write-back source select
@@ -62,7 +88,7 @@ module decoder (
 
     // PC control
     output reg         pc_load,
-    output reg  [7:0]  pc_target,
+    output reg  [15:0] pc_target,
 
     // Stack
     output reg         stack_push,
@@ -82,17 +108,24 @@ module decoder (
 // ---------------------------------------------------------------------------
 // Field extraction
 // ---------------------------------------------------------------------------
-wire [3:0] group = instr[15:12];
+wire [3:0] group = instr[23:20];
 
-// R-format / I-format fields
-wire [2:0] f_rd  = instr[11:9];   // sub-opcode (group 0) or destination reg
-wire [2:0] f_ra  = instr[8:6];    // destination reg (group 0) or source A reg or sub-opcode (mem)
-wire [2:0] f_rb  = instr[5:3];    // source A reg (group 0) or source B reg
-wire [2:0] f_sub = instr[2:0];    // source B reg (group 0)
+// Standard R-format / I-format fields (used by all groups except ALU)
+wire [2:0] f_rd  = instr[19:17];   // sub-opcode or destination reg
+wire [2:0] f_ra  = instr[16:14];   // source A reg or destination (mem/pop)
+wire [2:0] f_rb  = instr[13:11];   // source B reg
+wire [2:0] f_sub = instr[10:8];    // extra sub / source B
 
-// Immediate values
-wire [5:0] f_imm6 = instr[5:0];   // I-format:  6-bit immediate
-wire [7:0] f_imm8 = instr[7:0];   // I8-format: 8-bit immediate
+// ALU group (0) extended fields — 4-bit op, register fields shifted down 1 bit
+wire [3:0] f_alu_op = instr[19:16]; // 4-bit ALU sub-opcode
+wire [2:0] f_alu_rd = instr[15:13]; // Rd for ALU instructions
+wire [2:0] f_alu_ra = instr[12:10]; // Ra for ALU instructions
+wire [2:0] f_alu_rb = instr[9:7];   // Rb for ALU instructions
+
+// Immediate values (non-ALU groups)
+wire [5:0]  f_imm6  = instr[13:8];    // I6-format: 6-bit immediate (ADDI, CMPI)
+wire [7:0]  f_imm8  = instr[7:0];     // I8-format: 8-bit immediate (LDI)
+wire [15:0] f_addr16 = instr[15:0];   // I16-format: 16-bit address (JMP, Jcc, CALL)
 
 // ---------------------------------------------------------------------------
 // Group constants
@@ -110,12 +143,12 @@ localparam GRP_OUT  = 4'h9;
 localparam GRP_NOP  = 4'hE;
 localparam GRP_HALT = 4'hF;
 
-// Memory sub-opcodes — in Rd field [11:9] for Group 2
+// Memory sub-opcodes — in Rd field [19:17] for Group 2
 localparam MEM_LDI = 3'b000;
 localparam MEM_LD  = 3'b001;
 localparam MEM_ST  = 3'b010;
 
-// Jump sub-opcodes (in Rd field [11:9])
+// Jump sub-opcodes (in Rd field [19:17])
 localparam JMP_JMP = 3'b000;
 localparam JMP_JZ  = 3'b001;
 localparam JMP_JNZ = 3'b010;
@@ -125,7 +158,7 @@ localparam JMP_JN  = 3'b101;
 localparam JMP_JV  = 3'b110;
 localparam JMP_JR  = 3'b111;
 
-// Stack sub-opcodes (in Rd field [11:9])
+// Stack sub-opcodes (in Rd field [19:17])
 localparam STK_PUSH = 3'b000;
 localparam STK_POP  = 3'b001;
 localparam STK_CALL = 3'b010;
@@ -156,7 +189,7 @@ localparam WB_ADC   = 3'b110;   // IN port 4 — ADC sampled value
 reg branch_taken;
 
 always @(*) begin
-    case (f_rd)   // jump sub-opcode lives in [11:9]
+    case (f_rd)   // jump sub-opcode lives in [19:17]
         JMP_JMP: branch_taken = 1'b1;
         JMP_JZ:  branch_taken =  flag_z;
         JMP_JNZ: branch_taken = ~flag_z;
@@ -175,17 +208,18 @@ end
 always @(*) begin
     // Safe defaults — no side effects
     rd_addr    = f_rd;
-    ra_addr    = f_ra;
-    rb_addr    = f_rb;
-    reg_we     = 1'b0;
-    alu_op     = ALU_ADD;
-    alu_src_b  = 1'b0;
-    imm        = 8'h00;
+        ra_addr    = f_ra;
+        rb_addr    = f_rb;
+        reg_we     = 1'b0;
+        alu_op     = ALU_ADD;
+        alu_src_b  = 1'b0;
+        alu_cin    = 1'b0;
+        imm        = 8'h00;
     wb_sel     = WB_ALU;
     mem_re     = 1'b0;
     mem_we     = 1'b0;
     pc_load    = 1'b0;
-    pc_target  = f_imm8;
+    pc_target  = f_addr16;
     stack_push = 1'b0;
     stack_pop  = 1'b0;
     flags_we   = 1'b0;
@@ -196,14 +230,22 @@ always @(*) begin
     case (group)
 
         // ------------------------------------------------------------------
-        // Group 0: ALU reg-reg
-        // R-format: 0000 sss ddd aaa bbb
+        // Group 0: ALU reg-reg  (4-bit sub-opcode)
+        // ALU-format: 0000 ssss ddd aaa bbb 0000000
+        //   [19:16] ALU sub-opcode (4 bits); bit[3]=carry-in enable
+        //   [15:13] Rd (destination)
+        //   [12:10] Ra (source A)
+        //   [9:7]   Rb (source B)
+        //
+        // alu_op  = f_alu_op[2:0]  — selects ADD/SUB/AND/OR/XOR/NOT/SHL/SHR
+        // alu_cin = f_alu_op[3]    — 1 routes flag_c into ALU carry-in (ADC)
         // ------------------------------------------------------------------
         GRP_ALU: begin
-            rd_addr   = f_ra;      // destination reg in [8:6]
-            ra_addr   = f_rb;      // source A reg   in [5:3]
-            rb_addr   = f_sub;     // source B reg   in [2:0]
-            alu_op    = f_rd;      // sub-opcode     in [11:9]
+            rd_addr   = f_alu_rd;
+            ra_addr   = f_alu_ra;
+            rb_addr   = f_alu_rb;
+            alu_op    = f_alu_op[2:0];
+            alu_cin   = f_alu_op[3];
             alu_src_b = 1'b0;
             reg_we    = 1'b1;
             wb_sel    = WB_ALU;
@@ -212,7 +254,10 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 1: ADDI — Rd = Ra + imm6
-        // I-format: 0001 ddd aaa iiiiii
+        // I6-format: 0001 ddd aaa iiiiii 00000000
+        //   [19:17] Rd
+        //   [16:14] Ra
+        //   [13:8]  imm6
         // ------------------------------------------------------------------
         GRP_ADDI: begin
             rd_addr   = f_rd;
@@ -226,25 +271,25 @@ always @(*) begin
         end
 
         // ------------------------------------------------------------------
-        // Group 2: Memory — sub-op in Rd field [11:9]
-        //   LDI: 0010 000 ddd iiiiii  Rd in Ra field [8:6], imm6 in [5:0]
-        //   LD:  0010 001 ddd aaa xxx  Rd in Ra field [8:6], addr in Rb field [5:3]
-        //   ST:  0010 010 xxx aaa bbb  addr in Rb field [5:3], data in sub field [2:0]
+        // Group 2: Memory — sub-op in Rd field [19:17]
+        //   LDI: 0010 000 ddd xxxxxx iiiiiiii  Rd in Ra field [16:14], imm8 in [7:0]
+        //   LD:  0010 001 ddd aaa xxxxxxxxxx   Rd in Ra field [16:14], addr in Rb field [13:11]
+        //   ST:  0010 010 xxx aaa bbb xxxxxxxx addr in Rb field [13:11], data in sub [10:8]
         // ------------------------------------------------------------------
         GRP_MEM: begin
-            case (f_rd)   // sub-opcode in Rd field [11:9]
+            case (f_rd)   // sub-opcode in Rd field [19:17]
 
                 MEM_LDI: begin
-                    // LDI: destination register in Ra field [8:6], imm6 in [5:0]
-                    // Encoding: 0010 000 ddd iiiiii
+                    // LDI Rd, imm8: destination in Ra field [16:14], imm8 in [7:0]
+                    // Encoding: 0010 000 ddd xxxxxx iiiiiiii
                     rd_addr = f_ra;
-                    imm     = {2'b00, f_imm6};
+                    imm     = f_imm8;
                     reg_we  = 1'b1;
                     wb_sel  = WB_IMM;
                 end
 
                 MEM_LD: begin
-                    // LD Rd, [Ra_src]: dest in Ra field [8:6], addr in Rb field [5:3]
+                    // LD Rd, [Ra_src]: dest in Ra field [16:14], addr in Rb field [13:11]
                     rd_addr = f_ra;
                     ra_addr = f_rb;
                     mem_re  = 1'b1;
@@ -254,7 +299,7 @@ always @(*) begin
 
                 MEM_ST: begin
                     // ST [addr_reg], data_reg
-                    // addr in Rb field [5:3], data in sub field [2:0]
+                    // addr in Rb field [13:11], data in sub field [10:8]
                     ra_addr = f_rb;
                     rb_addr = f_sub;
                     mem_we  = 1'b1;
@@ -266,7 +311,7 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 3: MOV — Rd = Ra
-        // R-format: 0011 ddd aaa xxxxxxxxx
+        // R-format: 0011 ddd aaa 000000000000000
         // Implemented as Ra OR 0x00 through the ALU
         // ------------------------------------------------------------------
         GRP_MOV: begin
@@ -282,18 +327,18 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 4: Jump / Branch
-        // I8-format: 0100 sub x iiiiiiii   (JMP/Jcc)
-        // R-format:  0100 111 aaa xxxxxxxx  (JR)
+        // I16-format: 0100 sub x aaaaaaaaaaaaaaaa   (JMP/Jcc — addr16 in [15:0])
+        // R-format:   0100 111 aaa 00000000000000000 (JR — Ra in [16:14])
         // ------------------------------------------------------------------
         GRP_JMP: begin
             if (f_rd == JMP_JR) begin
                 // Indirect jump: PC = Ra
                 ra_addr   = f_ra;
                 pc_load   = 1'b1;       // target muxed in CPU top-level from Ra
-                pc_target = f_imm8;     // overridden by top-level for JR
+                pc_target = f_addr16;   // overridden by top-level for JR
             end else begin
                 pc_load   = branch_taken;
-                pc_target = f_imm8;
+                pc_target = f_addr16;
             end
         end
 
@@ -304,13 +349,13 @@ always @(*) begin
             case (f_rd)
 
                 STK_PUSH: begin
-                    // PUSH Ra: 0101 000 aaa xxxxxxxxx
+                    // PUSH Ra: 0101 000 aaa 000000000000000
                     ra_addr    = f_ra;
                     stack_push = 1'b1;
                 end
 
                 STK_POP: begin
-                    // POP Rd: 0101 001 ddd xxxxxxxxx
+                    // POP Rd: 0101 001 ddd 000000000000000
                     rd_addr   = f_ra;   // destination in Ra field for POP
                     stack_pop = 1'b1;
                     reg_we    = 1'b1;
@@ -318,14 +363,14 @@ always @(*) begin
                 end
 
                 STK_CALL: begin
-                    // CALL imm8: 0101 010 x iiiiiiii
+                    // CALL addr16: 0101 010 x aaaaaaaaaaaaaaaa
                     stack_push = 1'b1;  // pushes pc_next from CPU top-level
                     pc_load    = 1'b1;
-                    pc_target  = f_imm8;
+                    pc_target  = f_addr16;
                 end
 
                 STK_RET: begin
-                    // RET: 0101 011 xxx xxxxxxxxx
+                    // RET: 0101 011 000 000000000000000
                     stack_pop = 1'b1;
                     pc_load   = 1'b1;   // target comes from stack in top-level
                 end
@@ -336,7 +381,9 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 6: CMP Ra, Rb — flags from Ra - Rb, no write
-        // R-format: 0110 xxx aaa bbb xxx
+        // R-format: 0110 000 aaa bbb 00000000000
+        //   [16:14] Ra
+        //   [13:11] Rb
         // ------------------------------------------------------------------
         GRP_CMP: begin
             ra_addr   = f_ra;
@@ -349,7 +396,9 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 7: CMPI Ra, imm6 — flags from Ra - imm6, no write
-        // I-format: 0111 xxx aaa iiiiii
+        // I6-format: 0111 000 aaa iiiiii 00000000
+        //   [16:14] Ra
+        //   [13:8]  imm6
         // ------------------------------------------------------------------
         GRP_CMPI: begin
             ra_addr   = f_ra;
@@ -362,9 +411,9 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 8: IN Rd, port — read hardware peripheral into register
-        // R-format: 1000 ddd ppp xxxxxxxx
-        //   [11:9] Rd   — destination register
-        //   [8:6]  port — peripheral select
+        // R-format: 1000 ddd ppp 000000000000000
+        //   [19:17] Rd   — destination register
+        //   [16:14] port — peripheral select
         //     3'b001 = PRNG data
         //     3'b010 = GPIO input pin values
         //     3'b011 = GPIO direction (read-back, not implemented — NOP)
@@ -372,7 +421,7 @@ always @(*) begin
         // Undefined port numbers are treated as NOP.
         // ------------------------------------------------------------------
         GRP_IN: begin
-            case (f_ra)   // port number in Ra field [8:6]
+            case (f_ra)   // port number in Ra field [16:14]
                 3'b001: begin   // port 1 = PRNG
                     rd_addr = f_rd;
                     reg_we  = 1'b1;
@@ -397,20 +446,20 @@ always @(*) begin
 
         // ------------------------------------------------------------------
         // Group 9: OUT Ra, port — write register value to hardware peripheral
-        // R-format: 1001 aaa ppp xxxxxxxx
-        //   [11:9] Ra   — source register (value to write)
-        //   [8:6]  port — peripheral select
+        // R-format: 1001 aaa ppp 000000000000000
+        //   [19:17] Ra   — source register (value to write)
+        //   [16:14] port — peripheral select
         //     3'b001 = PRNG seed (reseed the LFSR)
         //     3'b010 = GPIO output register (8 digital output pins)
         //     3'b011 = GPIO direction register (1=output, 0=input)
         // Undefined port numbers (including 4–7) are treated as NOP.
         // ------------------------------------------------------------------
         GRP_OUT: begin
-            case (f_ra)   // port number in Ra field [8:6]
+            case (f_ra)   // port number in Ra field [16:14]
                 3'b001,   // port 1 = PRNG seed
                 3'b010,   // port 2 = GPIO out
                 3'b011: begin  // port 3 = GPIO direction
-                    ra_addr    = f_rd;   // source register is in [11:9]
+                    ra_addr    = f_rd;   // source register is in [19:17]
                     periph_we  = 1'b1;
                     periph_port = f_ra;
                 end

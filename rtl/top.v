@@ -1,5 +1,5 @@
 // =============================================================================
-// top.v — MAX1000 top-level for the 8-bit CPU
+// top.v — MAX1000 top-level for the CPU (8-bit data path, 16-bit address space)
 //
 // USER_BTN (pin E6, active-low) — single button, dual function:
 //   Short press (<0.35 s) → toggles LED display mode; CPU keeps running

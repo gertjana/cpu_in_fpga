@@ -1,9 +1,9 @@
 // =============================================================================
-// pc.v — 8-bit Program Counter
+// pc.v — 16-bit Program Counter
 //
 // Ports:
 //   clk       — clock (rising edge)
-//   rst       — synchronous reset: PC → 0x00
+//   rst       — synchronous reset: PC → 0x0000
 //   halt      — freeze PC (stop incrementing / loading)
 //   load      — load pc_in as the new PC value (for jumps/branches/call/ret)
 //   pc_in     — target address to load when load=1
@@ -18,22 +18,22 @@
 // =============================================================================
 
 module pc (
-    input  wire       clk,
-    input  wire       rst,
-    input  wire       halt,
-    input  wire       load,
-    input  wire [7:0] pc_in,
-    output reg  [7:0] pc_out,
-    output wire [7:0] pc_next
+    input  wire        clk,
+    input  wire        rst,
+    input  wire        halt,
+    input  wire        load,
+    input  wire [15:0] pc_in,
+    output reg  [15:0] pc_out,
+    output wire [15:0] pc_next
 );
 
 // pc_next is always PC+1, regardless of what happens on the next edge.
 // The instruction decoder uses this as the CALL return address.
-assign pc_next = pc_out + 8'd1;
+assign pc_next = pc_out + 16'd1;
 
 always @(posedge clk) begin
     if (rst)
-        pc_out <= 8'h00;
+        pc_out <= 16'h0000;
     else if (halt)
         pc_out <= pc_out;   // hold — explicit for clarity
     else if (load)
