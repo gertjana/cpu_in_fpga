@@ -42,18 +42,35 @@
 // Heartbeat: MSB of the CPU prescaler counter — toggles at the CPU clock
 //   rate, so the blink is always synchronised with program execution speed.
 //   Frozen solid (1) once the CPU halts.
+//
+// OLED Monitor: hardware debug display on the PmodOLED connected to the
+//   MAX1000 PMOD header.  Runs entirely at 12 MHz — independent of CPU speed.
+//   Continuously shows all 8 registers and flags in hex on the OLED.
+//   The program name is injected at synthesis time via PROG_NAME parameter,
+//   set from a "; name: <PROGRAM_NAME>" comment in the .asm source.
 // =============================================================================
 
+`include "build_config.vh"
+
 module top (
-    input  wire       clk_12m,   // 12 MHz board clock (pin H6)
-    input  wire       rst_n,     // USER_BTN active-low (pin E6)
-    output wire [7:0] led,       // active-low LEDs: LED[0]..LED[7]
-    inout  wire [7:0] gpio,      // 8 bidirectional GPIO pins: gpio[0..7] → PIN_H8, PIN_K10, PIN_H5, PIN_H4, PIN_J1, PIN_J2, PIN_L12, PIN_J12
+    input  wire       clk_12m,    // 12 MHz board clock (pin H6)
+    input  wire       rst_n,      // USER_BTN active-low (pin E6)
+    output wire [7:0] led,        // active-low LEDs: LED[0]..LED[7]
+    inout  wire [7:0] gpio,       // 8 bidirectional GPIO pins
     // adc_in: 8 MSBs of the MAX 10 internal ADC result, supplied by the
     // alt_adc_ctrl IP core. The external analog input is ADC channel AIN0 on
     // PIN_E1 (J1 pin 2 on the MAX1000 board). This port is driven by the IP
     // wrapper, not tied directly to a pad.
-    input  wire [7:0] adc_in     // ADC result [11:4] from alt_adc_ctrl IP
+    input  wire [7:0] adc_in,     // ADC result [11:4] from alt_adc_ctrl IP
+
+    // PmodOLED signals — MAX1000 PMOD header pins
+    output wire       pmod_cs_n,  // PIN_M3  PMOD pin 1  — SPI chip select
+    output wire       pmod_mosi,  // PIN_L3  PMOD pin 2  — SPI MOSI (SDIN)
+    output wire       pmod_sclk,  // PIN_M1  PMOD pin 4  — SPI clock
+    output wire       pmod_dc,    // PIN_N3  PMOD pin 7  — Data/Command
+    output wire       pmod_res_n, // PIN_N2  PMOD pin 8  — Reset (active low)
+    output wire       pmod_vbatc, // PIN_K2  PMOD pin 9  — VBAT control
+    output wire       pmod_vddc   // PIN_K1  PMOD pin 10 — VDD  control
 );
 
 // ---------------------------------------------------------------------------
@@ -122,8 +139,22 @@ always @(posedge clk_12m) begin
         was_long <= 1'b1;
 end
 
-// CPU reset is active while long-press threshold is held.
-wire rst = was_long;
+// ---------------------------------------------------------------------------
+// Power-on reset — asserts rst for 32 clk_12m cycles after FPGA configuration
+// so all synchronous reset blocks fire reliably, independent of Quartus
+// register power-up values.
+// The counter starts at 0 and counts up; rst is held high until it reaches 31.
+// After that it stays at 31 forever and contributes nothing.
+// ---------------------------------------------------------------------------
+reg [4:0] por_ctr = 5'd0;
+always @(posedge clk_12m)
+    if (por_ctr != 5'd31)
+        por_ctr <= por_ctr + 1'b1;
+
+wire por_rst = (por_ctr != 5'd31);
+
+// CPU reset is active during power-on OR while long-press threshold is held.
+wire rst = por_rst | was_long;
 
 // ---------------------------------------------------------------------------
 // Release edge detector — one-cycle pulse on debounced button release.
@@ -261,10 +292,11 @@ wire [7:0] gpio_in = gpio;
 // ---------------------------------------------------------------------------
 // CPU instantiation
 // ---------------------------------------------------------------------------
-wire        halt_out;
-wire [15:0] dbg_pc;
-wire        dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
-wire [7:0]  dbg_r7;
+wire       halt_out;
+wire [7:0] dbg_pc;
+wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
+wire [7:0] dbg_r0, dbg_r1, dbg_r2, dbg_r3;
+wire [7:0] dbg_r4, dbg_r5, dbg_r6, dbg_r7;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),
@@ -281,6 +313,13 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
     .dbg_flag_c      (dbg_flag_c),
     .dbg_flag_n      (dbg_flag_n),
     .dbg_flag_v      (dbg_flag_v),
+    .dbg_r0          (dbg_r0),
+    .dbg_r1          (dbg_r1),
+    .dbg_r2          (dbg_r2),
+    .dbg_r3          (dbg_r3),
+    .dbg_r4          (dbg_r4),
+    .dbg_r5          (dbg_r5),
+    .dbg_r6          (dbg_r6),
     .dbg_r7          (dbg_r7),
     .dbg_stack_top   (),
     .dbg_stack_empty ()
@@ -303,5 +342,37 @@ assign led[4] = display_mode ? dbg_r7[3] : dbg_pc[3];
 assign led[5] = display_mode ? dbg_r7[2] : dbg_pc[2];
 assign led[6] = display_mode ? dbg_r7[1] : dbg_pc[1];
 assign led[7] = display_mode ? dbg_r7[0] : dbg_pc[0];
+
+// ---------------------------------------------------------------------------
+// OLED Hardware Monitor — runs at 12 MHz, reads CPU state directly.
+// Continuously refreshes the PmodOLED with live register and flag values.
+// PROG_NAME is injected at synthesis time via build_config.vh.
+// ---------------------------------------------------------------------------
+oled_monitor #(
+    .PROG_NAME (`PROG_NAME)
+) u_oled (
+    .clk      (clk_12m),
+    .rst      (rst),
+    .r0       (dbg_r0),
+    .r1       (dbg_r1),
+    .r2       (dbg_r2),
+    .r3       (dbg_r3),
+    .r4       (dbg_r4),
+    .r5       (dbg_r5),
+    .r6       (dbg_r6),
+    .r7       (dbg_r7),
+    .pc       (dbg_pc),
+    .flag_c   (dbg_flag_c),
+    .flag_z   (dbg_flag_z),
+    .flag_n   (dbg_flag_n),
+    .flag_v   (dbg_flag_v),
+    .spi_cs_n (pmod_cs_n),
+    .spi_clk  (pmod_sclk),
+    .spi_mosi (pmod_mosi),
+    .spi_dc   (pmod_dc),
+    .spi_res_n(pmod_res_n),
+    .vbat_en  (pmod_vbatc),
+    .vdd_en   (pmod_vddc)
+);
 
 endmodule

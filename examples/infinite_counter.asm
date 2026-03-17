@@ -1,5 +1,6 @@
 ; infinite_counter.asm — FPGA demo: infinite counter loop
 ; clk_div: 20
+; name: Inf Counter
 ;           12 MHz / 2^20 ≈ 11.4 Hz
 ;
 ; Counts R0 from 0 to LIMIT-1, compares against LIMIT, resets and repeats.

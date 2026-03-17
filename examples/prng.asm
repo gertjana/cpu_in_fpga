@@ -1,5 +1,6 @@
 ; prng.asm — hardware PRNG demo
 ; clk_div: 20
+; name: Random
 ;
 ; Reads the hardware Galois LFSR (rtl/prng.v) into R7 on every CPU cycle
 

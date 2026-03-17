@@ -1,5 +1,6 @@
 ; pc_test.asm — PC LED test
 ; clk_div: 21
+; name: PC Test
 ;           12 MHz / 2^21 ≈ 5.7 Hz — slow enough to watch each value appear
 ;
 ; Counts PC through 0..31 visibly on LEDs[7:3], then jumps back to 0.

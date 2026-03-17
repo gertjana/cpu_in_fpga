@@ -38,6 +38,7 @@ set_global_assignment -name VERILOG_FILE ../rtl/rom.v
 set_global_assignment -name VERILOG_FILE ../rtl/ram.v
 set_global_assignment -name VERILOG_FILE ../rtl/stack.v
 set_global_assignment -name VERILOG_FILE ../rtl/prng.v
+set_global_assignment -name VERILOG_FILE ../rtl/oled_monitor.v
 
 # ---------------------------------------------------------------------------
 # Pin assignments — MAX1000 well-known pinout
@@ -114,8 +115,52 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[7]
 # The alt_adc_ctrl IP core is configured for channel 0 and drives the
 # adc_in[7:0] bus in RTL. No separate pin assignment is needed;
 # the IP handles analog pin configuration.
-# The ANAIN1 analog reference pin (ball D3, board ref AREF/J1-1)
-# should be left unassigned or set to RESERVED in the Quartus pin-planner.
+# Mark adc_in as VIRTUAL_PIN so Quartus does not attempt to place these
+# signals on physical I/O pads (they are internal IP connections).
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[0]
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[1]
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[2]
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[3]
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[4]
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[5]
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[6]
+set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[7]
 set_global_assignment -name SDC_FILE cpu_fpga.sdc
 
 set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
+
+# ---------------------------------------------------------------------------
+# PmodOLED — MAX1000 PMOD header (12-pin, 2×6)
+#
+# PMOD Pin → MAX1000 FPGA Pin → PmodOLED Signal
+#   Pin  1   PIN_M3   CS      (SPI chip select, active low)
+#   Pin  2   PIN_L3   SDIN    (SPI MOSI)
+#   Pin  3   PIN_M2   (unused on PmodOLED)
+#   Pin  4   PIN_M1   SCLK    (SPI clock)
+#   Pin  7   PIN_N3   D/C     (Data=1 / Command=0)
+#   Pin  8   PIN_N2   RES     (Reset, active low)
+#   Pin  9   PIN_K2   VBATC   (Display panel power control, active low)
+#   Pin 10   PIN_K1   VDDC    (Logic power control, active low)
+#   Pins 5,11 = GND (no assignment needed)
+#   Pins 6,12 = 3.3V (no assignment needed)
+# ---------------------------------------------------------------------------
+set_location_assignment PIN_M3 -to pmod_cs_n
+set_location_assignment PIN_L3 -to pmod_mosi
+set_location_assignment PIN_M1 -to pmod_sclk
+set_location_assignment PIN_N3 -to pmod_dc
+set_location_assignment PIN_N2 -to pmod_res_n
+set_location_assignment PIN_K2 -to pmod_vbatc
+set_location_assignment PIN_K1 -to pmod_vddc
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_cs_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_sclk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_dc
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_res_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vbatc
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vddc
+
+# Power-up levels for PMOD control signals are handled via inline initial
+# values on output registers in oled_monitor.v (vdd_en=1, vbat_en=1,
+# spi_cs_n=1, spi_res_n=0). Quartus synthesises scalar register initial
+# values reliably as FF power-up states. No QSF constraints needed.

@@ -35,7 +35,7 @@ die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
 NAME="${1%.asm}"          # strip .asm suffix if accidentally included
 PROGRAM="examples/${NAME}.asm"
-ARTIFACT_NAME="quartus-output-${NAME}"
+ARTIFACT_NAME="quartus-output-${BRANCH}-${NAME}"
 OUTPUT_DIR="quartus_output/${BRANCH}/${NAME}"
 
 [[ -f "$PROGRAM" ]] || die "File not found: ${PROGRAM}"
@@ -46,6 +46,17 @@ OUTPUT_DIR="quartus_output/${BRANCH}/${NAME}"
 CLK_DIV=$(grep -m1 '^[[:space:]]*;[[:space:]]*clk_div[[:space:]]*:' "$PROGRAM" | sed 's/.*clk_div[[:space:]]*:[[:space:]]*//' | tr -dc '0-9')
 CLK_DIV="${CLK_DIV:-20}"
 info "Clock divider : CPU_CLK_DIV_BITS=${CLK_DIV}  (12 MHz / 2^${CLK_DIV})"
+
+# ---------------------------------------------------------------------------
+# 2b. Read prog_name from the .asm header ("; name: <NAME>"), default to NAME
+#     Truncated/padded to exactly 19 characters for the OLED display.
+#     (2 columns are reserved for the flag V indicator and a space prefix.)
+# ---------------------------------------------------------------------------
+RAW_NAME=$(grep -m1 '^[[:space:]]*;[[:space:]]*name[[:space:]]*:' "$PROGRAM" | sed 's/.*name[[:space:]]*:[[:space:]]*//' | tr -d '\r\n')
+RAW_NAME="${RAW_NAME:-${NAME}}"
+# Pad or truncate to exactly 19 characters
+PROG_NAME=$(printf "%-19.19s" "${RAW_NAME}")
+info "Program name  : \"${PROG_NAME}\""
 
 # ---------------------------------------------------------------------------
 # 3. Check gh is available and authenticated
@@ -64,7 +75,8 @@ gh workflow run "${WORKFLOW}" \
     --ref "${BRANCH}" \
     --field "program=${PROGRAM}" \
     --field "name=${NAME}" \
-    --field "clk_div=${CLK_DIV}"
+    --field "clk_div=${CLK_DIV}" \
+    --field "prog_name=${PROG_NAME}"
 
 # Give GitHub a moment to register the run
 sleep 3
@@ -105,6 +117,7 @@ ok "Output directory cleared."
 # ---------------------------------------------------------------------------
 # 8. Download the artifact
 # ---------------------------------------------------------------------------
+sleep 5  # Give GitHub a moment to prepare the artifact
 info "Downloading artifact '${ARTIFACT_NAME}' ..."
 gh run download "${RUN_ID}" \
     --repo "${REPO}" \

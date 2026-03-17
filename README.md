@@ -47,7 +47,6 @@ Three things happened:
 | Clock | 12 MHz on-board oscillator |
 
 ### Block Diagram
-
 ![cpu-diagram.svg](./docs/cpu-diagram.png)
 
 ### Pipeline
@@ -65,16 +64,16 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 
 | File | Description |
 |------|-------------|
-| `rtl/cpu.v` | Top-level CPU — wires all modules together |
-| `rtl/decoder.v` | Instruction decoder / control unit |
-| `rtl/alu.v` | 8-bit ALU (ADD SUB AND OR XOR NOT SHL SHR) |
-| `rtl/regfile.v` | 8 × 8-bit register file |
-| `rtl/pc.v` | 8-bit program counter with load and halt |
-| `rtl/rom.v` | 256 × 16-bit synchronous program ROM |
-| `rtl/ram.v` | 256 × 8-bit data RAM |
-| `rtl/stack.v` | 16-entry hardware stack (PUSH/POP/CALL/RET) |
-| `rtl/prng.v` | 8-bit Galois LFSR hardware PRNG (period 255, tap mask 0xB8) |
-| `rtl/top.v` | MAX1000 top-level (clock, reset, LED logic) |
+| [rtl/cpu.v](rtl/cpu.v) | Top-level CPU — wires all modules together |
+| [rtl/decoder.v](rtl/decoder.v) | Instruction decoder / control unit |
+| [rtl/alu.v](rtl/alu.v) | 8-bit ALU (ADD SUB AND OR XOR NOT SHL SHR) |
+| [rtl/regfile.v](rtl/regfile.v) | 8 × 8-bit register file |
+| [rtl/pc.v](rtl/pc.v) | 8-bit program counter with load and halt |
+| [rtl/rom.v](rtl/rom.v) | 256 × 16-bit synchronous program ROM |
+| [rtl/ram.v](rtl/ram.v) | 256 × 8-bit data RAM |
+| [rtl/stack.v](rtl/stack.v) | 16-entry hardware stack (PUSH/POP/CALL/RET) |
+| [rtl/prng.v](rtl/prng.v) | 8-bit Galois LFSR hardware PRNG (period 255, tap mask 0xB8) |
+| [rtl/top.v](rtl/top.v) | MAX1000 top-level (clock, reset, LED logic) |
 
 ---
 
@@ -241,7 +240,7 @@ I8-format: [15:12] group | [11:9] sub | [8] x    | [7:0] imm8
 | R6   | `110`  |
 | R7   | `111`  |
 
-See `docs/ISA.md` for the complete specification including flag behaviour details and memory map.
+See [docs/ISA.md](docs/ISA.md) for the complete specification including flag behaviour details and memory map.
 
 ### Peripheral port map (IN / OUT)
 

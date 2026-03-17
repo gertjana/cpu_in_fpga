@@ -1,5 +1,5 @@
 ; knightrider.asm — Knight Rider LED scanner (K.I.T.T. from the TV series)
-; clk_div: 17
+; clk_div: 20
 ; name: Knightrider
 ;
 ; A single lit LED bounces left and right across the 8 LEDs continuously.
@@ -28,7 +28,7 @@ scan_right:
         JMP  scan_right
 
 scan_left:
-        CMP  R1, R7         ; R7 == 0x80 (leftmost edge)?
+        CMP  R7, R1         ; R7 == 0x80 (leftmost edge)?
         JZ   scan_right     ; yes → reverse, scan right
         SHL  R7, R7         ; no  → step left
         JMP  scan_left
