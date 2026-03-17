@@ -117,6 +117,7 @@ ok "Output directory cleared."
 # ---------------------------------------------------------------------------
 # 8. Download the artifact
 # ---------------------------------------------------------------------------
+sleep 5  # Give GitHub a moment to prepare the artifact
 info "Downloading artifact '${ARTIFACT_NAME}' ..."
 gh run download "${RUN_ID}" \
     --repo "${REPO}" \

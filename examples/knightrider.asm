@@ -28,7 +28,7 @@ scan_right:
         JMP  scan_right
 
 scan_left:
-        CMP  R7, R1         ; R7 == 0x80 (leftmost edge)?
+        CMP  R1, R7         ; R7 == 0x80 (leftmost edge)?
         JZ   scan_right     ; yes → reverse, scan right
         SHL  R7, R7         ; no  → step left
         JMP  scan_left
