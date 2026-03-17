@@ -8,7 +8,7 @@
 // Display layout (4 lines × 21 characters at 6×8 px per char, 128 px wide):
 //   Line 0: "C R0-R3:  XX XX XX XX"  flag C + R0..R3 in hex
 //   Line 1: "Z R4-R7:  XX XX XX XX"  flag Z + R4..R7 in hex
-//   Line 2: "N PC:     XXXX         " flag N + PC as 4-digit hex
+//   Line 2: "N PC: XXXX  ST: XX   "  flag N + PC as 4-digit hex + stack depth as 2-digit hex
 //   Line 3: "V <PROGRAM_NAME 19c>  " flag V + up to 19-char program name
 //
 // SPI interface (SSD1306 write-only):
@@ -64,6 +64,9 @@ module oled_monitor #(
 
     // Live program counter
     input  wire [7:0]  pc,
+
+    // Live stack depth (number of entries currently on the stack, 0..16)
+    input  wire [4:0]  stack_depth,
 
     // Live CPU flags
     input  wire        flag_c,
@@ -591,7 +594,7 @@ always @(*) begin
                 default: cur_ascii = " ";
             endcase
         end
-        // --- Line 2: "N PC:     XXXX       " ---
+        // --- Line 2: "N PC: XXXX  ST: XX   " ---
         2'd2: begin
             case (cur_char)
                 5'd0:  cur_ascii = flag_n ? "N" : " ";
@@ -600,14 +603,18 @@ always @(*) begin
                 5'd3:  cur_ascii = "C";
                 5'd4:  cur_ascii = ":";
                 5'd5:  cur_ascii = " ";
-                5'd6:  cur_ascii = " ";
-                5'd7:  cur_ascii = " ";
-                5'd8:  cur_ascii = " ";
-                5'd9:  cur_ascii = " ";
-                5'd10: cur_ascii = "0";   // PC is 8-bit, zero-pad to 4 digits
-                5'd11: cur_ascii = "0";
-                5'd12: cur_ascii = hex_char(pc[7:4]);
-                5'd13: cur_ascii = hex_char(pc[3:0]);
+                5'd6:  cur_ascii = "0";   // PC is 8-bit, zero-pad to 4 digits
+                5'd7:  cur_ascii = "0";
+                5'd8:  cur_ascii = hex_char(pc[7:4]);
+                5'd9:  cur_ascii = hex_char(pc[3:0]);
+                5'd10: cur_ascii = " ";
+                5'd11: cur_ascii = " ";
+                5'd12: cur_ascii = "S";
+                5'd13: cur_ascii = "T";
+                5'd14: cur_ascii = ":";
+                5'd15: cur_ascii = " ";
+                5'd16: cur_ascii = hex_char({3'b0, stack_depth[4]});
+                5'd17: cur_ascii = hex_char(stack_depth[3:0]);
                 default: cur_ascii = " ";
             endcase
         end

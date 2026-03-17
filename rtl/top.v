@@ -297,6 +297,7 @@ wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 wire [7:0] dbg_r0, dbg_r1, dbg_r2, dbg_r3;
 wire [7:0] dbg_r4, dbg_r5, dbg_r6, dbg_r7;
+wire [4:0] dbg_stack_depth;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),
@@ -322,7 +323,8 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
     .dbg_r6          (dbg_r6),
     .dbg_r7          (dbg_r7),
     .dbg_stack_top   (),
-    .dbg_stack_empty ()
+    .dbg_stack_empty (),
+    .dbg_stack_depth (dbg_stack_depth)
 );
 
 // ---------------------------------------------------------------------------
@@ -351,28 +353,29 @@ assign led[7] = display_mode ? dbg_r7[0] : dbg_pc[0];
 oled_monitor #(
     .PROG_NAME (`PROG_NAME)
 ) u_oled (
-    .clk      (clk_12m),
-    .rst      (rst),
-    .r0       (dbg_r0),
-    .r1       (dbg_r1),
-    .r2       (dbg_r2),
-    .r3       (dbg_r3),
-    .r4       (dbg_r4),
-    .r5       (dbg_r5),
-    .r6       (dbg_r6),
-    .r7       (dbg_r7),
-    .pc       (dbg_pc),
-    .flag_c   (dbg_flag_c),
-    .flag_z   (dbg_flag_z),
-    .flag_n   (dbg_flag_n),
-    .flag_v   (dbg_flag_v),
-    .spi_cs_n (pmod_cs_n),
-    .spi_clk  (pmod_sclk),
-    .spi_mosi (pmod_mosi),
-    .spi_dc   (pmod_dc),
-    .spi_res_n(pmod_res_n),
-    .vbat_en  (pmod_vbatc),
-    .vdd_en   (pmod_vddc)
+    .clk         (clk_12m),
+    .rst         (rst),
+    .r0          (dbg_r0),
+    .r1          (dbg_r1),
+    .r2          (dbg_r2),
+    .r3          (dbg_r3),
+    .r4          (dbg_r4),
+    .r5          (dbg_r5),
+    .r6          (dbg_r6),
+    .r7          (dbg_r7),
+    .pc          (dbg_pc),
+    .stack_depth (dbg_stack_depth),
+    .flag_c      (dbg_flag_c),
+    .flag_z      (dbg_flag_z),
+    .flag_n      (dbg_flag_n),
+    .flag_v      (dbg_flag_v),
+    .spi_cs_n    (pmod_cs_n),
+    .spi_clk     (pmod_sclk),
+    .spi_mosi    (pmod_mosi),
+    .spi_dc      (pmod_dc),
+    .spi_res_n   (pmod_res_n),
+    .vbat_en     (pmod_vbatc),
+    .vdd_en      (pmod_vddc)
 );
 
 endmodule

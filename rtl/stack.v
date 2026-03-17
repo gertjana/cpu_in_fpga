@@ -37,7 +37,8 @@ module stack #(
     output wire        full,
     output wire        empty,
     output reg         overflow,
-    output reg         underflow
+    output reg         underflow,
+    output wire [4:0]  dbg_stack_depth  // current number of entries on the stack (0..DEPTH)
 );
 
 localparam PTR_W = 5;   // enough bits for depth 0..16
@@ -50,6 +51,7 @@ reg [PTR_W:0] sp;        // stack pointer: 0 = empty, DEPTH = full
 // ---------------------------------------------------------------------------
 assign full  = (sp == DEPTH);
 assign empty = (sp == 0);
+assign dbg_stack_depth = sp[4:0];
 
 // Top of stack — combinational peek
 assign data_out = (sp == 0) ? 16'h0000 : mem[sp - 1];

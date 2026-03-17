@@ -1,7 +1,7 @@
 Addr    Word  Source
 --------------------------------------------------------------
               ; knightrider.asm — Knight Rider LED scanner (K.I.T.T. from the TV series)
-              ; clk_div: 17
+              ; clk_div: 20
               ; name: Knightrider
               ;
               ; A single lit LED bounces left and right across the 8 LEDs continuously.
@@ -30,7 +30,7 @@ Addr    Word  Source
 0008  400005          JMP  scan_right
               
               scan_left:
-0009  607800          CMP  R1, R7         ; R7 == 0x80 (leftmost edge)?
+0009  61C800          CMP  R7, R1         ; R7 == 0x80 (leftmost edge)?
 000A  420005          JZ   scan_right     ; yes → reverse, scan right
 000B  06FC00          SHL  R7, R7         ; no  → step left
 000C  400009          JMP  scan_left
