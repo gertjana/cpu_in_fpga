@@ -86,305 +86,111 @@ module oled_monitor #(
 
 // ---------------------------------------------------------------------------
 // Font ROM — 5×7 pixels per glyph, stored as 5 bytes (columns), LSB = top.
-// Covers ASCII 0x20 (space) through 0x7E (~). Index = ascii - 0x20.
+// Covers ASCII 0x20 (space) through 0x7E (~). 95 glyphs × 5 bytes = 475 bytes.
 // Each byte is one column of 7 pixels: bit0=top row, bit6=bottom row.
 //
-// Implemented as a pure combinatorial function (case statement) so that
-// Quartus synthesises it as LUT-based ROM with no initial-block dependency.
+// Packed localparam: glyph 0 (0x20) in the most-significant 40 bits,
+// glyph 94 (0x7E) in the least-significant 40 bits.
+// Index = (ascii - 0x20); column byte within glyph = cur_col (0=leftmost).
+// Quartus synthesises this as LUT-based ROM identical to a case version.
 // ---------------------------------------------------------------------------
-function [7:0] font_lookup;
-    input [8:0] addr;
-    begin
-        case (addr)
-            // 0x20 space
-            9'd0:  font_lookup=8'h00; 9'd1:  font_lookup=8'h00;
-            9'd2:  font_lookup=8'h00; 9'd3:  font_lookup=8'h00; 9'd4:  font_lookup=8'h00;
-            // 0x21 !
-            9'd5:  font_lookup=8'h00; 9'd6:  font_lookup=8'h00;
-            9'd7:  font_lookup=8'h5F; 9'd8:  font_lookup=8'h00; 9'd9:  font_lookup=8'h00;
-            // 0x22 "
-            9'd10: font_lookup=8'h00; 9'd11: font_lookup=8'h07;
-            9'd12: font_lookup=8'h00; 9'd13: font_lookup=8'h07; 9'd14: font_lookup=8'h00;
-            // 0x23 #
-            9'd15: font_lookup=8'h14; 9'd16: font_lookup=8'h7F;
-            9'd17: font_lookup=8'h14; 9'd18: font_lookup=8'h7F; 9'd19: font_lookup=8'h14;
-            // 0x24 $
-            9'd20: font_lookup=8'h24; 9'd21: font_lookup=8'h2A;
-            9'd22: font_lookup=8'h7F; 9'd23: font_lookup=8'h2A; 9'd24: font_lookup=8'h12;
-            // 0x25 %
-            9'd25: font_lookup=8'h23; 9'd26: font_lookup=8'h13;
-            9'd27: font_lookup=8'h08; 9'd28: font_lookup=8'h64; 9'd29: font_lookup=8'h62;
-            // 0x26 &
-            9'd30: font_lookup=8'h36; 9'd31: font_lookup=8'h49;
-            9'd32: font_lookup=8'h55; 9'd33: font_lookup=8'h22; 9'd34: font_lookup=8'h50;
-            // 0x27 '
-            9'd35: font_lookup=8'h00; 9'd36: font_lookup=8'h05;
-            9'd37: font_lookup=8'h03; 9'd38: font_lookup=8'h00; 9'd39: font_lookup=8'h00;
-            // 0x28 (
-            9'd40: font_lookup=8'h00; 9'd41: font_lookup=8'h1C;
-            9'd42: font_lookup=8'h22; 9'd43: font_lookup=8'h41; 9'd44: font_lookup=8'h00;
-            // 0x29 )
-            9'd45: font_lookup=8'h00; 9'd46: font_lookup=8'h41;
-            9'd47: font_lookup=8'h22; 9'd48: font_lookup=8'h1C; 9'd49: font_lookup=8'h00;
-            // 0x2A *
-            9'd50: font_lookup=8'h14; 9'd51: font_lookup=8'h08;
-            9'd52: font_lookup=8'h3E; 9'd53: font_lookup=8'h08; 9'd54: font_lookup=8'h14;
-            // 0x2B +
-            9'd55: font_lookup=8'h08; 9'd56: font_lookup=8'h08;
-            9'd57: font_lookup=8'h3E; 9'd58: font_lookup=8'h08; 9'd59: font_lookup=8'h08;
-            // 0x2C ,
-            9'd60: font_lookup=8'h00; 9'd61: font_lookup=8'h50;
-            9'd62: font_lookup=8'h30; 9'd63: font_lookup=8'h00; 9'd64: font_lookup=8'h00;
-            // 0x2D -
-            9'd65: font_lookup=8'h08; 9'd66: font_lookup=8'h08;
-            9'd67: font_lookup=8'h08; 9'd68: font_lookup=8'h08; 9'd69: font_lookup=8'h08;
-            // 0x2E .
-            9'd70: font_lookup=8'h00; 9'd71: font_lookup=8'h60;
-            9'd72: font_lookup=8'h60; 9'd73: font_lookup=8'h00; 9'd74: font_lookup=8'h00;
-            // 0x2F /
-            9'd75: font_lookup=8'h20; 9'd76: font_lookup=8'h10;
-            9'd77: font_lookup=8'h08; 9'd78: font_lookup=8'h04; 9'd79: font_lookup=8'h02;
-            // 0x30 0
-            9'd80: font_lookup=8'h3E; 9'd81: font_lookup=8'h51;
-            9'd82: font_lookup=8'h49; 9'd83: font_lookup=8'h45; 9'd84: font_lookup=8'h3E;
-            // 0x31 1
-            9'd85: font_lookup=8'h00; 9'd86: font_lookup=8'h42;
-            9'd87: font_lookup=8'h7F; 9'd88: font_lookup=8'h40; 9'd89: font_lookup=8'h00;
-            // 0x32 2
-            9'd90: font_lookup=8'h42; 9'd91: font_lookup=8'h61;
-            9'd92: font_lookup=8'h51; 9'd93: font_lookup=8'h49; 9'd94: font_lookup=8'h46;
-            // 0x33 3
-            9'd95: font_lookup=8'h21; 9'd96: font_lookup=8'h41;
-            9'd97: font_lookup=8'h45; 9'd98: font_lookup=8'h4B; 9'd99: font_lookup=8'h31;
-            // 0x34 4
-            9'd100: font_lookup=8'h18; 9'd101: font_lookup=8'h14;
-            9'd102: font_lookup=8'h12; 9'd103: font_lookup=8'h7F; 9'd104: font_lookup=8'h10;
-            // 0x35 5
-            9'd105: font_lookup=8'h27; 9'd106: font_lookup=8'h45;
-            9'd107: font_lookup=8'h45; 9'd108: font_lookup=8'h45; 9'd109: font_lookup=8'h39;
-            // 0x36 6
-            9'd110: font_lookup=8'h3C; 9'd111: font_lookup=8'h4A;
-            9'd112: font_lookup=8'h49; 9'd113: font_lookup=8'h49; 9'd114: font_lookup=8'h30;
-            // 0x37 7
-            9'd115: font_lookup=8'h01; 9'd116: font_lookup=8'h71;
-            9'd117: font_lookup=8'h09; 9'd118: font_lookup=8'h05; 9'd119: font_lookup=8'h03;
-            // 0x38 8
-            9'd120: font_lookup=8'h36; 9'd121: font_lookup=8'h49;
-            9'd122: font_lookup=8'h49; 9'd123: font_lookup=8'h49; 9'd124: font_lookup=8'h36;
-            // 0x39 9
-            9'd125: font_lookup=8'h06; 9'd126: font_lookup=8'h49;
-            9'd127: font_lookup=8'h49; 9'd128: font_lookup=8'h29; 9'd129: font_lookup=8'h1E;
-            // 0x3A :
-            9'd130: font_lookup=8'h00; 9'd131: font_lookup=8'h36;
-            9'd132: font_lookup=8'h36; 9'd133: font_lookup=8'h00; 9'd134: font_lookup=8'h00;
-            // 0x3B ;
-            9'd135: font_lookup=8'h00; 9'd136: font_lookup=8'h56;
-            9'd137: font_lookup=8'h36; 9'd138: font_lookup=8'h00; 9'd139: font_lookup=8'h00;
-            // 0x3C <
-            9'd140: font_lookup=8'h08; 9'd141: font_lookup=8'h14;
-            9'd142: font_lookup=8'h22; 9'd143: font_lookup=8'h41; 9'd144: font_lookup=8'h00;
-            // 0x3D =
-            9'd145: font_lookup=8'h14; 9'd146: font_lookup=8'h14;
-            9'd147: font_lookup=8'h14; 9'd148: font_lookup=8'h14; 9'd149: font_lookup=8'h14;
-            // 0x3E >
-            9'd150: font_lookup=8'h00; 9'd151: font_lookup=8'h41;
-            9'd152: font_lookup=8'h22; 9'd153: font_lookup=8'h14; 9'd154: font_lookup=8'h08;
-            // 0x3F ?
-            9'd155: font_lookup=8'h02; 9'd156: font_lookup=8'h01;
-            9'd157: font_lookup=8'h51; 9'd158: font_lookup=8'h09; 9'd159: font_lookup=8'h06;
-            // 0x40 @
-            9'd160: font_lookup=8'h32; 9'd161: font_lookup=8'h49;
-            9'd162: font_lookup=8'h79; 9'd163: font_lookup=8'h41; 9'd164: font_lookup=8'h3E;
-            // 0x41 A
-            9'd165: font_lookup=8'h7E; 9'd166: font_lookup=8'h11;
-            9'd167: font_lookup=8'h11; 9'd168: font_lookup=8'h11; 9'd169: font_lookup=8'h7E;
-            // 0x42 B
-            9'd170: font_lookup=8'h7F; 9'd171: font_lookup=8'h49;
-            9'd172: font_lookup=8'h49; 9'd173: font_lookup=8'h49; 9'd174: font_lookup=8'h36;
-            // 0x43 C
-            9'd175: font_lookup=8'h3E; 9'd176: font_lookup=8'h41;
-            9'd177: font_lookup=8'h41; 9'd178: font_lookup=8'h41; 9'd179: font_lookup=8'h22;
-            // 0x44 D
-            9'd180: font_lookup=8'h7F; 9'd181: font_lookup=8'h41;
-            9'd182: font_lookup=8'h41; 9'd183: font_lookup=8'h22; 9'd184: font_lookup=8'h1C;
-            // 0x45 E
-            9'd185: font_lookup=8'h7F; 9'd186: font_lookup=8'h49;
-            9'd187: font_lookup=8'h49; 9'd188: font_lookup=8'h49; 9'd189: font_lookup=8'h41;
-            // 0x46 F
-            9'd190: font_lookup=8'h7F; 9'd191: font_lookup=8'h09;
-            9'd192: font_lookup=8'h09; 9'd193: font_lookup=8'h09; 9'd194: font_lookup=8'h01;
-            // 0x47 G
-            9'd195: font_lookup=8'h3E; 9'd196: font_lookup=8'h41;
-            9'd197: font_lookup=8'h49; 9'd198: font_lookup=8'h49; 9'd199: font_lookup=8'h7A;
-            // 0x48 H
-            9'd200: font_lookup=8'h7F; 9'd201: font_lookup=8'h08;
-            9'd202: font_lookup=8'h08; 9'd203: font_lookup=8'h08; 9'd204: font_lookup=8'h7F;
-            // 0x49 I
-            9'd205: font_lookup=8'h00; 9'd206: font_lookup=8'h41;
-            9'd207: font_lookup=8'h7F; 9'd208: font_lookup=8'h41; 9'd209: font_lookup=8'h00;
-            // 0x4A J
-            9'd210: font_lookup=8'h20; 9'd211: font_lookup=8'h40;
-            9'd212: font_lookup=8'h41; 9'd213: font_lookup=8'h3F; 9'd214: font_lookup=8'h01;
-            // 0x4B K
-            9'd215: font_lookup=8'h7F; 9'd216: font_lookup=8'h08;
-            9'd217: font_lookup=8'h14; 9'd218: font_lookup=8'h22; 9'd219: font_lookup=8'h41;
-            // 0x4C L
-            9'd220: font_lookup=8'h7F; 9'd221: font_lookup=8'h40;
-            9'd222: font_lookup=8'h40; 9'd223: font_lookup=8'h40; 9'd224: font_lookup=8'h40;
-            // 0x4D M
-            9'd225: font_lookup=8'h7F; 9'd226: font_lookup=8'h02;
-            9'd227: font_lookup=8'h0C; 9'd228: font_lookup=8'h02; 9'd229: font_lookup=8'h7F;
-            // 0x4E N
-            9'd230: font_lookup=8'h7F; 9'd231: font_lookup=8'h04;
-            9'd232: font_lookup=8'h08; 9'd233: font_lookup=8'h10; 9'd234: font_lookup=8'h7F;
-            // 0x4F O
-            9'd235: font_lookup=8'h3E; 9'd236: font_lookup=8'h41;
-            9'd237: font_lookup=8'h41; 9'd238: font_lookup=8'h41; 9'd239: font_lookup=8'h3E;
-            // 0x50 P
-            9'd240: font_lookup=8'h7F; 9'd241: font_lookup=8'h09;
-            9'd242: font_lookup=8'h09; 9'd243: font_lookup=8'h09; 9'd244: font_lookup=8'h06;
-            // 0x51 Q
-            9'd245: font_lookup=8'h3E; 9'd246: font_lookup=8'h41;
-            9'd247: font_lookup=8'h51; 9'd248: font_lookup=8'h21; 9'd249: font_lookup=8'h5E;
-            // 0x52 R
-            9'd250: font_lookup=8'h7F; 9'd251: font_lookup=8'h09;
-            9'd252: font_lookup=8'h19; 9'd253: font_lookup=8'h29; 9'd254: font_lookup=8'h46;
-            // 0x53 S
-            9'd255: font_lookup=8'h46; 9'd256: font_lookup=8'h49;
-            9'd257: font_lookup=8'h49; 9'd258: font_lookup=8'h49; 9'd259: font_lookup=8'h31;
-            // 0x54 T
-            9'd260: font_lookup=8'h01; 9'd261: font_lookup=8'h01;
-            9'd262: font_lookup=8'h7F; 9'd263: font_lookup=8'h01; 9'd264: font_lookup=8'h01;
-            // 0x55 U
-            9'd265: font_lookup=8'h3F; 9'd266: font_lookup=8'h40;
-            9'd267: font_lookup=8'h40; 9'd268: font_lookup=8'h40; 9'd269: font_lookup=8'h3F;
-            // 0x56 V
-            9'd270: font_lookup=8'h1F; 9'd271: font_lookup=8'h20;
-            9'd272: font_lookup=8'h40; 9'd273: font_lookup=8'h20; 9'd274: font_lookup=8'h1F;
-            // 0x57 W
-            9'd275: font_lookup=8'h3F; 9'd276: font_lookup=8'h40;
-            9'd277: font_lookup=8'h38; 9'd278: font_lookup=8'h40; 9'd279: font_lookup=8'h3F;
-            // 0x58 X
-            9'd280: font_lookup=8'h63; 9'd281: font_lookup=8'h14;
-            9'd282: font_lookup=8'h08; 9'd283: font_lookup=8'h14; 9'd284: font_lookup=8'h63;
-            // 0x59 Y
-            9'd285: font_lookup=8'h07; 9'd286: font_lookup=8'h08;
-            9'd287: font_lookup=8'h70; 9'd288: font_lookup=8'h08; 9'd289: font_lookup=8'h07;
-            // 0x5A Z
-            9'd290: font_lookup=8'h61; 9'd291: font_lookup=8'h51;
-            9'd292: font_lookup=8'h49; 9'd293: font_lookup=8'h45; 9'd294: font_lookup=8'h43;
-            // 0x5B [
-            9'd295: font_lookup=8'h00; 9'd296: font_lookup=8'h7F;
-            9'd297: font_lookup=8'h41; 9'd298: font_lookup=8'h41; 9'd299: font_lookup=8'h00;
-            // 0x5C backslash
-            9'd300: font_lookup=8'h02; 9'd301: font_lookup=8'h04;
-            9'd302: font_lookup=8'h08; 9'd303: font_lookup=8'h10; 9'd304: font_lookup=8'h20;
-            // 0x5D ]
-            9'd305: font_lookup=8'h00; 9'd306: font_lookup=8'h41;
-            9'd307: font_lookup=8'h41; 9'd308: font_lookup=8'h7F; 9'd309: font_lookup=8'h00;
-            // 0x5E ^
-            9'd310: font_lookup=8'h04; 9'd311: font_lookup=8'h02;
-            9'd312: font_lookup=8'h01; 9'd313: font_lookup=8'h02; 9'd314: font_lookup=8'h04;
-            // 0x5F _
-            9'd315: font_lookup=8'h40; 9'd316: font_lookup=8'h40;
-            9'd317: font_lookup=8'h40; 9'd318: font_lookup=8'h40; 9'd319: font_lookup=8'h40;
-            // 0x60 `
-            9'd320: font_lookup=8'h00; 9'd321: font_lookup=8'h01;
-            9'd322: font_lookup=8'h02; 9'd323: font_lookup=8'h04; 9'd324: font_lookup=8'h00;
-            // 0x61 a
-            9'd325: font_lookup=8'h20; 9'd326: font_lookup=8'h54;
-            9'd327: font_lookup=8'h54; 9'd328: font_lookup=8'h54; 9'd329: font_lookup=8'h78;
-            // 0x62 b
-            9'd330: font_lookup=8'h7F; 9'd331: font_lookup=8'h48;
-            9'd332: font_lookup=8'h44; 9'd333: font_lookup=8'h44; 9'd334: font_lookup=8'h38;
-            // 0x63 c
-            9'd335: font_lookup=8'h38; 9'd336: font_lookup=8'h44;
-            9'd337: font_lookup=8'h44; 9'd338: font_lookup=8'h44; 9'd339: font_lookup=8'h20;
-            // 0x64 d
-            9'd340: font_lookup=8'h38; 9'd341: font_lookup=8'h44;
-            9'd342: font_lookup=8'h44; 9'd343: font_lookup=8'h48; 9'd344: font_lookup=8'h7F;
-            // 0x65 e
-            9'd345: font_lookup=8'h38; 9'd346: font_lookup=8'h54;
-            9'd347: font_lookup=8'h54; 9'd348: font_lookup=8'h54; 9'd349: font_lookup=8'h18;
-            // 0x66 f
-            9'd350: font_lookup=8'h08; 9'd351: font_lookup=8'h7E;
-            9'd352: font_lookup=8'h09; 9'd353: font_lookup=8'h01; 9'd354: font_lookup=8'h02;
-            // 0x67 g
-            9'd355: font_lookup=8'h0C; 9'd356: font_lookup=8'h52;
-            9'd357: font_lookup=8'h52; 9'd358: font_lookup=8'h52; 9'd359: font_lookup=8'h3E;
-            // 0x68 h
-            9'd360: font_lookup=8'h7F; 9'd361: font_lookup=8'h08;
-            9'd362: font_lookup=8'h04; 9'd363: font_lookup=8'h04; 9'd364: font_lookup=8'h78;
-            // 0x69 i
-            9'd365: font_lookup=8'h00; 9'd366: font_lookup=8'h44;
-            9'd367: font_lookup=8'h7D; 9'd368: font_lookup=8'h40; 9'd369: font_lookup=8'h00;
-            // 0x6A j
-            9'd370: font_lookup=8'h20; 9'd371: font_lookup=8'h40;
-            9'd372: font_lookup=8'h44; 9'd373: font_lookup=8'h3D; 9'd374: font_lookup=8'h00;
-            // 0x6B k
-            9'd375: font_lookup=8'h7F; 9'd376: font_lookup=8'h10;
-            9'd377: font_lookup=8'h28; 9'd378: font_lookup=8'h44; 9'd379: font_lookup=8'h00;
-            // 0x6C l
-            9'd380: font_lookup=8'h00; 9'd381: font_lookup=8'h41;
-            9'd382: font_lookup=8'h7F; 9'd383: font_lookup=8'h40; 9'd384: font_lookup=8'h00;
-            // 0x6D m
-            9'd385: font_lookup=8'h7C; 9'd386: font_lookup=8'h04;
-            9'd387: font_lookup=8'h18; 9'd388: font_lookup=8'h04; 9'd389: font_lookup=8'h78;
-            // 0x6E n
-            9'd390: font_lookup=8'h7C; 9'd391: font_lookup=8'h08;
-            9'd392: font_lookup=8'h04; 9'd393: font_lookup=8'h04; 9'd394: font_lookup=8'h78;
-            // 0x6F o
-            9'd395: font_lookup=8'h38; 9'd396: font_lookup=8'h44;
-            9'd397: font_lookup=8'h44; 9'd398: font_lookup=8'h44; 9'd399: font_lookup=8'h38;
-            // 0x70 p
-            9'd400: font_lookup=8'h7C; 9'd401: font_lookup=8'h14;
-            9'd402: font_lookup=8'h14; 9'd403: font_lookup=8'h14; 9'd404: font_lookup=8'h08;
-            // 0x71 q
-            9'd405: font_lookup=8'h08; 9'd406: font_lookup=8'h14;
-            9'd407: font_lookup=8'h14; 9'd408: font_lookup=8'h18; 9'd409: font_lookup=8'h7C;
-            // 0x72 r
-            9'd410: font_lookup=8'h7C; 9'd411: font_lookup=8'h08;
-            9'd412: font_lookup=8'h04; 9'd413: font_lookup=8'h04; 9'd414: font_lookup=8'h08;
-            // 0x73 s
-            9'd415: font_lookup=8'h48; 9'd416: font_lookup=8'h54;
-            9'd417: font_lookup=8'h54; 9'd418: font_lookup=8'h54; 9'd419: font_lookup=8'h20;
-            // 0x74 t
-            9'd420: font_lookup=8'h04; 9'd421: font_lookup=8'h3F;
-            9'd422: font_lookup=8'h44; 9'd423: font_lookup=8'h40; 9'd424: font_lookup=8'h20;
-            // 0x75 u
-            9'd425: font_lookup=8'h3C; 9'd426: font_lookup=8'h40;
-            9'd427: font_lookup=8'h40; 9'd428: font_lookup=8'h20; 9'd429: font_lookup=8'h7C;
-            // 0x76 v
-            9'd430: font_lookup=8'h1C; 9'd431: font_lookup=8'h20;
-            9'd432: font_lookup=8'h40; 9'd433: font_lookup=8'h20; 9'd434: font_lookup=8'h1C;
-            // 0x77 w
-            9'd435: font_lookup=8'h3C; 9'd436: font_lookup=8'h40;
-            9'd437: font_lookup=8'h30; 9'd438: font_lookup=8'h40; 9'd439: font_lookup=8'h3C;
-            // 0x78 x
-            9'd440: font_lookup=8'h44; 9'd441: font_lookup=8'h28;
-            9'd442: font_lookup=8'h10; 9'd443: font_lookup=8'h28; 9'd444: font_lookup=8'h44;
-            // 0x79 y
-            9'd445: font_lookup=8'h0C; 9'd446: font_lookup=8'h50;
-            9'd447: font_lookup=8'h50; 9'd448: font_lookup=8'h50; 9'd449: font_lookup=8'h3C;
-            // 0x7A z
-            9'd450: font_lookup=8'h44; 9'd451: font_lookup=8'h64;
-            9'd452: font_lookup=8'h54; 9'd453: font_lookup=8'h4C; 9'd454: font_lookup=8'h44;
-            // 0x7B {
-            9'd455: font_lookup=8'h00; 9'd456: font_lookup=8'h08;
-            9'd457: font_lookup=8'h36; 9'd458: font_lookup=8'h41; 9'd459: font_lookup=8'h00;
-            // 0x7C |
-            9'd460: font_lookup=8'h00; 9'd461: font_lookup=8'h00;
-            9'd462: font_lookup=8'h7F; 9'd463: font_lookup=8'h00; 9'd464: font_lookup=8'h00;
-            // 0x7D }
-            9'd465: font_lookup=8'h00; 9'd466: font_lookup=8'h41;
-            9'd467: font_lookup=8'h36; 9'd468: font_lookup=8'h08; 9'd469: font_lookup=8'h00;
-            // 0x7E ~
-            9'd470: font_lookup=8'h10; 9'd471: font_lookup=8'h08;
-            9'd472: font_lookup=8'h08; 9'd473: font_lookup=8'h10; 9'd474: font_lookup=8'h08;
-            default: font_lookup=8'h00;
-        endcase
-    end
-endfunction
+localparam [475*8-1:0] FONT_ROM = {
+    40'h00_00_00_00_00,  // 0x20 space
+    40'h00_00_5F_00_00,  // 0x21 !
+    40'h00_07_00_07_00,  // 0x22 "
+    40'h14_7F_14_7F_14,  // 0x23 #
+    40'h24_2A_7F_2A_12,  // 0x24 $
+    40'h23_13_08_64_62,  // 0x25 %
+    40'h36_49_55_22_50,  // 0x26 &
+    40'h00_05_03_00_00,  // 0x27 '
+    40'h00_1C_22_41_00,  // 0x28 (
+    40'h00_41_22_1C_00,  // 0x29 )
+    40'h14_08_3E_08_14,  // 0x2A *
+    40'h08_08_3E_08_08,  // 0x2B +
+    40'h00_50_30_00_00,  // 0x2C ,
+    40'h08_08_08_08_08,  // 0x2D -
+    40'h00_60_60_00_00,  // 0x2E .
+    40'h20_10_08_04_02,  // 0x2F /
+    40'h3E_51_49_45_3E,  // 0x30 0
+    40'h00_42_7F_40_00,  // 0x31 1
+    40'h42_61_51_49_46,  // 0x32 2
+    40'h21_41_45_4B_31,  // 0x33 3
+    40'h18_14_12_7F_10,  // 0x34 4
+    40'h27_45_45_45_39,  // 0x35 5
+    40'h3C_4A_49_49_30,  // 0x36 6
+    40'h01_71_09_05_03,  // 0x37 7
+    40'h36_49_49_49_36,  // 0x38 8
+    40'h06_49_49_29_1E,  // 0x39 9
+    40'h00_36_36_00_00,  // 0x3A :
+    40'h00_56_36_00_00,  // 0x3B ;
+    40'h08_14_22_41_00,  // 0x3C <
+    40'h14_14_14_14_14,  // 0x3D =
+    40'h00_41_22_14_08,  // 0x3E >
+    40'h02_01_51_09_06,  // 0x3F ?
+    40'h32_49_79_41_3E,  // 0x40 @
+    40'h7E_11_11_11_7E,  // 0x41 A
+    40'h7F_49_49_49_36,  // 0x42 B
+    40'h3E_41_41_41_22,  // 0x43 C
+    40'h7F_41_41_22_1C,  // 0x44 D
+    40'h7F_49_49_49_41,  // 0x45 E
+    40'h7F_09_09_09_01,  // 0x46 F
+    40'h3E_41_49_49_7A,  // 0x47 G
+    40'h7F_08_08_08_7F,  // 0x48 H
+    40'h00_41_7F_41_00,  // 0x49 I
+    40'h20_40_41_3F_01,  // 0x4A J
+    40'h7F_08_14_22_41,  // 0x4B K
+    40'h7F_40_40_40_40,  // 0x4C L
+    40'h7F_02_0C_02_7F,  // 0x4D M
+    40'h7F_04_08_10_7F,  // 0x4E N
+    40'h3E_41_41_41_3E,  // 0x4F O
+    40'h7F_09_09_09_06,  // 0x50 P
+    40'h3E_41_51_21_5E,  // 0x51 Q
+    40'h7F_09_19_29_46,  // 0x52 R
+    40'h46_49_49_49_31,  // 0x53 S
+    40'h01_01_7F_01_01,  // 0x54 T
+    40'h3F_40_40_40_3F,  // 0x55 U
+    40'h1F_20_40_20_1F,  // 0x56 V
+    40'h3F_40_38_40_3F,  // 0x57 W
+    40'h63_14_08_14_63,  // 0x58 X
+    40'h07_08_70_08_07,  // 0x59 Y
+    40'h61_51_49_45_43,  // 0x5A Z
+    40'h00_7F_41_41_00,  // 0x5B [
+    40'h02_04_08_10_20,  // 0x5C backslash
+    40'h00_41_41_7F_00,  // 0x5D ]
+    40'h04_02_01_02_04,  // 0x5E ^
+    40'h40_40_40_40_40,  // 0x5F _
+    40'h00_01_02_04_00,  // 0x60 `
+    40'h20_54_54_54_78,  // 0x61 a
+    40'h7F_48_44_44_38,  // 0x62 b
+    40'h38_44_44_44_20,  // 0x63 c
+    40'h38_44_44_48_7F,  // 0x64 d
+    40'h38_54_54_54_18,  // 0x65 e
+    40'h08_7E_09_01_02,  // 0x66 f
+    40'h0C_52_52_52_3E,  // 0x67 g
+    40'h7F_08_04_04_78,  // 0x68 h
+    40'h00_44_7D_40_00,  // 0x69 i
+    40'h20_40_44_3D_00,  // 0x6A j
+    40'h7F_10_28_44_00,  // 0x6B k
+    40'h00_41_7F_40_00,  // 0x6C l
+    40'h7C_04_18_04_78,  // 0x6D m
+    40'h7C_08_04_04_78,  // 0x6E n
+    40'h38_44_44_44_38,  // 0x6F o
+    40'h7C_14_14_14_08,  // 0x70 p
+    40'h08_14_14_18_7C,  // 0x71 q
+    40'h7C_08_04_04_08,  // 0x72 r
+    40'h48_54_54_54_20,  // 0x73 s
+    40'h04_3F_44_40_20,  // 0x74 t
+    40'h3C_40_40_20_7C,  // 0x75 u
+    40'h1C_20_40_20_1C,  // 0x76 v
+    40'h3C_40_30_40_3C,  // 0x77 w
+    40'h44_28_10_28_44,  // 0x78 x
+    40'h0C_50_50_50_3C,  // 0x79 y
+    40'h44_64_54_4C_44,  // 0x7A z
+    40'h00_08_36_41_00,  // 0x7B {
+    40'h00_00_7F_00_00,  // 0x7C |
+    40'h00_41_36_08_00,  // 0x7D }
+    40'h10_08_08_10_08   // 0x7E ~
+};
 
 // ---------------------------------------------------------------------------
 // Hex nibble to ASCII — pure combinatorial function used in cur_ascii logic.
@@ -651,10 +457,12 @@ end
 // Font ROM address: (ascii - 0x20) * 5 + cur_col
 // Max address: (0x7E-0x20)*5 + 4 = 94*5 + 4 = 474, fits in 9 bits.
 // Use 9-bit arithmetic throughout to avoid Quartus truncation warning.
+// FONT_ROM is packed MSB-first: glyph 0 at the top, so byte at index i is
+// bits [(474-i)*8 +: 8].
 wire [8:0] font_ascii9 = {1'b0, cur_ascii} - 9'h020;
 wire [8:0] font_addr   = font_ascii9 * 9'd5 + {6'd0, cur_col[2:0]};
 // Column 5, 6, 7 are inter-character gap / padding — always 0x00
-wire [7:0] font_byte  = (cur_col >= 3'd5) ? 8'h00 : font_lookup(font_addr[8:0]);
+wire [7:0] font_byte  = (cur_col >= 3'd5) ? 8'h00 : FONT_ROM[(474 - font_addr) * 8 +: 8];
 
 // Helper: start an SPI transaction
 task spi_send;
