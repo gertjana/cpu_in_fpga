@@ -178,9 +178,11 @@ always @(posedge clk_12m)
 
 // ---------------------------------------------------------------------------
 // CPU clock prescaler — runs the CPU at a human-visible rate.
-//   Change CPU_CLK_DIV_BITS to tune speed (see header for values).
+//   CPU_CLK_DIV_BITS is defined in build_config.vh (injected at synthesis time).
+//   Change it there (or via the '; clk_div: N' header in the .asm file) to
+//   tune speed (see build_config.vh for values).
 // ---------------------------------------------------------------------------
-parameter CPU_CLK_DIV_BITS = 20;
+localparam CPU_CLK_DIV_BITS = `CPU_CLK_DIV_BITS;
 
 reg [CPU_CLK_DIV_BITS-1:0] cpu_div_ctr = {CPU_CLK_DIV_BITS{1'b0}};
 always @(posedge clk_12m) begin

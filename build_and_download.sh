@@ -12,6 +12,8 @@
 #   If not present, defaults to 20 (≈ 11.4 Hz).
 #   12 MHz / 2^N:  23→~1.4 Hz  22→~2.9 Hz  21→~5.7 Hz  20→~11.4 Hz
 #                  17→~91 Hz   14→~732 Hz
+# The value is passed to the CI workflow, which writes it into build_config.vh
+# as `define CPU_CLK_DIV_BITS — no direct patching of top.v is needed.
 # The assembled SOF/POF is stored in quartus_output/<branch>/<name>/.
 # =============================================================================
 
