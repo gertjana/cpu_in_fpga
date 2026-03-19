@@ -12,9 +12,10 @@
 #   make clean        — remove compiled binaries and VCD files
 # =============================================================================
 
-IVERILOG = iverilog
-VVP      = vvp
-WAVE     = surfer
+IVERILOG  = iverilog
+VVP       = vvp
+WAVE      = surfer
+ASSEMBLER = python3 tools/assembler.py
 
 RTL = rtl/cpu.v rtl/alu.v rtl/regfile.v rtl/pc.v \
       rtl/decoder.v rtl/rom.v rtl/ram.v rtl/stack.v rtl/prng.v
@@ -22,15 +23,28 @@ RTL = rtl/cpu.v rtl/alu.v rtl/regfile.v rtl/pc.v \
 SIM_DIR = sim/vcd
 
 # ---------------------------------------------------------------------------
+# Assembly sources that back the example .hex files used by testbenches.
+# Each .hex is rebuilt from its .asm whenever the .asm is newer.
+# ---------------------------------------------------------------------------
+EXAMPLE_ASMS = $(wildcard examples/*.asm)
+EXAMPLE_HEXS = $(EXAMPLE_ASMS:.asm=.hex)
+
+examples/%.hex: examples/%.asm
+	@echo "Assembling $< -> $@"
+	$(ASSEMBLER) -o $@ $<
+
+# ---------------------------------------------------------------------------
 # All testbenches
 # ---------------------------------------------------------------------------
 TBS = alu decoder mem pc regfile stack cpu fibonacci fibonacci_stack knightrider oled_monitor
 
-.PHONY: all sim clean $(TBS:%=sim-%) $(TBS:%=wave-%)
+.PHONY: all sim assemble clean $(TBS:%=sim-%) $(TBS:%=wave-%)
 
 all: sim
 
-sim: $(TBS:%=sim-%)
+assemble: $(EXAMPLE_HEXS)
+
+sim: assemble $(TBS:%=sim-%)
 
 # ---------------------------------------------------------------------------
 # Per-testbench rules

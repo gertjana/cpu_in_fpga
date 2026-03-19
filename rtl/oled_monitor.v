@@ -81,7 +81,11 @@ module oled_monitor #(
     output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
     output reg         spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
     output reg         vbat_en = 1'b1,  // VBATC — drive low to power display panel
-    output reg         vdd_en  = 1'b1   // VDDC  — drive low to power logic
+    output reg         vdd_en  = 1'b1,  // VDDC  — drive low to power logic
+
+    // Debug output — FSM state and key power/control signals for LED probing.
+    // [4:0] state, [5] vdd_en, [6] vbat_en, [7] spi_res_n
+    output wire [7:0]  dbg_oled
 );
 
 // ---------------------------------------------------------------------------
@@ -885,5 +889,13 @@ always @(posedge clk) begin
         endcase
     end
 end
+
+// Debug: expose FSM state and key power/control signals for LED probing.
+// LED mapping (active-low on MAX1000, so complement for readability):
+//   LED[4:0] = state[4:0]  — FSM state (see localparam table above)
+//   LED[5]   = vdd_en      — 0 = VDD on, 1 = VDD off
+//   LED[6]   = vbat_en     — 0 = VBAT on, 1 = VBAT off
+//   LED[7]   = spi_res_n   — 0 = display held in reset, 1 = released
+assign dbg_oled = {spi_res_n, vbat_en, vdd_en, state};
 
 endmodule
