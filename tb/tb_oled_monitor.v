@@ -30,6 +30,7 @@ reg        clk;
 reg        rst;
 reg  [7:0] r0, r1, r2, r3, r4, r5, r6, r7;
 reg  [7:0] pc;
+reg  [4:0] stack_depth;
 reg        flag_c, flag_z, flag_n, flag_v;
 
 wire       spi_cs_n;
@@ -51,6 +52,7 @@ oled_monitor #(
     .r0       (r0),  .r1 (r1), .r2 (r2), .r3 (r3),
     .r4       (r4),  .r5 (r5), .r6 (r6), .r7 (r7),
     .pc       (pc),
+    .stack_depth (stack_depth),
     .flag_c   (flag_c),
     .flag_z   (flag_z),
     .flag_n   (flag_n),
@@ -166,10 +168,11 @@ initial begin
     capturing     = 1'b0;
     spi_clk_prev  = 1'b0;
 
-    // Registers, PC, and flags
+    // Registers, PC, flags and stack depth
     r0 = 8'hAB; r1 = 8'hCD; r2 = 8'hEF; r3 = 8'h12;
     r4 = 8'h34; r5 = 8'h56; r6 = 8'h78; r7 = 8'h9A;
     pc = 8'h42;
+    stack_depth = 5'd7;  // 0x07 — should appear as "07" after "ST: "
     flag_c = 1'b1; flag_z = 1'b0; flag_n = 1'b1; flag_v = 1'b0;
 
     // Apply reset for 10 cycles
@@ -247,6 +250,26 @@ initial begin
                 found_data = 1;
         end
         check(found_data, "Data bytes (DC=1) found — font pixels being sent");
+    end
+
+    // -----------------------------------------------------------------------
+    // Check 5: stack_depth=7 → digit '7' font columns appear in data stream.
+    // Font for '7' (0x37): columns = 0x01 0x71 0x09 0x05 0x03 (from FONT_ROM).
+    // Search for any run of 5 consecutive DC=1 bytes matching these values.
+    // -----------------------------------------------------------------------
+    $display("--- Stack depth display check ---");
+    begin : find_7_glyph
+        integer found_7;
+        found_7 = 0;
+        for (i = 0; i < spi_byte_count - 4; i = i + 1) begin
+            if (spi_dc_log[i]   == 1'b1 && spi_bytes[i]   == 8'h01 &&
+                spi_dc_log[i+1] == 1'b1 && spi_bytes[i+1] == 8'h71 &&
+                spi_dc_log[i+2] == 1'b1 && spi_bytes[i+2] == 8'h09 &&
+                spi_dc_log[i+3] == 1'b1 && spi_bytes[i+3] == 8'h05 &&
+                spi_dc_log[i+4] == 1'b1 && spi_bytes[i+4] == 8'h03)
+                found_7 = 1;
+        end
+        check(found_7, "Font glyph for '7' found — stack_depth shown");
     end
 
     // -----------------------------------------------------------------------
