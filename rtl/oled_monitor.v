@@ -8,7 +8,7 @@
 // Display layout (4 lines × 21 characters at 6×8 px per char, 128 px wide):
 //   Line 0: "C R0-R3:  XX XX XX XX"  flag C + R0..R3 in hex
 //   Line 1: "Z R4-R7:  XX XX XX XX"  flag Z + R4..R7 in hex
-//   Line 2: "N PC:     XXXX         " flag N + PC as 4-digit hex
+//   Line 2: "N PC: XXXX  ST: XX   "  flag N + PC as 4-digit hex + stack depth as 2-digit hex
 //   Line 3: "V <PROGRAM_NAME 19c>  " flag V + up to 19-char program name
 //
 // SPI interface (SSD1306 write-only):
@@ -64,6 +64,9 @@ module oled_monitor #(
 
     // Live program counter
     input  wire [7:0]  pc,
+
+    // Live stack depth (number of entries currently on the stack, 0..16)
+    input  wire [4:0]  stack_depth,
 
     // Live CPU flags
     input  wire        flag_c,
@@ -393,93 +396,6 @@ function [7:0] hex_char;
     end
 endfunction
 
-// Build all 4 text lines from live CPU state.
-//
-// Layout (21 chars per line):
-//   Line 0: "C R0-R3:  XX XX XX XX"
-//   Line 1: "Z R4-R7:  XX XX XX XX"
-//   Line 2: "N PC:     XXXX       "
-//   Line 3: "V <PROG_NAME 19 chars>"
-//
-// Flags: letter shown when set, space when clear.
-// Register values are 2-digit hex; PC is 4-digit hex (zero-extended).
-
-task build_text_line;
-    input [4:0] line;
-    input [7:0] r_a, r_b, r_c, r_d;  // 4 registers for lines 0/1; ignored for 2/3
-    begin
-        case (line)
-            // --- Line 0: "C R0-R3:  XX XX XX XX" ---
-            5'd0: begin
-                text[0]  = flag_c ? "C" : " ";
-                text[1]  = " ";
-                text[2]  = "R"; text[3]  = "0"; text[4]  = "-";
-                text[5]  = "R"; text[6]  = "3"; text[7]  = ":";
-                text[8]  = " "; text[9]  = " ";   // two spaces after colon
-                text[10] = hex_char(r_a[7:4]); text[11] = hex_char(r_a[3:0]);
-                text[12] = " ";
-                text[13] = hex_char(r_b[7:4]); text[14] = hex_char(r_b[3:0]);
-                text[15] = " ";
-                text[16] = hex_char(r_c[7:4]); text[17] = hex_char(r_c[3:0]);
-                text[18] = " ";
-                text[19] = hex_char(r_d[7:4]); text[20] = hex_char(r_d[3:0]);
-            end
-            // --- Line 1: "Z R4-R7:  XX XX XX XX" ---
-            5'd1: begin
-                text[21] = flag_z ? "Z" : " ";
-                text[22] = " ";
-                text[23] = "R"; text[24] = "4"; text[25] = "-";
-                text[26] = "R"; text[27] = "7"; text[28] = ":";
-                text[29] = " "; text[30] = " ";   // two spaces after colon
-                text[31] = hex_char(r_a[7:4]); text[32] = hex_char(r_a[3:0]);
-                text[33] = " ";
-                text[34] = hex_char(r_b[7:4]); text[35] = hex_char(r_b[3:0]);
-                text[36] = " ";
-                text[37] = hex_char(r_c[7:4]); text[38] = hex_char(r_c[3:0]);
-                text[39] = " ";
-                text[40] = hex_char(r_d[7:4]); text[41] = hex_char(r_d[3:0]);
-            end
-            // --- Line 2: "N PC:     XXXX       " ---
-            5'd2: begin
-                text[42] = flag_n ? "N" : " ";
-                text[43] = " ";
-                text[44] = "P"; text[45] = "C"; text[46] = ":";
-                text[47] = " "; text[48] = " "; text[49] = " ";
-                text[50] = " "; text[51] = " ";   // five spaces after colon
-                text[52] = "0"; text[53] = "0";   // PC is 8-bit; zero-extend to 4 digits
-                text[54] = hex_char(pc[7:4]); text[55] = hex_char(pc[3:0]);
-                text[56] = " "; text[57] = " "; text[58] = " ";
-                text[59] = " "; text[60] = " "; text[61] = " ";
-                text[62] = " ";
-            end
-            // --- Line 3: "V <PROG_NAME, first 19 chars>" ---
-            default: begin
-                text[63] = flag_v ? "V" : " ";
-                text[64] = " ";
-                text[65] = PROG_NAME[151:144];
-                text[66] = PROG_NAME[143:136];
-                text[67] = PROG_NAME[135:128];
-                text[68] = PROG_NAME[127:120];
-                text[69] = PROG_NAME[119:112];
-                text[70] = PROG_NAME[111:104];
-                text[71] = PROG_NAME[103:96];
-                text[72] = PROG_NAME[95:88];
-                text[73] = PROG_NAME[87:80];
-                text[74] = PROG_NAME[79:72];
-                text[75] = PROG_NAME[71:64];
-                text[76] = PROG_NAME[63:56];
-                text[77] = PROG_NAME[55:48];
-                text[78] = PROG_NAME[47:40];
-                text[79] = PROG_NAME[39:32];
-                text[80] = PROG_NAME[31:24];
-                text[81] = PROG_NAME[23:16];
-                text[82] = PROG_NAME[15:8];
-                text[83] = PROG_NAME[7:0];
-            end
-        endcase
-    end
-endtask
-
 // ---------------------------------------------------------------------------
 // Delay counter — used throughout the FSM for timed waits.
 // At 12 MHz, 1 cycle = 83.3 ns.
@@ -511,42 +427,41 @@ wire       spi_done = (spi_bit_ctr == 4'd0);
 localparam SEQ_END  = 9'h1FF;
 
 reg [4:0] seq_idx;
+// Current init sequence entry — wire avoids inline bit-select on function calls
+wire [8:0] seq_entry = seq_lookup(seq_idx);
 
-initial begin
-    // SSD1306 init commands (display already off, VDD already on)
-    seq_rom[0]  = {SEQ_CMD, 8'hAE};  // Display off
-    seq_rom[1]  = {SEQ_CMD, 8'hD5};  // Set display clock divide
-    seq_rom[2]  = {SEQ_CMD, 8'h80};  //   ratio/oscillator = 0x80
-    seq_rom[3]  = {SEQ_CMD, 8'hA8};  // Set multiplex ratio
-    seq_rom[4]  = {SEQ_CMD, 8'h1F};  //   31 (for 32-row display)
-    seq_rom[5]  = {SEQ_CMD, 8'hD3};  // Set display offset
-    seq_rom[6]  = {SEQ_CMD, 8'h00};  //   0
-    seq_rom[7]  = {SEQ_CMD, 8'h40};  // Set display start line = 0
-    seq_rom[8]  = {SEQ_CMD, 8'h8D};  // Charge pump setting
-    seq_rom[9]  = {SEQ_CMD, 8'h14};  //   enable charge pump
-    seq_rom[10] = {SEQ_CMD, 8'hA1};  // Set segment remap (col 127 = SEG0)
-    seq_rom[11] = {SEQ_CMD, 8'hC8};  // Set COM scan direction (remapped)
-    seq_rom[12] = {SEQ_CMD, 8'hDA};  // Set COM pins hardware config
-    seq_rom[13] = {SEQ_CMD, 8'h02};  //   sequential, no remap (32-row)
-    seq_rom[14] = {SEQ_CMD, 8'h81};  // Set contrast
-    seq_rom[15] = {SEQ_CMD, 8'h8F};  //   0x8F
-    seq_rom[16] = {SEQ_CMD, 8'hD9};  // Set pre-charge period
-    seq_rom[17] = {SEQ_CMD, 8'hF1};  //   0xF1
-    seq_rom[18] = {SEQ_CMD, 8'hDB};  // Set VCOMH deselect level
-    seq_rom[19] = {SEQ_CMD, 8'h40};  //   0x40
-    seq_rom[20] = {SEQ_CMD, 8'hA4};  // Entire display ON (normal)
-    seq_rom[21] = {SEQ_CMD, 8'hA6};  // Normal display (not inverted)
-    seq_rom[22] = {SEQ_CMD, 8'h20};  // Set memory addressing mode
-    seq_rom[23] = {SEQ_CMD, 8'h02};  //   page addressing (matches FSM refresh loop)
-    seq_rom[24] = SEQ_END;            // Display ON sent separately after VBAT delay
-    seq_rom[25] = SEQ_END;            // (padding — unreachable)
-    seq_rom[26] = SEQ_END;
-    seq_rom[27] = SEQ_END;
-    seq_rom[28] = SEQ_END;
-    seq_rom[29] = SEQ_END;
-    seq_rom[30] = SEQ_END;
-    seq_rom[31] = SEQ_END;
-end
+function [8:0] seq_lookup;
+    input [4:0] idx;
+    begin
+        case (idx)
+            5'd0:  seq_lookup = {1'b0, 8'hAE};  // Display off
+            5'd1:  seq_lookup = {1'b0, 8'hD5};  // Set display clock divide
+            5'd2:  seq_lookup = {1'b0, 8'h80};  //   ratio/oscillator = 0x80
+            5'd3:  seq_lookup = {1'b0, 8'hA8};  // Set multiplex ratio
+            5'd4:  seq_lookup = {1'b0, 8'h1F};  //   31 (for 32-row display)
+            5'd5:  seq_lookup = {1'b0, 8'hD3};  // Set display offset
+            5'd6:  seq_lookup = {1'b0, 8'h00};  //   0
+            5'd7:  seq_lookup = {1'b0, 8'h40};  // Set display start line = 0
+            5'd8:  seq_lookup = {1'b0, 8'h8D};  // Charge pump setting
+            5'd9:  seq_lookup = {1'b0, 8'h14};  //   enable charge pump
+            5'd10: seq_lookup = {1'b0, 8'hA1};  // Set segment remap (col 127 = SEG0)
+            5'd11: seq_lookup = {1'b0, 8'hC8};  // Set COM scan direction (remapped)
+            5'd12: seq_lookup = {1'b0, 8'hDA};  // Set COM pins hardware config
+            5'd13: seq_lookup = {1'b0, 8'h02};  //   sequential, no remap (32-row)
+            5'd14: seq_lookup = {1'b0, 8'h81};  // Set contrast
+            5'd15: seq_lookup = {1'b0, 8'h8F};  //   0x8F
+            5'd16: seq_lookup = {1'b0, 8'hD9};  // Set pre-charge period
+            5'd17: seq_lookup = {1'b0, 8'hF1};  //   0xF1
+            5'd18: seq_lookup = {1'b0, 8'hDB};  // Set VCOMH deselect level
+            5'd19: seq_lookup = {1'b0, 8'h40};  //   0x40
+            5'd20: seq_lookup = {1'b0, 8'hA4};  // Entire display ON (normal)
+            5'd21: seq_lookup = {1'b0, 8'hA6};  // Normal display (not inverted)
+            5'd22: seq_lookup = {1'b0, 8'h20};  // Set memory addressing mode
+            5'd23: seq_lookup = {1'b0, 8'h02};  //   page addressing
+            default: seq_lookup = SEQ_END;       // Display ON sent separately after VBAT delay
+        endcase
+    end
+endfunction
 
 // ---------------------------------------------------------------------------
 // Main FSM
@@ -565,25 +480,24 @@ end
 //  11. Continuously refresh all 4 text lines      — ST_REFRESH_START … ST_DONE
 // ---------------------------------------------------------------------------
 localparam [4:0]
-    ST_RESET        = 5'd0,   // drive RES low
-    ST_RESET_WAIT   = 5'd1,   // hold RES low for 3 µs
-    ST_VDD_ON       = 5'd2,   // enable VDD logic power
-    ST_VDD_WAIT     = 5'd3,   // wait 10 ms for VDD stable
-    ST_INIT_START   = 5'd4,   // begin sending init sequence
-    ST_INIT_SEND    = 5'd5,   // shift out one byte of init sequence
+    ST_VDD_ON       = 5'd0,   // enable VDD logic power
+    ST_VDD_WAIT     = 5'd1,   // wait 1 ms for VDD stable
+    ST_RES_HIGH     = 5'd2,   // release RES for 1 ms (SSD1306 sees rising edge)
+    ST_RESET        = 5'd3,   // drive RES low again for 1 ms (proper reset pulse)
+    ST_RESET_WAIT   = 5'd4,   // release RES, wait for SSD1306 to come out of reset
+    ST_INIT_START   = 5'd5,   // begin sending init sequence
     ST_INIT_WAIT    = 5'd6,   // wait for SPI to finish
-    ST_INIT_NEXT    = 5'd7,   // advance to next byte or finish
-    ST_VBAT_ON      = 5'd8,   // enable VBAT display power
-    ST_VBAT_WAIT    = 5'd9,   // wait 100 ms
-    ST_DISP_ON      = 5'd10,  // send Display On command (0xAF)
-    ST_DISP_WAIT    = 5'd11,  // wait for Display On SPI to finish
-    ST_REFRESH_START= 5'd12,  // begin screen refresh: rebuild text buffer
-    ST_PAGE_CMD     = 5'd13,  // send page-set command sequence
-    ST_PAGE_WAIT    = 5'd14,  // wait for SPI
-    ST_COL_DATA     = 5'd15,  // send one column of font data
-    ST_COL_WAIT     = 5'd16,  // wait for SPI
-    ST_NEXT_COL     = 5'd17,  // advance column / character / line
-    ST_DONE         = 5'd18;  // loop back to refresh
+    ST_VBAT_ON      = 5'd7,   // enable VBAT display power
+    ST_VBAT_WAIT    = 5'd8,   // wait 100 ms
+    ST_DISP_ON      = 5'd9,   // send Display On command (0xAF)
+    ST_DISP_WAIT    = 5'd10,  // wait for Display On SPI to finish
+    ST_REFRESH_START= 5'd11,  // begin screen refresh
+    ST_PAGE_CMD     = 5'd12,  // send page-set command sequence
+    ST_PAGE_WAIT    = 5'd13,  // wait for SPI
+    ST_COL_DATA     = 5'd14,  // send one column of font data
+    ST_COL_WAIT     = 5'd15,  // wait for SPI
+    ST_NEXT_COL     = 5'd16,  // advance column / character / line
+    ST_DONE         = 5'd17;  // loop back to refresh
 
 reg [4:0] state;
 
@@ -617,7 +531,7 @@ reg [1:0] page_cmd_idx;
 // Layout (21 chars per line, 0-indexed):
 //   Line 0: "C R0-R3:  XX XX XX XX"
 //   Line 1: "Z R4-R7:  XX XX XX XX"
-//   Line 2: "N PC:     XXXX       "
+//   Line 2: "N PC: XXXX  ST: XX   "
 //   Line 3: "V <PROG_NAME 19 chars>"
 // ---------------------------------------------------------------------------
 reg [7:0] cur_ascii;
@@ -678,7 +592,7 @@ always @(*) begin
                 default: cur_ascii = " ";
             endcase
         end
-        // --- Line 2: "N PC:     XXXX       " ---
+        // --- Line 2: "N PC: XXXX  ST: XX   " ---
         2'd2: begin
             case (cur_char)
                 5'd0:  cur_ascii = flag_n ? "N" : " ";
@@ -687,14 +601,18 @@ always @(*) begin
                 5'd3:  cur_ascii = "C";
                 5'd4:  cur_ascii = ":";
                 5'd5:  cur_ascii = " ";
-                5'd6:  cur_ascii = " ";
-                5'd7:  cur_ascii = " ";
-                5'd8:  cur_ascii = " ";
-                5'd9:  cur_ascii = " ";
-                5'd10: cur_ascii = "0";   // PC is 8-bit, zero-pad to 4 digits
-                5'd11: cur_ascii = "0";
-                5'd12: cur_ascii = hex_char(pc[7:4]);
-                5'd13: cur_ascii = hex_char(pc[3:0]);
+                5'd6:  cur_ascii = "0";   // PC is 8-bit, zero-pad to 4 digits
+                5'd7:  cur_ascii = "0";
+                5'd8:  cur_ascii = hex_char(pc[7:4]);
+                5'd9:  cur_ascii = hex_char(pc[3:0]);
+                5'd10: cur_ascii = " ";
+                5'd11: cur_ascii = " ";
+                5'd12: cur_ascii = "S";
+                5'd13: cur_ascii = "T";
+                5'd14: cur_ascii = ":";
+                5'd15: cur_ascii = " ";
+                5'd16: cur_ascii = hex_char({3'b0, stack_depth[4]});
+                5'd17: cur_ascii = hex_char(stack_depth[3:0]);
                 default: cur_ascii = " ";
             endcase
         end

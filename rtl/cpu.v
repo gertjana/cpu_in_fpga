@@ -56,7 +56,8 @@ module cpu #(
     output wire [7:0] dbg_r6,
     output wire [7:0] dbg_r7,
     output wire [7:0] dbg_stack_top,   // current top-of-stack value (combinational peek)
-    output wire       dbg_stack_empty  // stack is empty
+    output wire       dbg_stack_empty, // stack is empty
+    output wire [4:0] dbg_stack_depth  // number of entries currently on the stack (0..16)
 );
 
 // ---------------------------------------------------------------------------
@@ -260,7 +261,8 @@ stack u_stack (
     .full      (),
     .empty     (dbg_stack_empty),
     .overflow  (),
-    .underflow ()
+    .underflow (),
+    .dbg_stack_depth (dbg_stack_depth)
 );
 
 // --- Write-back mux ---

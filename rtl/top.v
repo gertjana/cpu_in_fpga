@@ -297,6 +297,7 @@ wire [7:0] dbg_pc;
 wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 wire [7:0] dbg_r0, dbg_r1, dbg_r2, dbg_r3;
 wire [7:0] dbg_r4, dbg_r5, dbg_r6, dbg_r7;
+wire [4:0] dbg_stack_depth;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (cpu_clk),
@@ -322,7 +323,8 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
     .dbg_r6          (dbg_r6),
     .dbg_r7          (dbg_r7),
     .dbg_stack_top   (),
-    .dbg_stack_empty ()
+    .dbg_stack_empty (),
+    .dbg_stack_depth (dbg_stack_depth)
 );
 
 // ---------------------------------------------------------------------------
@@ -362,6 +364,7 @@ oled_monitor #(
     .r6       (dbg_r6),
     .r7       (dbg_r7),
     .pc       (dbg_pc),
+    .stack_depth (dbg_stack_depth),
     .flag_c   (dbg_flag_c),
     .flag_z   (dbg_flag_z),
     .flag_n   (dbg_flag_n),
