@@ -339,7 +339,7 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 // ---------------------------------------------------------------------------
 wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 
-wire [7:0] dbg_oled;  // OLED debug: {spi_res_n, vbat_en, vdd_en, state[4:0]}
+wire [7:0] dbg_oled;  // OLED debug: {spi_res_n, vbat_was_on, vdd_was_on, state[4:0]}
 
 // ---------------------------------------------------------------------------
 // LED mux — mode 0: flags + PC   mode 1: R7   mode 2: OLED debug

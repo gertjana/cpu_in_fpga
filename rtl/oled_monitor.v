@@ -84,7 +84,7 @@ module oled_monitor #(
     output reg         vdd_en  = 1'b1,  // VDDC  — drive low to power logic
 
     // Debug output — FSM state and key power/control signals for LED probing.
-    // [4:0] state, [5] vdd_en, [6] vbat_en, [7] spi_res_n
+    // [4:0] state, [5] vdd_was_on (sticky), [6] vbat_was_on (sticky), [7] spi_res_n
     output wire [7:0]  dbg_oled
 );
 
@@ -505,6 +505,12 @@ localparam [4:0]
 
 reg [4:0] state;
 
+// Sticky debug flags — set when the corresponding power rail is first enabled,
+// never cleared by rst. Used to distinguish "VDD was on then lost" from
+// "VDD was never on at all" when reading dbg_oled in ST_DONE.
+reg vdd_was_on  = 1'b0;
+reg vbat_was_on = 1'b0;
+
 // Refresh position tracking
 reg [1:0] cur_line;     // 0-3
 reg [4:0] cur_char;     // 0-20 (21 chars per line)
@@ -715,10 +721,11 @@ always @(posedge clk) begin
 
             // --- Power on VDD (logic), keep RES low during ramp ---
             ST_VDD_ON: begin
-                vdd_en    <= 1'b0;          // VDDC low = power ON
-                spi_res_n <= 1'b0;          // hold RES low during power ramp
-                delay_ctr <= 21'd12_000;    // 1 ms at 12 MHz
-                state     <= ST_VDD_WAIT;
+                vdd_en      <= 1'b0;          // VDDC low = power ON
+                vdd_was_on  <= 1'b1;          // sticky: VDD was ever enabled
+                spi_res_n   <= 1'b0;          // hold RES low during power ramp
+                delay_ctr   <= 21'd12_000;    // 1 ms at 12 MHz
+                state       <= ST_VDD_WAIT;
             end
 
             ST_VDD_WAIT: begin
@@ -783,9 +790,10 @@ always @(posedge clk) begin
 
             // --- Power on VBAT (display panel) ---
             ST_VBAT_ON: begin
-                vbat_en   <= 1'b0;          // VBATC low = power ON
-                delay_ctr <= 21'd1_200_000; // 100 ms
-                state     <= ST_VBAT_WAIT;
+                vbat_en      <= 1'b0;          // VBATC low = power ON
+                vbat_was_on  <= 1'b1;          // sticky: VBAT was ever enabled
+                delay_ctr    <= 21'd1_200_000; // 100 ms
+                state        <= ST_VBAT_WAIT;
             end
 
             ST_VBAT_WAIT: begin
@@ -892,10 +900,10 @@ end
 
 // Debug: expose FSM state and key power/control signals for LED probing.
 // LED mapping (active-low on MAX1000, so complement for readability):
-//   LED[4:0] = state[4:0]  — FSM state (see localparam table above)
-//   LED[5]   = vdd_en      — 0 = VDD on, 1 = VDD off
-//   LED[6]   = vbat_en     — 0 = VBAT on, 1 = VBAT off
-//   LED[7]   = spi_res_n   — 0 = display held in reset, 1 = released
-assign dbg_oled = {spi_res_n, vbat_en, vdd_en, state};
+//   LED[4:0] = state[4:0]    — FSM state (see localparam table above)
+//   LED[5]   = vdd_was_on    — 1 = VDD was ever turned on (sticky)
+//   LED[6]   = vbat_was_on   — 1 = VBAT was ever turned on (sticky)
+//   LED[7]   = spi_res_n     — 0 = display held in reset, 1 = released
+assign dbg_oled = {spi_res_n, vbat_was_on, vdd_was_on, state};
 
 endmodule
