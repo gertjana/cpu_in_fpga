@@ -162,6 +162,10 @@ wire por_rst = (por_ctr != 5'd31);
 // CPU reset is active during power-on OR while long-press threshold is held.
 wire rst = por_rst | was_long;
 
+// OLED monitor reset is power-on only — never re-triggered by a button long-press.
+// This prevents the OLED init sequence (VDD/VBAT power-up, SPI init) from being
+// interrupted and restarted mid-sequence when the user holds the reset button.
+
 // ---------------------------------------------------------------------------
 // Release edge detector — one-cycle pulse on debounced button release.
 // ---------------------------------------------------------------------------
@@ -371,7 +375,7 @@ oled_monitor #(
     .PROG_NAME (`PROG_NAME)
 ) u_oled (
     .clk      (clk_12m),
-    .rst      (rst),
+    .rst      (por_rst),
     .r0       (dbg_r0),
     .r1       (dbg_r1),
     .r2       (dbg_r2),

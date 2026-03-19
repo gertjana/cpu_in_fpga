@@ -50,7 +50,7 @@ module oled_monitor #(
     parameter [151:0] PROG_NAME = "UNKNOWN            "  // 19 chars
 ) (
     input  wire        clk,        // 12 MHz board clock
-    input  wire        rst,        // synchronous reset (active high)
+    input  wire        rst,        // power-on reset only (active high, ~32 cycles)
 
     // Live register values from the CPU register file
     input  wire [7:0]  r0,
