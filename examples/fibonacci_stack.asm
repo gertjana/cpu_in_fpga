@@ -2,7 +2,7 @@
 ;                       storing each value on the hardware stack, then
 ;                       popping them all off to verify LIFO order.
 ; clk_div: 20
-; name: Fib_Stack
+; name: Fibstack
 ;
 ; Phase 1 — PUSH:
 ;   For i = 0..15:
