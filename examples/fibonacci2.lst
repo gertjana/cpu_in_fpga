@@ -1,0 +1,54 @@
+Addr    Word  Source
+--------------------------------------------------------------
+              ; fibonacci.asm — compute Fibonacci numbers until the next value would
+              ;                 overflow an 8-bit unsigned integer (> 255), storing
+              ;                 each result in RAM and keeping the latest in R7.
+              ; clk_div: 20
+              ; name: Fibonacci
+              ;
+              ; Algorithm (iterative):
+              ;   fib(0) = 0
+              ;   fib(1) = 1
+              ;   fib(i) = fib(i-2) + fib(i-1)   for i >= 2
+              ;   Stop when fib(i-2) + fib(i-1) overflows 8 bits (carry flag set).
+              ;
+              ; Register use:
+              ;   R0 = loop index i (RAM address pointer)
+              ;   R1 = fib[i-2]  (a)
+              ;   R2 = fib[i-1]  (b)
+              ;   R3 = fib[i]    (next = a + b)
+              ;   R7 = latest Fibonacci result that fits in 8 bits shown on the 8 LEDs of the MAX1000 board.
+              
+              .equ BASE, 0           ; RAM base address
+              
+              ; ── initialise ────────────────────────────────────────────────────────────────
+              
+0000  204000          LDI  R1, 0          ; a = fib(0) = 0
+0001  208001          LDI  R2, 1          ; b = fib(1) = 1
+0002  200000          LDI  R0, BASE       ; R0 = RAM address pointer
+              
+0003  240100          ST   [R0], R1       ; RAM[0] = 0
+0004  3E4000          MOV  R7, R1         ; R7 = fib(0) = 0
+0005  100100          ADDI R0, R0, 1      ; advance pointer
+0006  240200          ST   [R0], R2       ; RAM[1] = 1
+0007  3E8000          MOV  R7, R2         ; R7 = fib(1) = 1
+0008  100100          ADDI R0, R0, 1      ; advance pointer  (R0 now points to RAM[2])
+              
+              ; ── main loop ─────────────────────────────────────────────────────────────────
+              
+              loop:
+0009  006500          ADD  R3, R1, R2     ; next = a + b; carry set if > 255
+000A  460011          JC   done           ; overflow → stop, R7 holds last valid result
+              
+000B  3EC000          MOV  R7, R3         ; R7 = latest Fibonacci result
+000C  240300          ST   [R0], R3       ; RAM[i] = fib(i)
+000D  100100          ADDI R0, R0, 1      ; advance pointer
+              
+000E  328000          MOV  R1, R2         ; a = b
+000F  34C000          MOV  R2, R3         ; b = next
+0010  400009          JMP  loop
+              
+              ; ── halt ──────────────────────────────────────────────────────────────────────
+              
+              done:
+0011  F00000          HALT
