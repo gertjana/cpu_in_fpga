@@ -1,17 +1,10 @@
 Addr    Word  Source
 --------------------------------------------------------------
-              ; fibonacci_stack.asm — compute 16-bit Fibonacci numbers fib(0)..fib(15),
-              ;                       pushing the lo byte of each value onto the hardware
-              ;                       stack (16 pushes total), then popping all 16 values
-              ;                       back to verify LIFO order.
-              ;
-              ; 16-bit arithmetic uses register pairs (hi:lo):
-              ;   a  = R2(lo) : R3(hi)     fib[i-2]
-              ;   b  = R4(lo) : R5(hi)     fib[i-1]
-              ;   next_lo = R6, next_hi = (computed via ADD then ADC)
-              ;
-              ; Loop control:
-              ;   R0 = push counter, counts 0 → 16 (ADDI R0,R0,1 + CMPI R0,16 + JNZ)
+              ; fibonacci_stack.asm — compute Fibonacci numbers until 8-bit overflow,
+              ;                       storing each value on the hardware stack, then
+              ;                       popping them all off to verify LIFO order.
+              ; clk_div: 20
+              ; name: Fibstack
               ;
               ; Phase 1 — PUSH:
               ;   For i = 0..15:

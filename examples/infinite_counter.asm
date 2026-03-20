@@ -12,10 +12,11 @@
 
 .equ LIMIT, 63
 
+start:
         LDI  R0, 0          ; R0 = 0  (counter)
         LDI  R1, LIMIT      ; R1 = 63
 loop:
         ADDI R0, R0, 1      ; R0++  (updates Z/C/N/V)
         CMP  R0, R1         ; flags = R0 - R1
         JNZ  loop           ; repeat while R0 != 63
-        JMP  0              ; restart from the top
+        JMP  start          ; restart from the top
