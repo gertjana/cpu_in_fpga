@@ -51,6 +51,7 @@ oled_monitor #(
     .r0       (r0),  .r1 (r1), .r2 (r2), .r3 (r3),
     .r4       (r4),  .r5 (r5), .r6 (r6), .r7 (r7),
     .pc       (pc),
+    .stack_depth (5'b0),
     .flag_c   (flag_c),
     .flag_z   (flag_z),
     .flag_n   (flag_n),

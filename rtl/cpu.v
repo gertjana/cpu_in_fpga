@@ -159,6 +159,7 @@ wire [15:0] stack_data_in;
 // --- Program ROM ---
 rom #(.INIT_FILE(ROM_INIT)) u_rom (
     .clk      (clk),
+    .ce       (ce),
     .addr     (pc_out),
     .data_out (rom_out)
 );

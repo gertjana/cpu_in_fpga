@@ -28,6 +28,7 @@ module rom #(
     parameter INIT_FILE = "program.hex"     // override in simulation
 ) (
     input  wire        clk,
+    input  wire        ce,       // clock enable: ROM output only advances when ce=1
     input  wire [15:0] addr,
     output reg  [23:0] data_out
 );
@@ -40,7 +41,8 @@ initial begin
 end
 
 always @(posedge clk) begin
-    data_out <= mem[addr];
+    if (ce)
+        data_out <= mem[addr];
 end
 
 endmodule

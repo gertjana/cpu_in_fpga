@@ -62,6 +62,7 @@ wire [23:0] rom_data;
 
 rom #(.INIT_FILE("tb/program.hex")) rom_dut (
     .clk      (clk),
+    .ce       (1'b1),
     .addr     (rom_addr),
     .data_out (rom_data)
 );
