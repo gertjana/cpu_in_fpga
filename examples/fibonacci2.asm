@@ -1,8 +1,8 @@
-; fibonacci.asm — compute Fibonacci numbers until the next value would
-;                 overflow an 8-bit unsigned integer (> 255), storing
-;                 each result in RAM and keeping the latest in R7.
+; fibonacci2.asm — compute Fibonacci numbers until the next value would
+;                  overflow an 8-bit unsigned integer (> 255), storing
+;                  each result in RAM and keeping the latest in R7.
 ; clk_div: 20
-; name: Fibonacci
+; name: Fibonacci2
 ;
 ; Algorithm (iterative):
 ;   fib(0) = 0
