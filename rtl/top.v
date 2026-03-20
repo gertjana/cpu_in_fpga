@@ -396,7 +396,8 @@ oled_monitor #(
     .spi_dc      (pmod_dc),
     .spi_res_n   (pmod_res_n),
     .vbat_en     (pmod_vbatc),
-    .vdd_en      (pmod_vddc)
+    .vdd_en      (pmod_vddc),
+    .dbg_oled    (dbg_oled)
 );
 
 endmodule
