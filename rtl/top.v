@@ -375,7 +375,7 @@ oled_monitor #(
     .PROG_NAME (`PROG_NAME)
 ) u_oled (
     .clk         (clk_12m),
-    .rst         (rst),
+    .rst         (por_rst),
     .r0          (dbg_r0),
     .r1          (dbg_r1),
     .r2          (dbg_r2),
