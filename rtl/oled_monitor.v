@@ -50,7 +50,7 @@ module oled_monitor #(
     parameter [151:0] PROG_NAME = "UNKNOWN            "  // 19 chars
 ) (
     input  wire        clk,        // 12 MHz board clock
-    input  wire        rst,        // synchronous reset (active high)
+    input  wire        rst,        // power-on reset only (active high, ~32 cycles)
 
     // Live register values from the CPU register file
     input  wire [7:0]  r0,
@@ -81,7 +81,11 @@ module oled_monitor #(
     output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
     output reg         spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
     output reg         vbat_en = 1'b1,  // VBATC — drive low to power display panel
-    output reg         vdd_en  = 1'b1   // VDDC  — drive low to power logic
+    output reg         vdd_en  = 1'b1,  // VDDC  — drive low to power logic
+
+    // Debug output — FSM state and key power/control signals for LED probing.
+    // [4:0] state, [5] vdd_was_on (sticky), [6] vbat_was_on (sticky), [7] spi_res_n
+    output wire [7:0]  dbg_oled
 );
 
 // ---------------------------------------------------------------------------
@@ -480,28 +484,32 @@ endfunction
 //  11. Continuously refresh all 4 text lines      — ST_REFRESH_START … ST_DONE
 // ---------------------------------------------------------------------------
 localparam [4:0]
-    ST_VDD_ON       = 5'd0,   // enable VDD logic power  (first state at power-up)
+    ST_VDD_ON       = 5'd0,   // enable VDD logic power
     ST_VDD_WAIT     = 5'd1,   // wait 1 ms for VDD stable
     ST_RES_HIGH     = 5'd2,   // release RES for 1 ms (SSD1306 sees rising edge)
     ST_RESET        = 5'd3,   // drive RES low again for 1 ms (proper reset pulse)
     ST_RESET_WAIT   = 5'd4,   // release RES, wait for SSD1306 to come out of reset
     ST_INIT_START   = 5'd5,   // begin sending init sequence
-    ST_INIT_SEND    = 5'd6,   // (unused — kept for numbering continuity)
-    ST_INIT_WAIT    = 5'd7,   // wait for SPI to finish
-    ST_INIT_NEXT    = 5'd8,   // (unused)
-    ST_VBAT_ON      = 5'd9,   // enable VBAT display power
-    ST_VBAT_WAIT    = 5'd10,  // wait 100 ms
-    ST_DISP_ON      = 5'd11,  // send Display On command (0xAF)
-    ST_DISP_WAIT    = 5'd12,  // wait for Display On SPI to finish
-    ST_REFRESH_START= 5'd13,  // begin screen refresh: rebuild text buffer
-    ST_PAGE_CMD     = 5'd14,  // send page-set command sequence
-    ST_PAGE_WAIT    = 5'd15,  // wait for SPI
-    ST_COL_DATA     = 5'd16,  // send one column of font data
-    ST_COL_WAIT     = 5'd17,  // wait for SPI
-    ST_NEXT_COL     = 5'd18,  // advance column / character / line
-    ST_DONE         = 5'd19;  // loop back to refresh
+    ST_INIT_WAIT    = 5'd6,   // wait for SPI to finish
+    ST_VBAT_ON      = 5'd7,   // enable VBAT display power
+    ST_VBAT_WAIT    = 5'd8,   // wait 100 ms
+    ST_DISP_ON      = 5'd9,   // send Display On command (0xAF)
+    ST_DISP_WAIT    = 5'd10,  // wait for Display On SPI to finish
+    ST_REFRESH_START= 5'd11,  // begin screen refresh
+    ST_PAGE_CMD     = 5'd12,  // send page-set command sequence
+    ST_PAGE_WAIT    = 5'd13,  // wait for SPI
+    ST_COL_DATA     = 5'd14,  // send one column of font data
+    ST_COL_WAIT     = 5'd15,  // wait for SPI
+    ST_NEXT_COL     = 5'd16,  // advance column / character / line
+    ST_DONE         = 5'd17;  // loop back to refresh
 
 reg [4:0] state;
+
+// Sticky debug flags — set when the corresponding power rail is first enabled,
+// never cleared by rst. Used to distinguish "VDD was on then lost" from
+// "VDD was never on at all" when reading dbg_oled in ST_DONE.
+reg vdd_was_on  = 1'b0;
+reg vbat_was_on = 1'b0;
 
 // Refresh position tracking
 reg [1:0] cur_line;     // 0-3
@@ -533,7 +541,7 @@ reg [1:0] page_cmd_idx;
 // Layout (21 chars per line, 0-indexed):
 //   Line 0: "C R0-R3:  XX XX XX XX"
 //   Line 1: "Z R4-R7:  XX XX XX XX"
-//   Line 2: "N PC:     XXXX       "
+//   Line 2: "N PC: XXXX  ST: XX   "
 //   Line 3: "V <PROG_NAME 19 chars>"
 // ---------------------------------------------------------------------------
 reg [7:0] cur_ascii;
@@ -713,10 +721,11 @@ always @(posedge clk) begin
 
             // --- Power on VDD (logic), keep RES low during ramp ---
             ST_VDD_ON: begin
-                vdd_en    <= 1'b0;          // VDDC low = power ON
-                spi_res_n <= 1'b0;          // hold RES low during power ramp
-                delay_ctr <= 21'd12_000;    // 1 ms at 12 MHz
-                state     <= ST_VDD_WAIT;
+                vdd_en      <= 1'b0;          // VDDC low = power ON
+                vdd_was_on  <= 1'b1;          // sticky: VDD was ever enabled
+                spi_res_n   <= 1'b0;          // hold RES low during power ramp
+                delay_ctr   <= 21'd12_000;    // 1 ms at 12 MHz
+                state       <= ST_VDD_WAIT;
             end
 
             ST_VDD_WAIT: begin
@@ -781,9 +790,10 @@ always @(posedge clk) begin
 
             // --- Power on VBAT (display panel) ---
             ST_VBAT_ON: begin
-                vbat_en   <= 1'b0;          // VBATC low = power ON
-                delay_ctr <= 21'd1_200_000; // 100 ms
-                state     <= ST_VBAT_WAIT;
+                vbat_en      <= 1'b0;          // VBATC low = power ON
+                vbat_was_on  <= 1'b1;          // sticky: VBAT was ever enabled
+                delay_ctr    <= 21'd1_200_000; // 100 ms
+                state        <= ST_VBAT_WAIT;
             end
 
             ST_VBAT_WAIT: begin
@@ -887,5 +897,13 @@ always @(posedge clk) begin
         endcase
     end
 end
+
+// Debug: expose FSM state and key power/control signals for LED probing.
+// LED mapping (active-low on MAX1000, so complement for readability):
+//   LED[4:0] = state[4:0]    — FSM state (see localparam table above)
+//   LED[5]   = vdd_was_on    — 1 = VDD was ever turned on (sticky)
+//   LED[6]   = vbat_was_on   — 1 = VBAT was ever turned on (sticky)
+//   LED[7]   = spi_res_n     — 0 = display held in reset, 1 = released
+assign dbg_oled = {spi_res_n, vbat_was_on, vdd_was_on, state};
 
 endmodule

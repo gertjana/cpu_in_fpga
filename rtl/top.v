@@ -27,6 +27,12 @@
 //     LED[6]  — R7[1]
 //     LED[7]  — R7[0]  (LSB)
 //
+//   Mode 2 — OLED debug (FSM state + power/control signals):
+//     LED[4:0] — oled_monitor FSM state (see localparam table in oled_monitor.v)
+//     LED[5]   — vdd_en  (1 = VDD off, 0 = VDD on)
+//     LED[6]   — vbat_en (1 = VBAT off, 0 = VBAT on)
+//     LED[7]   — spi_res_n (0 = display in reset, 1 = released)
+//
 // LEDs are active-low: led=0 illuminates the LED.
 //
 // Clock: 12 MHz oscillator on pin H6.
@@ -156,6 +162,10 @@ wire por_rst = (por_ctr != 5'd31);
 // CPU reset is active during power-on OR while long-press threshold is held.
 wire rst = por_rst | was_long;
 
+// OLED monitor reset is power-on only — never re-triggered by a button long-press.
+// This prevents the OLED init sequence (VDD/VBAT power-up, SPI init) from being
+// interrupted and restarted mid-sequence when the user holds the reset button.
+
 // ---------------------------------------------------------------------------
 // Release edge detector — one-cycle pulse on debounced button release.
 // ---------------------------------------------------------------------------
@@ -169,12 +179,13 @@ wire btn_released = btn_prev & ~btn_db;
 // Display mode toggle — only on short press (was_long still 0 at release).
 //   0 = flags + PC  (default)
 //   1 = R7 register value
+//   2 = OLED debug (FSM state + vdd_en + vbat_en + spi_res_n)
 // Preserved across CPU resets.
 // ---------------------------------------------------------------------------
-reg display_mode = 1'b0;
+reg [1:0] display_mode = 2'b00;
 always @(posedge clk_12m)
     if (btn_released && !was_long)
-        display_mode <= ~display_mode;
+        display_mode <= (display_mode == 2'd2) ? 2'd0 : display_mode + 2'd1;
 
 // ---------------------------------------------------------------------------
 // CPU clock prescaler — runs the CPU at a human-visible rate.
@@ -332,18 +343,28 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 // ---------------------------------------------------------------------------
 wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
 
+wire [7:0] dbg_oled;  // OLED debug: {spi_res_n, vbat_was_on, vdd_was_on, state[4:0]}
+
 // ---------------------------------------------------------------------------
-// LED mux — mode 0: flags + PC   mode 1: R7
+// LED mux — mode 0: flags + PC   mode 1: R7   mode 2: OLED debug
 // Active-low: 0 = LED on, 1 = LED off.
 // ---------------------------------------------------------------------------
-assign led[0] = display_mode ? dbg_r7[7] : dbg_flag_c;
-assign led[1] = display_mode ? dbg_r7[6] : dbg_flag_v;
-assign led[2] = display_mode ? dbg_r7[5] : hb_or_halt;
-assign led[3] = display_mode ? dbg_r7[4] : dbg_pc[4];
-assign led[4] = display_mode ? dbg_r7[3] : dbg_pc[3];
-assign led[5] = display_mode ? dbg_r7[2] : dbg_pc[2];
-assign led[6] = display_mode ? dbg_r7[1] : dbg_pc[1];
-assign led[7] = display_mode ? dbg_r7[0] : dbg_pc[0];
+assign led[0] = (display_mode == 2'd1) ? dbg_r7[7] :
+                (display_mode == 2'd2) ? dbg_oled[0] : dbg_flag_c;
+assign led[1] = (display_mode == 2'd1) ? dbg_r7[6] :
+                (display_mode == 2'd2) ? dbg_oled[1] : dbg_flag_v;
+assign led[2] = (display_mode == 2'd1) ? dbg_r7[5] :
+                (display_mode == 2'd2) ? dbg_oled[2] : hb_or_halt;
+assign led[3] = (display_mode == 2'd1) ? dbg_r7[4] :
+                (display_mode == 2'd2) ? dbg_oled[3] : dbg_pc[4];
+assign led[4] = (display_mode == 2'd1) ? dbg_r7[3] :
+                (display_mode == 2'd2) ? dbg_oled[4] : dbg_pc[3];
+assign led[5] = (display_mode == 2'd1) ? dbg_r7[2] :
+                (display_mode == 2'd2) ? dbg_oled[5] : dbg_pc[2];
+assign led[6] = (display_mode == 2'd1) ? dbg_r7[1] :
+                (display_mode == 2'd2) ? dbg_oled[6] : dbg_pc[1];
+assign led[7] = (display_mode == 2'd1) ? dbg_r7[0] :
+                (display_mode == 2'd2) ? dbg_oled[7] : dbg_pc[0];
 
 // ---------------------------------------------------------------------------
 // OLED Hardware Monitor — runs at 12 MHz, reads CPU state directly.
