@@ -12,7 +12,8 @@
 // All instructions are 24 bits wide.
 //
 // Ports:
-//   clk      — clock (rising edge)
+//   clk      — clock (rising edge; must be the global system clock)
+//   ce       — clock enable: CPU advances state only when ce=1
 //   rst      — synchronous reset
 //   halt_out — asserted from the HALT cycle and held permanently
 //   dbg_pc   — current program counter value (for LED / debug)
@@ -23,6 +24,7 @@ module cpu #(
     parameter ROM_INIT = "program.hex"
 ) (
     input  wire        clk,
+    input  wire        ce,
     input  wire        rst,
     output wire        halt_out,
 
@@ -105,7 +107,7 @@ always @(posedge clk) begin
     if (rst) begin
         flush_r <= 1'b0;
         halted  <= 1'b0;
-    end else begin
+    end else if (ce) begin
         flush_r <= dec_pc_load & ~dec_halt;   // no flush needed after HALT
         if (dec_halt)
             halted <= 1'b1;
@@ -192,6 +194,7 @@ decoder u_dec (
 // --- Register File ---
 regfile u_rf (
     .clk     (clk),
+    .ce      (ce),
     .rst     (rst),
     .we      (dec_reg_we),
     .rd_addr (dec_rd_addr),
@@ -232,6 +235,7 @@ assign ram_addr = ra_data;
 
 ram u_ram (
     .clk      (clk),
+    .ce       (ce),
     .we       (dec_mem_we),
     .addr     (ram_addr),
     .data_in  (rb_data),    // ST stores rb_data at ra_data address
@@ -253,6 +257,7 @@ assign stack_data_in = is_call ? pc_out : {8'h00, ra_data};
 
 stack u_stack (
     .clk       (clk),
+    .ce        (ce),
     .rst       (rst),
     .push      (dec_stack_push),
     .pop       (dec_stack_pop),
@@ -299,6 +304,7 @@ assign pc_in = is_jr  ? {8'h00, ra_data}  :
 // --- Program Counter ---
 pc u_pc (
     .clk    (clk),
+    .ce     (ce),
     .rst    (rst),
     .halt   (dec_halt | halted),   // hold PC during HALT and after
     .load   (dec_pc_load),
@@ -314,7 +320,7 @@ always @(posedge clk) begin
         flag_c <= 1'b0;
         flag_n <= 1'b0;
         flag_v <= 1'b0;
-    end else if (dec_flags_we) begin
+    end else if (ce && dec_flags_we) begin
         flag_z <= alu_z;
         flag_c <= alu_c;
         flag_n <= alu_n;

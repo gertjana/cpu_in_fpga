@@ -76,6 +76,7 @@ wire [7:0] ram_dout;
 
 ram ram_dut (
     .clk      (clk),
+    .ce       (1'b1),
     .we       (ram_we),
     .addr     (ram_addr),
     .data_in  (ram_din),

@@ -17,6 +17,7 @@ wire        overflow, underflow;
 
 stack #(.DEPTH(16)) dut (
     .clk       (clk),
+    .ce        (1'b1),
     .rst       (rst),
     .push      (push),
     .pop       (pop),

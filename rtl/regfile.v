@@ -2,7 +2,8 @@
 // regfile.v — 8 x 8-bit General-Purpose Register File
 //
 // Ports:
-//   clk      — clock (rising edge)
+//   clk      — clock (rising edge; must be the global system clock)
+//   ce       — clock enable: register state only advances when ce=1
 //   rst      — synchronous reset: clears all registers to 0x00
 //   we       — write enable
 //   rd_addr  — destination register index (write port)
@@ -27,6 +28,7 @@
 
 module regfile (
     input  wire       clk,
+    input  wire       ce,
     input  wire       rst,
     input  wire       we,
     input  wire [2:0] rd_addr,
@@ -59,7 +61,7 @@ always @(posedge clk) begin
     if (rst) begin
         for (i = 0; i < 8; i = i + 1)
             regs[i] <= 8'b0;
-    end else if (we) begin
+    end else if (ce && we) begin
         regs[rd_addr] <= rd_data;
     end
 end

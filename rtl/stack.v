@@ -8,7 +8,8 @@
 // and the low 8 bits are read on pop (upper byte is always 0 for PUSH).
 //
 // Ports:
-//   clk      — clock (rising edge)
+//   clk      — clock (rising edge; must be the global system clock)
+//   ce       — clock enable: stack state only changes when ce=1
 //   rst      — synchronous reset: SP → 0, stack contents cleared
 //   push     — push data_in onto stack on rising edge
 //   pop      — pop top of stack on rising edge
@@ -29,6 +30,7 @@ module stack #(
     parameter DEPTH = 16
 ) (
     input  wire        clk,
+    input  wire        ce,
     input  wire        rst,
     input  wire        push,
     input  wire        pop,
@@ -70,19 +72,21 @@ always @(posedge clk) begin
         for (j = 0; j < DEPTH; j = j + 1)
             mem[j] <= 16'h0000;
 
-    end else if (push) begin
-        if (full) begin
-            overflow <= 1'b1;   // error — do not push
-        end else begin
-            mem[sp] <= data_in;
-            sp      <= sp + 1;
-        end
+    end else if (ce) begin
+        if (push) begin
+            if (full) begin
+                overflow <= 1'b1;   // error — do not push
+            end else begin
+                mem[sp] <= data_in;
+                sp      <= sp + 1;
+            end
 
-    end else if (pop) begin
-        if (empty) begin
-            underflow <= 1'b1;  // error — do not pop
-        end else begin
-            sp <= sp - 1;
+        end else if (pop) begin
+            if (empty) begin
+                underflow <= 1'b1;  // error — do not pop
+            end else begin
+                sp <= sp - 1;
+            end
         end
     end
 end

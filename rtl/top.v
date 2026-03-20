@@ -204,18 +204,6 @@ end
 // cpu_clk_en pulses for one clk_12m cycle every 2^CPU_CLK_DIV_BITS cycles.
 wire cpu_clk_en = (cpu_div_ctr == {CPU_CLK_DIV_BITS{1'b1}});
 
-// Registered clock enable to drive the CPU — avoids glitchy derived clocks,
-// keeps everything in the clk_12m domain.
-reg cpu_clk_r = 1'b0;
-always @(posedge clk_12m) begin
-    if (rst)
-        cpu_clk_r <= 1'b0;
-    else if (cpu_clk_en)
-        cpu_clk_r <= ~cpu_clk_r;
-end
-
-wire cpu_clk = cpu_clk_r;
-
 // ---------------------------------------------------------------------------
 // Heartbeat — MSB of the CPU prescaler counter.
 // Toggles at exactly the CPU clock rate, so the blink speed always matches
@@ -311,7 +299,8 @@ wire [7:0] dbg_r4, dbg_r5, dbg_r6, dbg_r7;
 wire [4:0] dbg_stack_depth;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
-    .clk             (cpu_clk),
+    .clk             (clk_12m),
+    .ce              (cpu_clk_en),
     .rst             (rst),
     .halt_out        (halt_out),
     .prng_data       (prng_data),

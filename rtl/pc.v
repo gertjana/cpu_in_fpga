@@ -2,7 +2,8 @@
 // pc.v — 16-bit Program Counter
 //
 // Ports:
-//   clk       — clock (rising edge)
+//   clk       — clock (rising edge; must be the global system clock)
+//   ce        — clock enable: PC only advances when ce=1
 //   rst       — synchronous reset: PC → 0x0000
 //   halt      — freeze PC (stop incrementing / loading)
 //   load      — load pc_in as the new PC value (for jumps/branches/call/ret)
@@ -19,6 +20,7 @@
 
 module pc (
     input  wire        clk,
+    input  wire        ce,
     input  wire        rst,
     input  wire        halt,
     input  wire        load,
@@ -34,12 +36,14 @@ assign pc_next = pc_out + 16'd1;
 always @(posedge clk) begin
     if (rst)
         pc_out <= 16'h0000;
-    else if (halt)
-        pc_out <= pc_out;   // hold — explicit for clarity
-    else if (load)
-        pc_out <= pc_in;
-    else
-        pc_out <= pc_next;
+    else if (ce) begin
+        if (halt)
+            pc_out <= pc_out;   // hold — explicit for clarity
+        else if (load)
+            pc_out <= pc_in;
+        else
+            pc_out <= pc_next;
+    end
 end
 
 endmodule

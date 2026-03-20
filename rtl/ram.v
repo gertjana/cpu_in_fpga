@@ -4,7 +4,8 @@
 // Separate data memory space (Harvard architecture).
 //
 // Ports:
-//   clk      — clock (rising edge)
+//   clk      — clock (rising edge; must be the global system clock)
+//   ce       — clock enable: write only occurs when both ce=1 and we=1
 //   we       — write enable
 //   addr     — 8-bit address
 //   data_in  — 8-bit data to write
@@ -17,6 +18,7 @@
 
 module ram (
     input  wire       clk,
+    input  wire       ce,
     input  wire       we,
     input  wire [7:0] addr,
     input  wire [7:0] data_in,
@@ -32,9 +34,9 @@ initial begin
         mem[i] = 8'h00;
 end
 
-// Synchronous write
+// Synchronous write (only when clock-enabled)
 always @(posedge clk) begin
-    if (we)
+    if (ce && we)
         mem[addr] <= data_in;
 end
 

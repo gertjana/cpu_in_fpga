@@ -71,6 +71,7 @@ prng u_prng (
 // ---------------------------------------------------------------------------
 cpu #(.ROM_INIT("tb/cpu_program.hex")) u_cpu (
     .clk             (clk),
+    .ce              (1'b1),
     .rst             (rst),
     .halt_out        (halt_out),
     .prng_data       (prng_data),

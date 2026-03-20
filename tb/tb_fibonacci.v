@@ -50,6 +50,7 @@ always #5 clk = ~clk;
 // ---------------------------------------------------------------------------
 cpu #(.ROM_INIT("examples/fibonacci.hex")) u_cpu (
     .clk             (clk),
+    .ce              (1'b1),
     .rst             (rst),
     .halt_out        (halt_out),
     .dbg_pc          (dbg_pc),
