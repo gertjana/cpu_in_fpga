@@ -119,10 +119,15 @@ ok "Output directory cleared."
 # ---------------------------------------------------------------------------
 sleep 5  # Give GitHub a moment to prepare the artifact
 info "Downloading artifact '${ARTIFACT_NAME}' ..."
+TMPDIR=$(mktemp -d)
 gh run download "${RUN_ID}" \
     --repo "${REPO}" \
     --name "${ARTIFACT_NAME}" \
-    --dir "${OUTPUT_DIR}"
+    --dir "${TMPDIR}"
+
+# gh unpacks into TMPDIR/<artifact-name>/ — move contents up into OUTPUT_DIR
+mv "${TMPDIR}/${ARTIFACT_NAME}"/* "${OUTPUT_DIR}/"
+rm -rf "${TMPDIR}"
 
 ok "Artifact downloaded to ${OUTPUT_DIR}/"
 echo ""
