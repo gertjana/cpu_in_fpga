@@ -448,7 +448,7 @@ endfunction
 //   10 ms  = 120000 cycles
 //   100 ms = 1200000 cycles — needs 21 bits
 // ---------------------------------------------------------------------------
-reg [20:0] delay_ctr;
+reg [20:0] delay_ctr = 21'd0;
 wire       delay_done = (delay_ctr == 21'd0);
 
 // ---------------------------------------------------------------------------
@@ -456,8 +456,8 @@ wire       delay_done = (delay_ctr == 21'd0);
 // One SPI bit takes 2 system cycles (clk_high + clk_low).
 // Total 8 bits = 16 system cycles.
 // ---------------------------------------------------------------------------
-reg [7:0]  spi_shift;    // byte currently being shifted out
-reg [3:0]  spi_bit_ctr;  // counts from 15 down to 0 (2 cycles per bit)
+reg [7:0]  spi_shift = 8'd0;    // byte currently being shifted out
+reg [3:0]  spi_bit_ctr = 4'd0;  // counts from 15 down to 0 (2 cycles per bit)
 wire       spi_done = (spi_bit_ctr == 4'd0);
 
 // ---------------------------------------------------------------------------
@@ -471,7 +471,7 @@ wire       spi_done = (spi_bit_ctr == 4'd0);
 // ---------------------------------------------------------------------------
 localparam SEQ_END  = 9'h1FF;
 
-reg [4:0] seq_idx;
+reg [4:0] seq_idx = 5'd0;
 // Current init sequence entry — wire avoids inline bit-select on function calls
 wire [8:0] seq_entry = seq_lookup(seq_idx);
 
@@ -544,7 +544,7 @@ localparam [4:0]
     ST_NEXT_COL     = 5'd16,  // advance column / character / line
     ST_DONE         = 5'd17;  // loop back to refresh
 
-reg [4:0] state;
+(* preserve, noprune *) reg [4:0] state = ST_VDD_ON;
 
 // Sticky debug flags — set when the corresponding power rail is first enabled,
 // never cleared by rst. Used to distinguish "VDD was on then lost" from
@@ -553,13 +553,13 @@ reg vdd_was_on  = 1'b0;
 reg vbat_was_on = 1'b0;
 
 // Refresh position tracking
-reg [1:0] cur_line;     // 0-3
-reg [4:0] cur_char;     // 0-20 (21 chars per line)
-reg [2:0] cur_col;      // 0-5  (5 font cols + 1 space col per char)
+reg [1:0] cur_line = 2'd0;     // 0-3
+reg [4:0] cur_char = 5'd0;     // 0-20 (21 chars per line)
+reg [2:0] cur_col  = 3'd0;     // 0-5  (5 font cols + 1 space col per char)
 
 // Page-command sub-sequence: 3 SPI bytes to set page + col address
 // ST_PAGE_CMD sends: 0xB0|page, 0x00, 0x10
-reg [1:0] page_cmd_idx;
+reg [1:0] page_cmd_idx = 2'd0;
 
 
 // ---------------------------------------------------------------------------

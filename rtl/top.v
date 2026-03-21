@@ -157,7 +157,7 @@ always @(posedge clk_12m)
     if (por_ctr != 5'd31)
         por_ctr <= por_ctr + 1'b1;
 
-wire por_rst = (por_ctr != 5'd31);
+wire por_rst /* synthesis keep */ = (por_ctr != 5'd31);
 
 // CPU reset is active during power-on OR while long-press threshold is held.
 wire rst = por_rst | was_long;
