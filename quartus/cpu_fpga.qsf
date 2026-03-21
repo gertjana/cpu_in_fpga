@@ -177,12 +177,3 @@ set_instance_assignment -name POWER_UP_LEVEL HIGH -to "oled_monitor:u_oled|vbat_
 set_instance_assignment -name POWER_UP_LEVEL HIGH -to "oled_monitor:u_oled|cs_n_r"
 set_instance_assignment -name POWER_UP_LEVEL LOW  -to "oled_monitor:u_oled|res_n_r"
 
-# Preserve hierarchy for oled_monitor to prevent Quartus from performing
-# cross-module constant propagation from the CPU ROM content into the
-# oled_monitor module.  Without this, Quartus traces the CPU program ROM
-# constants through the CPU register outputs (r0-r7, pc, flags) into
-# oled_monitor's combinatorial cur_ascii logic, determines the SPI data
-# outputs are constant for programs where registers are predictable, and
-# ultimately eliminates the entire FSM including vdd_en/vbat_en — leaving
-# the display unpowered and blank.
-set_instance_assignment -name PRESERVE_HIERARCHY ON -to "oled_monitor:u_oled"

@@ -292,11 +292,20 @@ wire [7:0] gpio_in = gpio;
 // CPU instantiation
 // ---------------------------------------------------------------------------
 wire       halt_out;
-wire [7:0] dbg_pc;
-wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
-wire [7:0] dbg_r0, dbg_r1, dbg_r2, dbg_r3;
-wire [7:0] dbg_r4, dbg_r5, dbg_r6, dbg_r7;
-wire [4:0] dbg_stack_depth;
+wire [7:0] dbg_pc            /* synthesis keep */;
+wire       dbg_flag_z        /* synthesis keep */;
+wire       dbg_flag_c        /* synthesis keep */;
+wire       dbg_flag_n        /* synthesis keep */;
+wire       dbg_flag_v        /* synthesis keep */;
+wire [7:0] dbg_r0            /* synthesis keep */;
+wire [7:0] dbg_r1            /* synthesis keep */;
+wire [7:0] dbg_r2            /* synthesis keep */;
+wire [7:0] dbg_r3            /* synthesis keep */;
+wire [7:0] dbg_r4            /* synthesis keep */;
+wire [7:0] dbg_r5            /* synthesis keep */;
+wire [7:0] dbg_r6            /* synthesis keep */;
+wire [7:0] dbg_r7            /* synthesis keep */;
+wire [4:0] dbg_stack_depth   /* synthesis keep */;
 
 cpu #(.ROM_INIT("program.hex")) u_cpu (
     .clk             (clk_12m),
