@@ -111,7 +111,7 @@ ok "Workflow completed successfully."
 # ---------------------------------------------------------------------------
 info "Clearing ${OUTPUT_DIR}/ ..."
 mkdir -p "${OUTPUT_DIR}"
-rm -f "${OUTPUT_DIR}"/*
+rm -rf "${OUTPUT_DIR}"/*
 ok "Output directory cleared."
 
 # ---------------------------------------------------------------------------
