@@ -75,13 +75,13 @@ module oled_monitor #(
     input  wire        flag_v,
 
     // PmodOLED SPI signals
-    output reg         spi_cs_n  = 1'b1,  // Chip Select (active low)
+    (* altera_attribute = "-name POWER_UP_LEVEL HIGH" *) output reg spi_cs_n  = 1'b1,  // Chip Select (active low)
     output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
     output reg         spi_mosi  = 1'b0,  // MOSI
     output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
-    output reg         spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
-    output reg         vbat_en = 1'b1,  // VBATC — drive low to power display panel
-    output reg         vdd_en  = 1'b1,  // VDDC  — drive low to power logic
+    (* altera_attribute = "-name POWER_UP_LEVEL LOW"  *) output reg spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
+    (* altera_attribute = "-name POWER_UP_LEVEL HIGH" *) output reg vbat_en = 1'b1,  // VBATC — drive low to power display panel
+    (* altera_attribute = "-name POWER_UP_LEVEL HIGH" *) output reg vdd_en  = 1'b1,  // VDDC  — drive low to power logic
 
     // Debug output — FSM state and key power/control signals for LED probing.
     // [4:0] state, [5] vdd_was_on (sticky), [6] vbat_was_on (sticky), [7] spi_res_n
@@ -522,12 +522,14 @@ reg [1:0] page_cmd_idx;
 
 // ---------------------------------------------------------------------------
 // Power-on reset is handled by two complementary mechanisms:
-//   1. Inline initial values on output registers:
-//        vdd_en=1, vbat_en=1 (both supplies OFF — prevents VBAT before VDD)
-//        spi_cs_n=1 (CS deasserted), spi_res_n=0 (display held in reset)
-//      Quartus synthesises inline `= value` initial values for simple scalar
-//      registers as the FF power-up state, reliably and independently of the
-//      synchronous reset path.
+//   1. (* altera_attribute = "-name POWER_UP_LEVEL HIGH/LOW" *) pragmas on the
+//      critical output registers, plus inline initial values:
+//        vdd_en=1, vbat_en=1, spi_cs_n=1  → POWER_UP_LEVEL HIGH (supplies/CS OFF)
+//        spi_res_n=0                       → POWER_UP_LEVEL LOW  (display in reset)
+//      The altera_attribute pragma is the only reliable method for MAX 10 —
+//      QSF POWER_UP_LEVEL constraints are silently ignored for MAX 10 I/O pins,
+//      and bare inline initial values may be lost when Quartus retimes a FF
+//      into the I/O output cell atom.
 //   2. The synchronous rst input (driven by a 32-cycle POR counter in top.v)
 //      drives all FSM state to known values within 3 µs of configuration.
 // Together these ensure correct power sequencing even if the POR counter

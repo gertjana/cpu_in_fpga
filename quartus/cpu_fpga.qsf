@@ -160,7 +160,7 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_res_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vbatc
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vddc
 
-# Power-up levels for PMOD control signals are handled via inline initial
-# values on output registers in oled_monitor.v (vdd_en=1, vbat_en=1,
-# spi_cs_n=1, spi_res_n=0). Quartus synthesises scalar register initial
-# values reliably as FF power-up states. No QSF constraints needed.
+# Power-up levels for PMOD control signals are enforced via
+# (* altera_attribute = "-name POWER_UP_LEVEL HIGH/LOW" *) pragmas on the
+# critical output registers in oled_monitor.v. QSF POWER_UP_LEVEL constraints
+# are silently ignored for MAX 10 I/O pins (confirmed in fit reports).

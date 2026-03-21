@@ -12,7 +12,7 @@
 #   If not present, defaults to 20 (≈ 11.4 Hz).
 #   12 MHz / 2^N:  23→~1.4 Hz  22→~2.9 Hz  21→~5.7 Hz  20→~11.4 Hz
 #                  17→~91 Hz   14→~732 Hz
-# The assembled SOF/POF is stored in quartus_output/<branch>/<name>/.
+# The assembled SOF/POF is stored in quartus_output/quartus-output-<branch>-<name>/.
 # =============================================================================
 
 set -euo pipefail
@@ -111,18 +111,20 @@ ok "Workflow completed successfully."
 ARTIFACT_DIR="quartus_output/${ARTIFACT_NAME}"
 info "Clearing ${ARTIFACT_DIR}/ ..."
 rm -rf "${ARTIFACT_DIR}"
+mkdir -p "${ARTIFACT_DIR}"
 ok "Output directory cleared."
 
 # ---------------------------------------------------------------------------
 # 8. Download the artifact into quartus_output/<artifact-name>/
-#    gh run download --dir <parent> creates <parent>/<artifact-name>/ automatically.
+#    When --name is given, gh extracts directly into --dir (no subdirectory).
+#    So we pass the full target path as --dir.
 # ---------------------------------------------------------------------------
 sleep 5  # Give GitHub a moment to prepare the artifact
 info "Downloading artifact '${ARTIFACT_NAME}' ..."
 gh run download "${RUN_ID}" \
     --repo "${REPO}" \
     --name "${ARTIFACT_NAME}" \
-    --dir quartus_output
+    --dir "${ARTIFACT_DIR}"
 
 ok "Artifact downloaded to ${ARTIFACT_DIR}/"
 echo ""
