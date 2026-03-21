@@ -543,10 +543,10 @@ reg [1:0] page_cmd_idx;
 // The synchronous rst input (driven by a 32-cycle POR counter in top.v)
 // drives all FSM state to known values within 3 µs of configuration.
 // ---------------------------------------------------------------------------
-(* altera_attribute = "-name POWER_UP_LEVEL HIGH -name PRESERVE_REGISTER ON", preserve *) reg vdd_r   = 1'b1;
-(* altera_attribute = "-name POWER_UP_LEVEL HIGH -name PRESERVE_REGISTER ON", preserve *) reg vbat_r  = 1'b1;
-(* altera_attribute = "-name POWER_UP_LEVEL HIGH -name PRESERVE_REGISTER ON", preserve *) reg cs_n_r  = 1'b1;
-(* altera_attribute = "-name POWER_UP_LEVEL LOW  -name PRESERVE_REGISTER ON", preserve *) reg res_n_r = 1'b0;
+(* altera_attribute = "-name POWER_UP_LEVEL HIGH", altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg vdd_r   = 1'b1;
+(* altera_attribute = "-name POWER_UP_LEVEL HIGH", altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg vbat_r  = 1'b1;
+(* altera_attribute = "-name POWER_UP_LEVEL HIGH", altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg cs_n_r  = 1'b1;
+(* altera_attribute = "-name POWER_UP_LEVEL LOW",  altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg res_n_r = 1'b0;
 
 // Wire internal regs to output ports — combinatorial, zero delay.
 assign vdd_en   = vdd_r;
