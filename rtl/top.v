@@ -11,21 +11,21 @@
 //     LED[0]  — flag C  (carry)
 //     LED[1]  — flag V  (overflow)
 //     LED[2]  — heartbeat blink (toggles at CPU clock rate); solid ON when halted
-//     LED[3]  — PC[0]  (LSB)
-//     LED[4]  — PC[1]
+//     LED[3]  — PC[4]  (MSB)
+//     LED[4]  — PC[3]
 //     LED[5]  — PC[2]
-//     LED[6]  — PC[3]
-//     LED[7]  — PC[4]
+//     LED[6]  — PC[1]
+//     LED[7]  — PC[0]  (LSB)
 //
 //   Mode 1 — R7 register value:
-//     LED[0]  — R7[0]  (LSB)
-//     LED[1]  — R7[1]
-//     LED[2]  — R7[2]
-//     LED[3]  — R7[3]
-//     LED[4]  — R7[4]
-//     LED[5]  — R7[5]
-//     LED[6]  — R7[6]
-//     LED[7]  — R7[7]  (MSB)
+//     LED[0]  — R7[7]  (MSB)
+//     LED[1]  — R7[6]
+//     LED[2]  — R7[5]
+//     LED[3]  — R7[4]
+//     LED[4]  — R7[3]
+//     LED[5]  — R7[2]
+//     LED[6]  — R7[1]
+//     LED[7]  — R7[0]  (LSB)
 //
 //   Mode 2 — OLED debug (FSM state + power/control signals):
 //     LED[4:0] — oled_monitor FSM state (see localparam table in oled_monitor.v)
@@ -33,7 +33,7 @@
 //     LED[6]   — vbat_en (1 = VBAT off, 0 = VBAT on)
 //     LED[7]   — spi_res_n (0 = display in reset, 1 = released)
 //
-// LEDs are active-high: led=1 illuminates the LED.
+// LEDs are active-low: led=0 illuminates the LED (hardware-inverted on the board).
 //
 // Clock: 12 MHz oscillator on pin H6.
 //
@@ -336,24 +336,24 @@ wire [7:0] dbg_oled;  // OLED debug: {spi_res_n, vbat_was_on, vdd_was_on, state[
 
 // ---------------------------------------------------------------------------
 // LED mux — mode 0: flags + PC   mode 1: R7   mode 2: OLED debug
-// Active-high: led=1 illuminates the LED.
+// Active-low: led=0 illuminates the LED (hardware-inverted on the board).
 // ---------------------------------------------------------------------------
-assign led[0] = (display_mode == 2'd1) ? dbg_r7[0] :
+assign led[0] = (display_mode == 2'd1) ? dbg_r7[7] :
                  (display_mode == 2'd2) ? dbg_oled[0] : dbg_flag_c;
-assign led[1] = (display_mode == 2'd1) ? dbg_r7[1] :
+assign led[1] = (display_mode == 2'd1) ? dbg_r7[6] :
                  (display_mode == 2'd2) ? dbg_oled[1] : dbg_flag_v;
-assign led[2] = (display_mode == 2'd1) ? dbg_r7[2] :
+assign led[2] = (display_mode == 2'd1) ? dbg_r7[5] :
                  (display_mode == 2'd2) ? dbg_oled[2] : hb_or_halt;
-assign led[3] = (display_mode == 2'd1) ? dbg_r7[3] :
-                 (display_mode == 2'd2) ? dbg_oled[3] : dbg_pc[0];
-assign led[4] = (display_mode == 2'd1) ? dbg_r7[4] :
-                 (display_mode == 2'd2) ? dbg_oled[4] : dbg_pc[1];
-assign led[5] = (display_mode == 2'd1) ? dbg_r7[5] :
+assign led[3] = (display_mode == 2'd1) ? dbg_r7[4] :
+                 (display_mode == 2'd2) ? dbg_oled[3] : dbg_pc[4];
+assign led[4] = (display_mode == 2'd1) ? dbg_r7[3] :
+                 (display_mode == 2'd2) ? dbg_oled[4] : dbg_pc[3];
+assign led[5] = (display_mode == 2'd1) ? dbg_r7[2] :
                  (display_mode == 2'd2) ? dbg_oled[5] : dbg_pc[2];
-assign led[6] = (display_mode == 2'd1) ? dbg_r7[6] :
-                 (display_mode == 2'd2) ? dbg_oled[6] : dbg_pc[3];
-assign led[7] = (display_mode == 2'd1) ? dbg_r7[7] :
-                 (display_mode == 2'd2) ? dbg_oled[7] : dbg_pc[4];
+assign led[6] = (display_mode == 2'd1) ? dbg_r7[1] :
+                 (display_mode == 2'd2) ? dbg_oled[6] : dbg_pc[1];
+assign led[7] = (display_mode == 2'd1) ? dbg_r7[0] :
+                 (display_mode == 2'd2) ? dbg_oled[7] : dbg_pc[0];
 
 // ---------------------------------------------------------------------------
 // OLED Hardware Monitor — runs at 12 MHz, reads CPU state directly.
