@@ -68,7 +68,7 @@ gh auth status &>/dev/null  || die "Not authenticated. Run: gh auth login"
 # ---------------------------------------------------------------------------
 info "Triggering workflow '${WORKFLOW}' on branch '${BRANCH}'"
 info "Program : ${PROGRAM}"
-info "Output  : ${OUTPUT_DIR}/"
+info "Output  : quartus_output/${ARTIFACT_NAME}/"
 gh workflow run "${WORKFLOW}" \
     --repo "${REPO}" \
     --ref "${BRANCH}" \
