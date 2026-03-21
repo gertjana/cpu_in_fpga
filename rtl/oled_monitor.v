@@ -89,6 +89,47 @@ module oled_monitor #(
 );
 
 // ---------------------------------------------------------------------------
+// Registered CPU inputs — one pipeline stage to prevent Quartus from
+// performing cross-module constant propagation from the CPU ROM content
+// into oled_monitor's combinatorial cur_ascii logic.
+//
+// Without this barrier, Quartus analyses the CPU program ROM and determines
+// that many CPU outputs are constant or nearly-constant for simple programs
+// (e.g. all-NOP pc_test, or count_to_9 where R4-R7 are always 0).  It then
+// constant-folds the cur_ascii LUT chain, sees the SPI output bits are
+// constant, and ultimately eliminates the entire oled_monitor FSM including
+// vdd_en / vbat_en — leaving the display unpowered and blank.
+//
+// Registering the inputs creates a hard FF barrier.  Quartus cannot propagate
+// constants through flip-flops (they depend on dynamic clock cycles), so the
+// oled_monitor FSM, delay_ctr, and power-control FFs are all preserved.
+// The one-cycle latency on the display data is imperceptible at ~11 Hz CPU
+// clock speeds.
+// ---------------------------------------------------------------------------
+(* keep *) reg [7:0] r0_r, r1_r, r2_r, r3_r;
+(* keep *) reg [7:0] r4_r, r5_r, r6_r, r7_r;
+(* keep *) reg [7:0] pc_r;
+(* keep *) reg [4:0] stack_depth_r;
+(* keep *) reg       flag_c_r, flag_z_r, flag_n_r, flag_v_r;
+
+always @(posedge clk) begin
+    r0_r         <= r0;
+    r1_r         <= r1;
+    r2_r         <= r2;
+    r3_r         <= r3;
+    r4_r         <= r4;
+    r5_r         <= r5;
+    r6_r         <= r6;
+    r7_r         <= r7;
+    pc_r         <= pc;
+    stack_depth_r<= stack_depth;
+    flag_c_r     <= flag_c;
+    flag_z_r     <= flag_z;
+    flag_n_r     <= flag_n;
+    flag_v_r     <= flag_v;
+end
+
+// ---------------------------------------------------------------------------
 // Font ROM — 5×7 pixels per glyph, stored as 5 bytes (columns), LSB = top.
 // Covers ASCII 0x20 (space) through 0x7E (~). Index = ascii - 0x20.
 // Each byte is one column of 7 pixels: bit0=top row, bit6=bottom row.
@@ -556,7 +597,7 @@ assign spi_res_n = res_n_r;
 
 // ---------------------------------------------------------------------------
 // Combinatorial ASCII character lookup — no register array, no tasks.
-// Computed directly from cur_line, cur_char and live CPU inputs.
+// Computed directly from cur_line, cur_char and registered CPU inputs.
 //
 // Layout (21 chars per line, 0-indexed):
 //   Line 0: "C R0-R3:  XX XX XX XX"
@@ -571,7 +612,7 @@ always @(*) begin
         // --- Line 0: "C R0-R3:  XX XX XX XX" ---
         2'd0: begin
             case (cur_char)
-                5'd0:  cur_ascii = flag_c ? "C" : " ";
+                5'd0:  cur_ascii = flag_c_r ? "C" : " ";
                 5'd1:  cur_ascii = " ";
                 5'd2:  cur_ascii = "R";
                 5'd3:  cur_ascii = "0";
@@ -581,24 +622,24 @@ always @(*) begin
                 5'd7:  cur_ascii = ":";
                 5'd8:  cur_ascii = " ";
                 5'd9:  cur_ascii = " ";
-                5'd10: cur_ascii = hex_char(r0[7:4]);
-                5'd11: cur_ascii = hex_char(r0[3:0]);
+                5'd10: cur_ascii = hex_char(r0_r[7:4]);
+                5'd11: cur_ascii = hex_char(r0_r[3:0]);
                 5'd12: cur_ascii = " ";
-                5'd13: cur_ascii = hex_char(r1[7:4]);
-                5'd14: cur_ascii = hex_char(r1[3:0]);
+                5'd13: cur_ascii = hex_char(r1_r[7:4]);
+                5'd14: cur_ascii = hex_char(r1_r[3:0]);
                 5'd15: cur_ascii = " ";
-                5'd16: cur_ascii = hex_char(r2[7:4]);
-                5'd17: cur_ascii = hex_char(r2[3:0]);
+                5'd16: cur_ascii = hex_char(r2_r[7:4]);
+                5'd17: cur_ascii = hex_char(r2_r[3:0]);
                 5'd18: cur_ascii = " ";
-                5'd19: cur_ascii = hex_char(r3[7:4]);
-                5'd20: cur_ascii = hex_char(r3[3:0]);
+                5'd19: cur_ascii = hex_char(r3_r[7:4]);
+                5'd20: cur_ascii = hex_char(r3_r[3:0]);
                 default: cur_ascii = " ";
             endcase
         end
         // --- Line 1: "Z R4-R7:  XX XX XX XX" ---
         2'd1: begin
             case (cur_char)
-                5'd0:  cur_ascii = flag_z ? "Z" : " ";
+                5'd0:  cur_ascii = flag_z_r ? "Z" : " ";
                 5'd1:  cur_ascii = " ";
                 5'd2:  cur_ascii = "R";
                 5'd3:  cur_ascii = "4";
@@ -608,24 +649,24 @@ always @(*) begin
                 5'd7:  cur_ascii = ":";
                 5'd8:  cur_ascii = " ";
                 5'd9:  cur_ascii = " ";
-                5'd10: cur_ascii = hex_char(r4[7:4]);
-                5'd11: cur_ascii = hex_char(r4[3:0]);
+                5'd10: cur_ascii = hex_char(r4_r[7:4]);
+                5'd11: cur_ascii = hex_char(r4_r[3:0]);
                 5'd12: cur_ascii = " ";
-                5'd13: cur_ascii = hex_char(r5[7:4]);
-                5'd14: cur_ascii = hex_char(r5[3:0]);
+                5'd13: cur_ascii = hex_char(r5_r[7:4]);
+                5'd14: cur_ascii = hex_char(r5_r[3:0]);
                 5'd15: cur_ascii = " ";
-                5'd16: cur_ascii = hex_char(r6[7:4]);
-                5'd17: cur_ascii = hex_char(r6[3:0]);
+                5'd16: cur_ascii = hex_char(r6_r[7:4]);
+                5'd17: cur_ascii = hex_char(r6_r[3:0]);
                 5'd18: cur_ascii = " ";
-                5'd19: cur_ascii = hex_char(r7[7:4]);
-                5'd20: cur_ascii = hex_char(r7[3:0]);
+                5'd19: cur_ascii = hex_char(r7_r[7:4]);
+                5'd20: cur_ascii = hex_char(r7_r[3:0]);
                 default: cur_ascii = " ";
             endcase
         end
         // --- Line 2: "N PC: XXXX  ST: XX   " ---
         2'd2: begin
             case (cur_char)
-                5'd0:  cur_ascii = flag_n ? "N" : " ";
+                5'd0:  cur_ascii = flag_n_r ? "N" : " ";
                 5'd1:  cur_ascii = " ";
                 5'd2:  cur_ascii = "P";
                 5'd3:  cur_ascii = "C";
@@ -633,23 +674,23 @@ always @(*) begin
                 5'd5:  cur_ascii = " ";
                 5'd6:  cur_ascii = "0";   // PC is 8-bit, zero-pad to 4 digits
                 5'd7:  cur_ascii = "0";
-                5'd8:  cur_ascii = hex_char(pc[7:4]);
-                5'd9:  cur_ascii = hex_char(pc[3:0]);
+                5'd8:  cur_ascii = hex_char(pc_r[7:4]);
+                5'd9:  cur_ascii = hex_char(pc_r[3:0]);
                 5'd10: cur_ascii = " ";
                 5'd11: cur_ascii = " ";
                 5'd12: cur_ascii = "S";
                 5'd13: cur_ascii = "T";
                 5'd14: cur_ascii = ":";
                 5'd15: cur_ascii = " ";
-                5'd16: cur_ascii = hex_char({3'b0, stack_depth[4]});
-                5'd17: cur_ascii = hex_char(stack_depth[3:0]);
+                5'd16: cur_ascii = hex_char({3'b0, stack_depth_r[4]});
+                5'd17: cur_ascii = hex_char(stack_depth_r[3:0]);
                 default: cur_ascii = " ";
             endcase
         end
         // --- Line 3: "V <PROG_NAME 19 chars>" ---
         default: begin
             case (cur_char)
-                5'd0:  cur_ascii = flag_v ? "V" : " ";
+                5'd0:  cur_ascii = flag_v_r ? "V" : " ";
                 5'd1:  cur_ascii = " ";
                 5'd2:  cur_ascii = PROG_NAME[151:144];
                 5'd3:  cur_ascii = PROG_NAME[143:136];
