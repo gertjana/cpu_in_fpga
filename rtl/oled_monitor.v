@@ -106,11 +106,11 @@ module oled_monitor #(
 // The one-cycle latency on the display data is imperceptible at ~11 Hz CPU
 // clock speeds.
 // ---------------------------------------------------------------------------
-(* keep *) reg [7:0] r0_r, r1_r, r2_r, r3_r;
-(* keep *) reg [7:0] r4_r, r5_r, r6_r, r7_r;
-(* keep *) reg [7:0] pc_r;
-(* keep *) reg [4:0] stack_depth_r;
-(* keep *) reg       flag_c_r, flag_z_r, flag_n_r, flag_v_r;
+(* preserve, noprune *) reg [7:0] r0_r, r1_r, r2_r, r3_r;
+(* preserve, noprune *) reg [7:0] r4_r, r5_r, r6_r, r7_r;
+(* preserve, noprune *) reg [7:0] pc_r;
+(* preserve, noprune *) reg [4:0] stack_depth_r;
+(* preserve, noprune *) reg       flag_c_r, flag_z_r, flag_n_r, flag_v_r;
 
 always @(posedge clk) begin
     r0_r         <= r0;
