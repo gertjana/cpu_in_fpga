@@ -160,14 +160,3 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_res_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vbatc
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vddc
 
-# Ensure OLED power-control and SPI-CS pins are HIGH (inactive) immediately at
-# FPGA power-on, before the fabric FFs are initialised.  Without this the I/O
-# cells default LOW, which asserts VDD/VBAT power and deasserts CS too early —
-# causing the SSD1306 to power up before the FSM can send the init sequence.
-#   pmod_vddc  HIGH = VDD logic power OFF   (active-low enable)
-#   pmod_vbatc HIGH = VBAT display power OFF (active-low enable)
-#   pmod_cs_n  HIGH = SPI deasserted        (active-low)
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to pmod_vddc
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to pmod_vbatc
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to pmod_cs_n
-
