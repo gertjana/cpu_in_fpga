@@ -36,7 +36,6 @@ die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 NAME="${1%.asm}"          # strip .asm suffix if accidentally included
 PROGRAM="examples/${NAME}.asm"
 ARTIFACT_NAME="quartus-output-${BRANCH}-${NAME}"
-OUTPUT_DIR="quartus_output/${BRANCH}/${NAME}"
 
 [[ -f "$PROGRAM" ]] || die "File not found: ${PROGRAM}"
 
@@ -107,30 +106,28 @@ gh run watch "${RUN_ID}" --repo "${REPO}" --exit-status \
 ok "Workflow completed successfully."
 
 # ---------------------------------------------------------------------------
-# 7. Clear the output directory
+# 7. Clear old artifact directory if present
 # ---------------------------------------------------------------------------
-info "Clearing ${OUTPUT_DIR}/ ..."
-mkdir -p "${OUTPUT_DIR}"
-rm -rf "${OUTPUT_DIR}"/*
+ARTIFACT_DIR="quartus_output/${ARTIFACT_NAME}"
+info "Clearing ${ARTIFACT_DIR}/ ..."
+rm -rf "${ARTIFACT_DIR}"
 ok "Output directory cleared."
 
 # ---------------------------------------------------------------------------
-# 8. Download the artifact
+# 8. Download the artifact into quartus_output/
+#    gh run download with no --dir defaults to cwd, creating
+#    quartus_output/<artifact-name>/ automatically.
 # ---------------------------------------------------------------------------
 sleep 5  # Give GitHub a moment to prepare the artifact
 info "Downloading artifact '${ARTIFACT_NAME}' ..."
-TMPDIR=$(mktemp -d)
+cd quartus_output
 gh run download "${RUN_ID}" \
     --repo "${REPO}" \
-    --name "${ARTIFACT_NAME}" \
-    --dir "${TMPDIR}"
+    --name "${ARTIFACT_NAME}"
+cd - > /dev/null
 
-# gh unpacks into TMPDIR/<artifact-name>/ — move contents up into OUTPUT_DIR
-mv "${TMPDIR}/${ARTIFACT_NAME}"/* "${OUTPUT_DIR}/"
-rm -rf "${TMPDIR}"
-
-ok "Artifact downloaded to ${OUTPUT_DIR}/"
+ok "Artifact downloaded to ${ARTIFACT_DIR}/"
 echo ""
-ls -lh "${OUTPUT_DIR}/"
+ls -lh "${ARTIFACT_DIR}/"
 echo ""
 info "To program the FPGA, run:  ./program.sh ${NAME}"

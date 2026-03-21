@@ -8,7 +8,7 @@
 # What it does:
 #   1. Checks openFPGALoader is installed.
 #   2. Looks for a connected MAX1000 / Arrow USB-Blaster.
-#   3. Programs quartus_output/<branch>/<name>/cpu_fpga.pof into internal flash
+#   3. Programs quartus_output/quartus-output-<branch>-<name>/cpu_fpga.pof into internal flash
 #      (permanent — bitstream survives power-cycles).
 #
 # Usage:
@@ -38,14 +38,8 @@ done
 
 [[ -n "$NAME" ]] || die "Usage: $0 <name>\n  e.g. $0 fibonacci"
 
-OUTPUT_DIR="${SCRIPT_DIR}/quartus_output/${BRANCH}/${NAME}"
-# gh run download nests files under a subdirectory named after the artifact
-NESTED_POF="${OUTPUT_DIR}/quartus-output-${BRANCH}-${NAME}/cpu_fpga.pof"
-FLAT_POF="${OUTPUT_DIR}/cpu_fpga.pof"
-if   [[ -f "${FLAT_POF}"   ]]; then POF_FILE="${FLAT_POF}"
-elif [[ -f "${NESTED_POF}" ]]; then POF_FILE="${NESTED_POF}"
-else POF_FILE="${FLAT_POF}"   # will trigger the error message below
-fi
+OUTPUT_DIR="${SCRIPT_DIR}/quartus_output/quartus-output-${BRANCH}-${NAME}"
+POF_FILE="${OUTPUT_DIR}/cpu_fpga.pof"
 
 # ---------------------------------------------------------------------------
 # 1. Check openFPGALoader is installed
