@@ -114,17 +114,15 @@ rm -rf "${ARTIFACT_DIR}"
 ok "Output directory cleared."
 
 # ---------------------------------------------------------------------------
-# 8. Download the artifact into quartus_output/
-#    gh run download with no --dir defaults to cwd, creating
-#    quartus_output/<artifact-name>/ automatically.
+# 8. Download the artifact into quartus_output/<artifact-name>/
+#    gh run download --dir <parent> creates <parent>/<artifact-name>/ automatically.
 # ---------------------------------------------------------------------------
 sleep 5  # Give GitHub a moment to prepare the artifact
 info "Downloading artifact '${ARTIFACT_NAME}' ..."
-cd quartus_output
 gh run download "${RUN_ID}" \
     --repo "${REPO}" \
-    --name "${ARTIFACT_NAME}"
-cd - > /dev/null
+    --name "${ARTIFACT_NAME}" \
+    --dir quartus_output
 
 ok "Artifact downloaded to ${ARTIFACT_DIR}/"
 echo ""
