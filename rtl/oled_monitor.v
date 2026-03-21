@@ -75,13 +75,13 @@ module oled_monitor #(
     input  wire        flag_v,
 
     // PmodOLED SPI signals
-    output wire        spi_cs_n,   // Chip Select (active low)
+    output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — deasserted at power-on
     output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
     output reg         spi_mosi  = 1'b0,  // MOSI
     output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
-    output wire        spi_res_n,  // Reset (active low) — held in reset at power-on
-    output wire        vbat_en,    // VBATC — drive low to power display panel
-    output wire        vdd_en,     // VDDC  — drive low to power logic
+    output reg         spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
+    output reg         vbat_en   = 1'b1,  // VBATC — drive low to power display panel
+    output reg         vdd_en    = 1'b1,  // VDDC  — drive low to power logic
 
     // Debug output — FSM state and key power/control signals for LED probing.
     // [4:0] state, [5] vdd_was_on (sticky), [6] vbat_was_on (sticky), [7] spi_res_n
@@ -561,39 +561,6 @@ reg [2:0] cur_col;      // 0-5  (5 font cols + 1 space col per char)
 // ST_PAGE_CMD sends: 0xB0|page, 0x00, 0x10
 reg [1:0] page_cmd_idx;
 
-// ---------------------------------------------------------------------------
-// Internal registers for the critical power/control outputs.
-//
-// These are separate fabric FFs (not I/O output-cell atoms) so that:
-//   a. The (* altera_attribute = "-name POWER_UP_LEVEL ..." *) pragma on the
-//      reg body is applied to a proper fabric FF node — Quartus MAX 10 does
-//      honour POWER_UP_LEVEL on fabric FFs but silently ignores it on I/O
-//      output cell atoms and on Verilog-2001 port-declaration attributes.
-//   b. The QSF POWER_UP_LEVEL assignments in cpu_fpga.qsf targeting these
-//      node paths work correctly because the FFs are in fabric.
-//   c. (* preserve *) prevents Quartus from merging or eliminating these FFs
-//      through constant-propagation (they have a steady-state value of 0/1 but
-//      the correct power-up state matters for the SSD1306 startup sequence).
-//
-// Power-on state:
-//   vdd_r   = 1   → VDDC high = VDD logic power OFF  (safe: not yet powered)
-//   vbat_r  = 1   → VBATC high = VBAT panel power OFF (safe)
-//   cs_n_r  = 1   → CS deasserted                    (safe)
-//   res_n_r = 0   → RES low = display held in reset   (safe)
-//
-// The synchronous rst input (driven by a 32-cycle POR counter in top.v)
-// drives all FSM state to known values within 3 µs of configuration.
-// ---------------------------------------------------------------------------
-(* altera_attribute = "-name POWER_UP_LEVEL HIGH", altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg vdd_r   = 1'b1;
-(* altera_attribute = "-name POWER_UP_LEVEL HIGH", altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg vbat_r  = 1'b1;
-(* altera_attribute = "-name POWER_UP_LEVEL HIGH", altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg cs_n_r  = 1'b1;
-(* altera_attribute = "-name POWER_UP_LEVEL LOW",  altera_attribute = "-name PRESERVE_REGISTER ON", preserve *) reg res_n_r = 1'b0;
-
-// Wire internal regs to output ports — combinatorial, zero delay.
-assign vdd_en   = vdd_r;
-assign vbat_en  = vbat_r;
-assign spi_cs_n = cs_n_r;
-assign spi_res_n = res_n_r;
 
 // ---------------------------------------------------------------------------
 // Combinatorial ASCII character lookup — no register array, no tasks.
@@ -731,7 +698,7 @@ task spi_send;
     input       is_data;
     begin
         spi_dc    <= is_data;
-        cs_n_r    <= 1'b0;
+        spi_cs_n  <= 1'b0;
         spi_shift <= byte_val;
         spi_bit_ctr <= 4'd15;
     end
@@ -740,13 +707,13 @@ endtask
 always @(posedge clk) begin
     if (rst) begin
         state       <= ST_VDD_ON;  // ST_VDD_ON=5'd0 is the first state
-        cs_n_r      <= 1'b1;
+        spi_cs_n    <= 1'b1;
         spi_clk     <= 1'b0;
         spi_mosi    <= 1'b0;
         spi_dc      <= 1'b0;
-        res_n_r     <= 1'b0;
-        vbat_r      <= 1'b1;   // VBATC high = display power OFF
-        vdd_r       <= 1'b1;   // VDDC  high = logic  power OFF
+        spi_res_n   <= 1'b0;
+        vbat_en     <= 1'b1;   // VBATC high = display power OFF
+        vdd_en      <= 1'b1;   // VDDC  high = logic  power OFF
         delay_ctr   <= 21'd0;
         spi_bit_ctr <= 4'd0;
         seq_idx     <= 5'd0;
@@ -772,7 +739,7 @@ always @(posedge clk) begin
         end else begin
             spi_clk <= 1'b0;
             // De-assert CS after each byte (FSM controls when to re-assert)
-            cs_n_r <= 1'b1;
+            spi_cs_n <= 1'b1;
         end
 
         // ---------------------------------------------------------------
@@ -782,9 +749,9 @@ always @(posedge clk) begin
 
             // --- Power on VDD (logic), keep RES low during ramp ---
             ST_VDD_ON: begin
-                vdd_r       <= 1'b0;          // VDDC low = power ON
+                vdd_en      <= 1'b0;          // VDDC low = power ON
                 vdd_was_on  <= 1'b1;          // sticky: VDD was ever enabled
-                res_n_r     <= 1'b0;          // hold RES low during power ramp
+                spi_res_n   <= 1'b0;          // hold RES low during power ramp
                 delay_ctr   <= 21'd12_000;    // 1 ms at 12 MHz
                 state       <= ST_VDD_WAIT;
             end
@@ -794,7 +761,7 @@ always @(posedge clk) begin
                     delay_ctr <= delay_ctr - 21'd1;
                 else begin
                     // VDD stable — release RES high briefly
-                    res_n_r   <= 1'b1;
+                    spi_res_n <= 1'b1;
                     delay_ctr <= 21'd12_000; // 1 ms
                     state     <= ST_RES_HIGH;
                 end
@@ -805,7 +772,7 @@ always @(posedge clk) begin
                 if (!delay_done)
                     delay_ctr <= delay_ctr - 21'd1;
                 else begin
-                    res_n_r   <= 1'b0;      // assert RES low
+                    spi_res_n <= 1'b0;      // assert RES low
                     delay_ctr <= 21'd12_000; // 1 ms
                     state     <= ST_RESET;
                 end
@@ -816,7 +783,7 @@ always @(posedge clk) begin
                 if (!delay_done)
                     delay_ctr <= delay_ctr - 21'd1;
                 else begin
-                    res_n_r   <= 1'b1;      // release RES
+                    spi_res_n <= 1'b1;      // release RES
                     delay_ctr <= 21'd12_000; // 1 ms settle
                     state     <= ST_RESET_WAIT;
                 end
@@ -851,7 +818,7 @@ always @(posedge clk) begin
 
             // --- Power on VBAT (display panel) ---
             ST_VBAT_ON: begin
-                vbat_r       <= 1'b0;          // VBATC low = power ON
+                vbat_en      <= 1'b0;          // VBATC low = power ON
                 vbat_was_on  <= 1'b1;          // sticky: VBAT was ever enabled
                 delay_ctr    <= 21'd1_200_000; // 100 ms
                 state        <= ST_VBAT_WAIT;
@@ -964,7 +931,7 @@ end
 //   LED[4:0] = state[4:0]    — FSM state (see localparam table above)
 //   LED[5]   = vdd_was_on    — 1 = VDD was ever turned on (sticky)
 //   LED[6]   = vbat_was_on   — 1 = VBAT was ever turned on (sticky)
-//   LED[7]   = res_n_r       — 0 = display held in reset, 1 = released
-assign dbg_oled = {res_n_r, vbat_was_on, vdd_was_on, state};
+//   LED[7]   = spi_res_n      — 0 = display held in reset, 1 = released
+assign dbg_oled = {spi_res_n, vbat_was_on, vdd_was_on, state};
 
 endmodule

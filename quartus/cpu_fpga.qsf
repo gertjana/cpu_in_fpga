@@ -160,20 +160,3 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_res_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vbatc
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vddc
 
-# Power-up levels for PMOD control signals.
-#
-# The critical FFs are internal fabric registers (vdd_r, vbat_r, cs_n_r,
-# res_n_r) declared in oled_monitor.v with (* altera_attribute = "-name
-# POWER_UP_LEVEL ..." *) and (* preserve *) attributes on the reg body.
-# The (* preserve *) prevents Quartus from merging them into I/O output cells
-# (which silently ignore POWER_UP_LEVEL on MAX 10) or eliminating them through
-# constant-propagation.
-#
-# These QSF node-level assignments are a belt-and-suspenders backup:
-# Quartus does honour POWER_UP_LEVEL on fabric FF nodes even if the Verilog
-# pragma is silently dropped.
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to "oled_monitor:u_oled|vdd_r"
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to "oled_monitor:u_oled|vbat_r"
-set_instance_assignment -name POWER_UP_LEVEL HIGH -to "oled_monitor:u_oled|cs_n_r"
-set_instance_assignment -name POWER_UP_LEVEL LOW  -to "oled_monitor:u_oled|res_n_r"
-
