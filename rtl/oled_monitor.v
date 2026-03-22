@@ -75,13 +75,13 @@ module oled_monitor #(
     input  wire        flag_v,
 
     // PmodOLED SPI signals
-    output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — deasserted at power-on
-    output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
-    output reg         spi_mosi  = 1'b0,  // MOSI
-    output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
-    output reg         spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
-    output reg         vbat_en   = 1'b1,  // VBATC — drive low to power display panel
-    output reg         vdd_en    = 1'b1,  // VDDC  — drive low to power logic
+    (* preserve, noprune *) output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — deasserted at power-on
+    (* preserve, noprune *) output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
+    (* preserve, noprune *) output reg         spi_mosi  = 1'b0,  // MOSI
+    (* preserve, noprune *) output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
+    (* preserve, noprune *) output reg         spi_res_n = 1'b0,  // Reset (active low) — held in reset at power-on
+    (* preserve, noprune *) output reg         vbat_en   = 1'b1,  // VBATC — drive low to power display panel
+    (* preserve, noprune *) output reg         vdd_en    = 1'b1,  // VDDC  — drive low to power logic
 
     // Debug output — FSM state and key power/control signals for LED probing.
     // [4:0] state, [5] vdd_was_on (sticky), [6] vbat_was_on (sticky), [7] spi_res_n
@@ -448,7 +448,7 @@ endfunction
 //   10 ms  = 120000 cycles
 //   100 ms = 1200000 cycles — needs 21 bits
 // ---------------------------------------------------------------------------
-reg [20:0] delay_ctr = 21'd0;
+(* preserve, noprune *) reg [20:0] delay_ctr = 21'd0;
 wire       delay_done = (delay_ctr == 21'd0);
 
 // ---------------------------------------------------------------------------
@@ -456,8 +456,8 @@ wire       delay_done = (delay_ctr == 21'd0);
 // One SPI bit takes 2 system cycles (clk_high + clk_low).
 // Total 8 bits = 16 system cycles.
 // ---------------------------------------------------------------------------
-reg [7:0]  spi_shift = 8'd0;    // byte currently being shifted out
-reg [3:0]  spi_bit_ctr = 4'd0;  // counts from 15 down to 0 (2 cycles per bit)
+(* preserve, noprune *) reg [7:0]  spi_shift = 8'd0;    // byte currently being shifted out
+(* preserve, noprune *) reg [3:0]  spi_bit_ctr = 4'd0;  // counts from 15 down to 0 (2 cycles per bit)
 wire       spi_done = (spi_bit_ctr == 4'd0);
 
 // ---------------------------------------------------------------------------
@@ -471,7 +471,7 @@ wire       spi_done = (spi_bit_ctr == 4'd0);
 // ---------------------------------------------------------------------------
 localparam SEQ_END  = 9'h1FF;
 
-reg [4:0] seq_idx = 5'd0;
+(* preserve, noprune *) reg [4:0] seq_idx = 5'd0;
 // Current init sequence entry — wire avoids inline bit-select on function calls
 wire [8:0] seq_entry = seq_lookup(seq_idx);
 
@@ -549,17 +549,17 @@ localparam [4:0]
 // Sticky debug flags — set when the corresponding power rail is first enabled,
 // never cleared by rst. Used to distinguish "VDD was on then lost" from
 // "VDD was never on at all" when reading dbg_oled in ST_DONE.
-reg vdd_was_on  = 1'b0;
-reg vbat_was_on = 1'b0;
+(* preserve, noprune *) reg vdd_was_on  = 1'b0;
+(* preserve, noprune *) reg vbat_was_on = 1'b0;
 
 // Refresh position tracking
-reg [1:0] cur_line = 2'd0;     // 0-3
-reg [4:0] cur_char = 5'd0;     // 0-20 (21 chars per line)
-reg [2:0] cur_col  = 3'd0;     // 0-5  (5 font cols + 1 space col per char)
+(* preserve, noprune *) reg [1:0] cur_line = 2'd0;     // 0-3
+(* preserve, noprune *) reg [4:0] cur_char = 5'd0;     // 0-20 (21 chars per line)
+(* preserve, noprune *) reg [2:0] cur_col  = 3'd0;     // 0-5  (5 font cols + 1 space col per char)
 
 // Page-command sub-sequence: 3 SPI bytes to set page + col address
 // ST_PAGE_CMD sends: 0xB0|page, 0x00, 0x10
-reg [1:0] page_cmd_idx = 2'd0;
+(* preserve, noprune *) reg [1:0] page_cmd_idx = 2'd0;
 
 
 // ---------------------------------------------------------------------------
