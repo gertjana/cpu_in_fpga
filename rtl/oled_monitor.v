@@ -89,7 +89,7 @@ module oled_monitor #(
 );
 
 // ---------------------------------------------------------------------------
-// Registered CPU inputs — one pipeline stage to prevent Quartus from
+// Registered CPU inputs — two pipeline stages to prevent Quartus from
 // performing cross-module constant propagation from the CPU ROM content
 // into oled_monitor's combinatorial cur_ascii logic.
 //
@@ -100,33 +100,69 @@ module oled_monitor #(
 // constant, and ultimately eliminates the entire oled_monitor FSM including
 // vdd_en / vbat_en — leaving the display unpowered and blank.
 //
-// Registering the inputs creates a hard FF barrier.  Quartus cannot propagate
-// constants through flip-flops (they depend on dynamic clock cycles), so the
-// oled_monitor FSM, delay_ctr, and power-control FFs are all preserved.
-// The one-cycle latency on the display data is imperceptible at ~11 Hz CPU
-// clock speeds.
+// A single registered stage is insufficient for programs like infinite_counter
+// where Quartus applies clock-enable (CE) optimisation: it generates a CE
+// derived from the MSB of each CPU register (e.g. R0[7]=0 always) and uses
+// it to gate all bits of r0_r — so r0_r never loads despite the FF being
+// physically present.
+//
+// Two pipeline stages with DONT_MERGE_REGISTERS prevent both CE-merging and
+// constant propagation.  The two-cycle latency on the display data is
+// imperceptible at ~11 Hz CPU clock speeds.
 // ---------------------------------------------------------------------------
+
+// Stage 1 — plain registers; Quartus may apply CE optimisation here.
+reg [7:0] r0_s1, r1_s1, r2_s1, r3_s1;
+reg [7:0] r4_s1, r5_s1, r6_s1, r7_s1;
+reg [7:0] pc_s1;
+reg [4:0] stack_depth_s1;
+reg       flag_c_s1, flag_z_s1, flag_n_s1, flag_v_s1;
+
+always @(posedge clk) begin
+    r0_s1         <= r0;
+    r1_s1         <= r1;
+    r2_s1         <= r2;
+    r3_s1         <= r3;
+    r4_s1         <= r4;
+    r5_s1         <= r5;
+    r6_s1         <= r6;
+    r7_s1         <= r7;
+    pc_s1         <= pc;
+    stack_depth_s1<= stack_depth;
+    flag_c_s1     <= flag_c;
+    flag_z_s1     <= flag_z;
+    flag_n_s1     <= flag_n;
+    flag_v_s1     <= flag_v;
+end
+
+// Stage 2 — DONT_MERGE_REGISTERS prevents Quartus from applying CE
+// optimisation based on tracked register values; each FF loads every cycle.
+(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
 (* preserve, noprune *) reg [7:0] r0_r, r1_r, r2_r, r3_r;
+(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
 (* preserve, noprune *) reg [7:0] r4_r, r5_r, r6_r, r7_r;
+(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
 (* preserve, noprune *) reg [7:0] pc_r;
+(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
 (* preserve, noprune *) reg [4:0] stack_depth_r;
+(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
 (* preserve, noprune *) reg       flag_c_r, flag_z_r, flag_n_r, flag_v_r;
 
 always @(posedge clk) begin
-    r0_r         <= r0;
-    r1_r         <= r1;
-    r2_r         <= r2;
-    r3_r         <= r3;
-    r4_r         <= r4;
-    r5_r         <= r5;
-    r6_r         <= r6;
-    r7_r         <= r7;
-    pc_r         <= pc;
-    stack_depth_r<= stack_depth;
-    flag_c_r     <= flag_c;
-    flag_z_r     <= flag_z;
-    flag_n_r     <= flag_n;
-    flag_v_r     <= flag_v;
+    r0_r         <= r0_s1;
+    r1_r         <= r1_s1;
+    r2_r         <= r2_s1;
+    r3_r         <= r3_s1;
+    r4_r         <= r4_s1;
+    r5_r         <= r5_s1;
+    r6_r         <= r6_s1;
+    r7_r         <= r7_s1;
+    pc_r         <= pc_s1;
+    stack_depth_r<= stack_depth_s1;
+    flag_c_r     <= flag_c_s1;
+    flag_z_r     <= flag_z_s1;
+    flag_n_r     <= flag_n_s1;
+    flag_v_r     <= flag_v_s1;
 end
 
 // ---------------------------------------------------------------------------
