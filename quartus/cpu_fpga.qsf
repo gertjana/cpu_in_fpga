@@ -130,6 +130,27 @@ set_global_assignment -name SDC_FILE cpu_fpga.sdc
 set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
 
 # ---------------------------------------------------------------------------
+# oled_monitor synthesis constraints
+#
+# Quartus performs global constant-propagation and, for simple programs with
+# small, bounded CPUs (e.g. infinite_counter), can prove the values of every
+# CPU register at every clock cycle.  It then applies Auto Clock Enable (ACE)
+# optimisation to the oled_monitor input pipeline FFs: it derives the CE from
+# the MSB of a CPU register (e.g. R0[7]=0 always) and uses it to gate all
+# bits of that pipeline register.  Since the MSB CE is always-low, the FF
+# never loads and cur_ascii is driven by stale/zero data, producing a blank
+# display.
+#
+# The remedies applied here:
+#   DONT_MERGE_REGISTERS — prevents the Fitter from merging or CE-gating any
+#     FF inside oled_monitor based on known input values.
+#   AUTO_CLOCK_ENABLE_RECOGNITION — disables the ACE optimisation specifically
+#     for the oled_monitor hierarchy so no CE is auto-inserted.
+# ---------------------------------------------------------------------------
+set_instance_assignment -name DONT_MERGE_REGISTERS ON -to "u_oled|*"
+set_instance_assignment -name AUTO_CLOCK_ENABLE_RECOGNITION OFF -to "u_oled|*"
+
+# ---------------------------------------------------------------------------
 # PmodOLED — MAX1000 PMOD header (12-pin, 2×6)
 #
 # PMOD Pin → MAX1000 FPGA Pin → PmodOLED Signal
