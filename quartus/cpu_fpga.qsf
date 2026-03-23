@@ -141,14 +141,12 @@ set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
 # never loads and cur_ascii is driven by stale/zero data, producing a blank
 # display.
 #
-# The remedies applied here:
-#   DONT_MERGE_REGISTERS — prevents the Fitter from merging or CE-gating any
-#     FF inside oled_monitor based on known input values.
-#   AUTO_CLOCK_ENABLE_RECOGNITION — disables the ACE optimisation specifically
-#     for the oled_monitor hierarchy so no CE is auto-inserted.
+# AUTO_CLOCK_ENABLE_RECOGNITION OFF disables the ACE optimisation globally,
+# preventing any CE from being auto-inserted based on proven register values.
+# This is safe: the only CE registers in the design are the oled_monitor FSM
+# control signals, which use explicit conditional enable logic.
 # ---------------------------------------------------------------------------
-set_instance_assignment -name DONT_MERGE_REGISTERS ON -to "u_oled|*"
-set_instance_assignment -name AUTO_CLOCK_ENABLE_RECOGNITION OFF -to "u_oled|*"
+set_global_assignment -name AUTO_CLOCK_ENABLE_RECOGNITION OFF
 
 # ---------------------------------------------------------------------------
 # PmodOLED — MAX1000 PMOD header (12-pin, 2×6)
