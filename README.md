@@ -26,6 +26,7 @@ Three things happened:
 - [Synthesis and Programming the FPGA](#synthesis-and-programming-the-fpga)
 - [Writing Your Own Programs](#writing-your-own-programs)
 - [LED Indicators](#led-indicators)
+- [OLED Debug Monitor](#oled-debug-monitor)
 - [ISA Quick Reference](#isa-quick-reference)
 
 ---
@@ -34,17 +35,6 @@ Three things happened:
 
 ### CPU at a Glance
 
-| Property | Value |
-|----------|-------|
-| Data width | 8 bits |
-| Address width | 8 bits (256 locations) |
-| Instruction width | 16 bits (fixed) |
-| Registers | R0–R7 (8 × 8-bit, general purpose) |
-| Architecture | Harvard (separate program ROM and data RAM) |
-| Pipeline | 2-stage: Fetch → Execute |
-| Stack | Hardware LIFO, 16 entries deep |
-| Flags | Z (zero), C (carry), N (negative), V (overflow) |
-| Clock | 12 MHz on-board oscillator |
 | Property | Value |
 |----------|-------|
 | Data width | 8 bits |
@@ -84,6 +74,8 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [rtl/ram.v](rtl/ram.v) | 256 × 8-bit data RAM |
 | [rtl/stack.v](rtl/stack.v) | 16-entry hardware stack (PUSH/POP/CALL/RET) |
 | [rtl/prng.v](rtl/prng.v) | 8-bit Galois LFSR hardware PRNG (period 255, tap mask 0xB8) |
+| [rtl/oled_monitor.v](rtl/oled_monitor.v) | SSD1306 OLED debug monitor — SPI driver + font ROM + display FSM |
+| [rtl/input_barrier.v](rtl/input_barrier.v) | Synthesis black-box register barrier (prevents Quartus ACE optimisation through oled_monitor) |
 | [rtl/top.v](rtl/top.v) | MAX1000 top-level (clock, reset, LED logic) |
 
 ---
@@ -95,6 +87,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [examples/infinite_counter.asm](examples/infinite_counter.asm) | Registers, loops| counts from 0 to 63 then starts again |
 | [examples/led_test.asm](examples/led_test.asm) | Led's| counts from 0-255 in R7 (this register is used to drive the 8 leds on the board)|
 | [examples/pc_test.asm](examples/pc_test.asm) | Program counter | executes 32 NOP (nothing operator) to test the program counter leds |
+| [examples/count_to_9.asm](examples/count_to_9.asm) | Registers, loops | counts from 0 to 9 in R0 repeatedly |
 | [examples/fibonacci.asm](examples/fibonacci.asm) | RAM, Registers | Calculates fibonacci nummers that fit in 8bits, stores in RAM and R7 to view the result |
 | [examples/fibonacci_stack.asm](examples/fibonacci_stack.asm) | Stack | same as above but uses the stack to store the numbers |
 | [examples/knightrider.asm](examples/knightrider.asm) | Shift left/right | Display the knightrider pattern on the leds |
@@ -192,6 +185,41 @@ LED[3]–LED[7] in mode 0 display PC[4:0], giving 5 bits of program counter visi
 
 ---
 
+## OLED Debug Monitor
+
+A Digilent [PmodOLED](https://digilent.com/reference/pmod/pmodoled/start) (128×32 SSD1306, SPI) connected to the MAX1000 PMOD header continuously displays live CPU state at ~11 Hz.
+
+### Display layout
+
+```
+C R0-R3:  XX XX XX XX    ← flag C  + R0..R3 in hex
+Z R4-R7:  XX XX XX XX    ← flag Z  + R4..R7 in hex
+N PC: XXXX  ST: XX       ← flag N  + PC (4 hex digits) + stack depth (2 hex digits)
+V <PROGRAM NAME>         ← flag V  + up to 19-char program name (injected at synthesis)
+```
+
+Flags appear as their letter when set, `.` when clear.
+
+### PMOD wiring (MAX1000 PMOD header → PmodOLED)
+
+| PMOD Pin | MAX1000 Pin | PmodOLED Signal |
+|----------|-------------|-----------------|
+| 1  | PIN_M3 | CS (SPI chip select, active low) |
+| 2  | PIN_L3 | SDIN (SPI MOSI) |
+| 4  | PIN_M1 | SCLK (SPI clock, 6 MHz) |
+| 7  | PIN_N3 | D/C (Data=1 / Command=0) |
+| 8  | PIN_N2 | RES (Reset, active low) |
+| 9  | PIN_K2 | VBATC (display panel power, active low) |
+| 10 | PIN_K1 | VDDC (logic power, active low) |
+
+### Synthesis note — ACE optimisation workaround
+
+For simple programs whose register values are fully predictable at compile time (e.g. `infinite_counter`, where R0 counts 0–63 and R1–R7 are constant), Quartus performs global constant-propagation and then applies **Auto Clock Enable (ACE)** optimisation: it derives a CE signal from a proven-constant register bit and gates the input pipeline flip-flops with it — so they never load, and the font lookup chain is constant-folded to `0x00`, producing a blank display.
+
+The fix is `rtl/input_barrier.v`, a small registered module declared as `/* synthesis black_box */`. Quartus treats black-box outputs as completely unknown, which prevents both constant-propagation and ACE optimisation from reaching `oled_monitor`.
+
+---
+
 ## ISA Quick Reference
 
 All instructions are **16 bits** wide. Three formats are used:
@@ -255,12 +283,14 @@ See [docs/ISA.md](docs/ISA.md) for the complete specification including flag beh
 
 ### Peripheral port map (IN / OUT)
 
-| Port | Peripheral    | IN (read)                  | OUT (write)                        |
-|------|---------------|----------------------------|------------------------------------|
-| `1`  | PRNG          | Read 8-bit LFSR value      | Seed the LFSR                      |
-| `2`  | GPIO data     | Read GPIO pin logic levels | Set GPIO output data register      |
-| `3`  | GPIO direction| — (write-only, IN = NOP)   | Set pin direction (1=out, 0=in)    |
-| `4`  | ADC (AIN0)    | Read 8-bit sampled value   | — (NOP, no DAC)                    |
-| `5`–`7` | Reserved  | —                          | —                                  |
+| Port | Peripheral    | IN (read)                    | OUT (write)                        |
+|------|---------------|------------------------------|------------------------------------|
+| `1`  | PRNG          | Read 8-bit LFSR value        | Seed the LFSR                      |
+| `2`  | Onboard LEDs  | — (write-only, IN = NOP)     | Set Onboard LEDS                   |
+| `3`  | GPIO data     | Read GPIO pin logic levels   | Set GPIO output data register      |
+| `4`  | GPIO direction| — (write-only, IN = NOP)     | Set pin direction (1=out, 0=in)    |
+| `5`  | ADC (AIN0)    | Read 8-bit sampled value.    | — (NOP, no DAC)                    |
+| `6`  | User Button   | Read debounched Button State | — (NOP)                            |
+| `7`  | Reserved      | —                            | —                                  |
 
 Port `ppp` occupies bits `[8:6]` of the instruction word for both `IN` and `OUT`. Undefined ports are treated as NOP.
