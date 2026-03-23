@@ -39,6 +39,7 @@ set_global_assignment -name VERILOG_FILE ../rtl/ram.v
 set_global_assignment -name VERILOG_FILE ../rtl/stack.v
 set_global_assignment -name VERILOG_FILE ../rtl/prng.v
 set_global_assignment -name VERILOG_FILE ../rtl/oled_monitor.v
+set_global_assignment -name VERILOG_FILE ../rtl/input_barrier.v
 
 # ---------------------------------------------------------------------------
 # Pin assignments — MAX1000 well-known pinout
@@ -133,20 +134,19 @@ set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
 # oled_monitor synthesis constraints
 #
 # Quartus performs global constant-propagation and, for simple programs with
-# small, bounded CPUs (e.g. infinite_counter), can prove the values of every
-# CPU register at every clock cycle.  It then applies Auto Clock Enable (ACE)
-# optimisation to the oled_monitor input pipeline FFs: it derives the CE from
-# the MSB of a CPU register (e.g. R0[7]=0 always) and uses it to gate all
-# bits of that pipeline register.  Since the MSB CE is always-low, the FF
-# never loads and cur_ascii is driven by stale/zero data, producing a blank
-# display.
+# small bounded CPUs (e.g. infinite_counter where R0 counts 0-63 and R2-R7
+# are always 0), can prove the value of every CPU register at every cycle.
+# It then applies Auto Clock Enable (ACE) optimisation to the oled_monitor
+# input pipeline FFs: it derives a CE from the MSB of a CPU register
+# (e.g. R0[7]=0 always) and uses it to gate all bits of r0_r — so the FF
+# never loads, and cur_ascii/font_byte are driven by stale zero data,
+# producing a blank display.
 #
-# AUTO_CLOCK_ENABLE_RECOGNITION OFF disables the ACE optimisation globally,
-# preventing any CE from being auto-inserted based on proven register values.
-# This is safe: the only CE registers in the design are the oled_monitor FSM
-# control signals, which use explicit conditional enable logic.
+# This is solved by routing CPU inputs through input_barrier.v, which is
+# declared as a synthesis black box (/* synthesis black_box */).  Quartus
+# treats black-box outputs as completely unknown, preventing any
+# constant-propagation or ACE optimisation through the barrier.
 # ---------------------------------------------------------------------------
-set_global_assignment -name AUTO_CLOCK_ENABLE_RECOGNITION OFF
 
 # ---------------------------------------------------------------------------
 # PmodOLED — MAX1000 PMOD header (12-pin, 2×6)

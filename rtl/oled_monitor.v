@@ -89,81 +89,61 @@ module oled_monitor #(
 );
 
 // ---------------------------------------------------------------------------
-// Registered CPU inputs — two pipeline stages to prevent Quartus from
-// performing cross-module constant propagation from the CPU ROM content
-// into oled_monitor's combinatorial cur_ascii logic.
+// Registered CPU inputs — routed through a synthesis black-box barrier to
+// prevent Quartus from performing cross-module constant propagation and
+// Auto Clock Enable (ACE) optimisation into oled_monitor.
 //
 // Without this barrier, Quartus analyses the CPU program ROM and determines
-// that many CPU outputs are constant or nearly-constant for simple programs
-// (e.g. all-NOP pc_test, or count_to_9 where R4-R7 are always 0).  It then
-// constant-folds the cur_ascii LUT chain, sees the SPI output bits are
-// constant, and ultimately eliminates the entire oled_monitor FSM including
-// vdd_en / vbat_en — leaving the display unpowered and blank.
+// the exact value of every register for simple programs (e.g. infinite_counter
+// where R0 counts 0-63, R1=63, R2-R7 always 0).  It then:
+//   1. Derives CE signals from proven-constant register bits (e.g. R0[7]=0)
+//      and uses them to gate the input pipeline FFs — so r0_r never loads
+//   2. Constant-folds the entire cur_ascii/font_byte path to 0x00, blanking
+//      the display
 //
-// A single registered stage is insufficient for programs like infinite_counter
-// where Quartus applies clock-enable (CE) optimisation: it generates a CE
-// derived from the MSB of each CPU register (e.g. R0[7]=0 always) and uses
-// it to gate all bits of r0_r — so r0_r never loads despite the FF being
-// physically present.
-//
-// Two pipeline stages with DONT_MERGE_REGISTERS prevent both CE-merging and
-// constant propagation.  The two-cycle latency on the display data is
-// imperceptible at ~11 Hz CPU clock speeds.
+// Because input_barrier is declared /* synthesis black_box */, Quartus treats
+// all its outputs as completely unknown at synthesis time, defeating both
+// optimisations.  The one-cycle pipeline latency is imperceptible at ~11 Hz
+// CPU clock speeds.
 // ---------------------------------------------------------------------------
 
-// Stage 1 — plain registers; Quartus may apply CE optimisation here.
-reg [7:0] r0_s1, r1_s1, r2_s1, r3_s1;
-reg [7:0] r4_s1, r5_s1, r6_s1, r7_s1;
-reg [7:0] pc_s1;
-reg [4:0] stack_depth_s1;
-reg       flag_c_s1, flag_z_s1, flag_n_s1, flag_v_s1;
+wire [7:0] r0_r, r1_r, r2_r, r3_r;
+wire [7:0] r4_r, r5_r, r6_r, r7_r;
+wire [7:0] pc_r;
+wire [4:0] stack_depth_r;
+wire       flag_c_r, flag_z_r, flag_n_r, flag_v_r;
 
-always @(posedge clk) begin
-    r0_s1         <= r0;
-    r1_s1         <= r1;
-    r2_s1         <= r2;
-    r3_s1         <= r3;
-    r4_s1         <= r4;
-    r5_s1         <= r5;
-    r6_s1         <= r6;
-    r7_s1         <= r7;
-    pc_s1         <= pc;
-    stack_depth_s1<= stack_depth;
-    flag_c_s1     <= flag_c;
-    flag_z_s1     <= flag_z;
-    flag_n_s1     <= flag_n;
-    flag_v_s1     <= flag_v;
-end
-
-// Stage 2 — DONT_MERGE_REGISTERS prevents Quartus from applying CE
-// optimisation based on tracked register values; each FF loads every cycle.
-(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
-(* preserve, noprune *) reg [7:0] r0_r, r1_r, r2_r, r3_r;
-(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
-(* preserve, noprune *) reg [7:0] r4_r, r5_r, r6_r, r7_r;
-(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
-(* preserve, noprune *) reg [7:0] pc_r;
-(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
-(* preserve, noprune *) reg [4:0] stack_depth_r;
-(* altera_attribute = "-name DONT_MERGE_REGISTERS ON" *)
-(* preserve, noprune *) reg       flag_c_r, flag_z_r, flag_n_r, flag_v_r;
-
-always @(posedge clk) begin
-    r0_r         <= r0_s1;
-    r1_r         <= r1_s1;
-    r2_r         <= r2_s1;
-    r3_r         <= r3_s1;
-    r4_r         <= r4_s1;
-    r5_r         <= r5_s1;
-    r6_r         <= r6_s1;
-    r7_r         <= r7_s1;
-    pc_r         <= pc_s1;
-    stack_depth_r<= stack_depth_s1;
-    flag_c_r     <= flag_c_s1;
-    flag_z_r     <= flag_z_s1;
-    flag_n_r     <= flag_n_s1;
-    flag_v_r     <= flag_v_s1;
-end
+input_barrier u_barrier (
+    .clk             (clk),
+    .r0_in           (r0),
+    .r1_in           (r1),
+    .r2_in           (r2),
+    .r3_in           (r3),
+    .r4_in           (r4),
+    .r5_in           (r5),
+    .r6_in           (r6),
+    .r7_in           (r7),
+    .pc_in           (pc),
+    .stack_depth_in  (stack_depth),
+    .flag_c_in       (flag_c),
+    .flag_z_in       (flag_z),
+    .flag_n_in       (flag_n),
+    .flag_v_in       (flag_v),
+    .r0_out          (r0_r),
+    .r1_out          (r1_r),
+    .r2_out          (r2_r),
+    .r3_out          (r3_r),
+    .r4_out          (r4_r),
+    .r5_out          (r5_r),
+    .r6_out          (r6_r),
+    .r7_out          (r7_r),
+    .pc_out          (pc_r),
+    .stack_depth_out (stack_depth_r),
+    .flag_c_out      (flag_c_r),
+    .flag_z_out      (flag_z_r),
+    .flag_n_out      (flag_n_r),
+    .flag_v_out      (flag_v_r)
+);
 
 // ---------------------------------------------------------------------------
 // Font ROM — 5×7 pixels per glyph, stored as 5 bytes (columns), LSB = top.
