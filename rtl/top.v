@@ -205,7 +205,9 @@ prng u_prng (
 // LED register — driven by OUT Ra, 2 (port 2).
 // LED[0] = Ra[7] (MSB), LED[7] = Ra[0] (LSB).
 // Holds the last value written; reset to 0x00 on CPU reset.
-// Active-low: led=0 illuminates the LED.
+// Active-low hardware is compensated in the assign statements below,
+// so from the programmer's perspective the LEDs are active-high:
+// 0xFF = all on, 0x00 = all off.
 // ---------------------------------------------------------------------------
 reg [7:0] led_reg = 8'h00;
 always @(posedge clk_12m) begin
@@ -305,16 +307,17 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 // ---------------------------------------------------------------------------
 // LED output — driven by led_reg (OUT Ra, 2).
 // LED[0] = Ra MSB (bit 7), LED[7] = Ra LSB (bit 0).
-// Active-low: led=0 illuminates the LED.
+// Active-low hardware is compensated here so the programmer sees active-high:
+// writing 0xFF lights all LEDs, 0x00 turns all off.
 // ---------------------------------------------------------------------------
-assign led[0] = ~led_reg[7];
-assign led[1] = ~led_reg[6];
-assign led[2] = ~led_reg[5];
-assign led[3] = ~led_reg[4];
-assign led[4] = ~led_reg[3];
-assign led[5] = ~led_reg[2];
-assign led[6] = ~led_reg[1];
-assign led[7] = ~led_reg[0];
+assign led[0] = led_reg[7];
+assign led[1] = led_reg[6];
+assign led[2] = led_reg[5];
+assign led[3] = led_reg[4];
+assign led[4] = led_reg[3];
+assign led[5] = led_reg[2];
+assign led[6] = led_reg[1];
+assign led[7] = led_reg[0];
 
 wire [7:0] dbg_oled;  // OLED debug: {spi_res_n, vbat_was_on, vdd_was_on, state[4:0]}
 
