@@ -8,7 +8,7 @@
 // Display layout (4 lines × 21 characters at 6×8 px per char, 128 px wide):
 //   Line 0: "C R0-R3:  XX XX XX XX"  flag C + R0..R3 in hex
 //   Line 1: "Z R4-R7:  XX XX XX XX"  flag Z + R4..R7 in hex
-//   Line 2: "N PC: XXXX  ST: XX   "  flag N + PC as 4-digit hex + stack depth as 2-digit hex
+//   Line 2: "N PC: XXXXH ST: XX  "  flag N + PC as 4-digit hex + 'H' if halted + stack depth
 //   Line 3: "V <PROGRAM_NAME 19c>  " flag V + up to 19-char program name
 //
 // SPI interface (SSD1306 write-only):
@@ -74,6 +74,9 @@ module oled_monitor #(
     input  wire        flag_n,
     input  wire        flag_v,
 
+    // Halt signal — 1 when the CPU has executed HALT and is frozen
+    input  wire        halt,
+
     // PmodOLED SPI signals
     (* preserve, noprune *) output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — deasserted at power-on
     (* preserve, noprune *) output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
@@ -112,6 +115,7 @@ wire [7:0] r4_r, r5_r, r6_r, r7_r;
 wire [7:0] pc_r;
 wire [4:0] stack_depth_r;
 wire       flag_c_r, flag_z_r, flag_n_r, flag_v_r;
+wire       halt_r;
 
 input_barrier u_barrier (
     .clk             (clk),
@@ -129,6 +133,7 @@ input_barrier u_barrier (
     .flag_z_in       (flag_z),
     .flag_n_in       (flag_n),
     .flag_v_in       (flag_v),
+    .halt_in         (halt),
     .r0_out          (r0_r),
     .r1_out          (r1_r),
     .r2_out          (r2_r),
@@ -142,7 +147,8 @@ input_barrier u_barrier (
     .flag_c_out      (flag_c_r),
     .flag_z_out      (flag_z_r),
     .flag_n_out      (flag_n_r),
-    .flag_v_out      (flag_v_r)
+    .flag_v_out      (flag_v_r),
+    .halt_out        (halt_r)
 );
 
 // ---------------------------------------------------------------------------
@@ -646,7 +652,7 @@ always @(*) begin
                 default: cur_ascii = " ";
             endcase
         end
-        // --- Line 2: "N PC: XXXX  ST: XX   " ---
+        // --- Line 2: "N PC: XXXXH ST: XX  " ---
         2'd2: begin
             case (cur_char)
                 5'd0:  cur_ascii = flag_n_r ? "N" : " ";
@@ -659,7 +665,7 @@ always @(*) begin
                 5'd7:  cur_ascii = "0";
                 5'd8:  cur_ascii = hex_char(pc_r[7:4]);
                 5'd9:  cur_ascii = hex_char(pc_r[3:0]);
-                5'd10: cur_ascii = " ";
+                5'd10: cur_ascii = halt_r ? "H" : " ";  // H = halted, space = running
                 5'd11: cur_ascii = " ";
                 5'd12: cur_ascii = "S";
                 5'd13: cur_ascii = "T";

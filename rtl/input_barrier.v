@@ -37,6 +37,7 @@ module input_barrier (
     input  wire        flag_z_in,
     input  wire        flag_n_in,
     input  wire        flag_v_in,
+    input  wire        halt_in,
 
     output reg  [7:0]  r0_out,
     output reg  [7:0]  r1_out,
@@ -51,7 +52,8 @@ module input_barrier (
     output reg         flag_c_out,
     output reg         flag_z_out,
     output reg         flag_n_out,
-    output reg         flag_v_out
+    output reg         flag_v_out,
+    output reg         halt_out
 );
 
 always @(posedge clk) begin
@@ -69,6 +71,7 @@ always @(posedge clk) begin
     flag_z_out      <= flag_z_in;
     flag_n_out      <= flag_n_in;
     flag_v_out      <= flag_v_in;
+    halt_out        <= halt_in;
 end
 
 endmodule

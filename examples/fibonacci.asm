@@ -27,9 +27,11 @@
 
         ST   [R0], R1       ; RAM[0] = 0
         MOV  R7, R1         ; R7 = fib(0) = 0
+        OUT  R7, 2          ; display on LEDs
         ADDI R0, R0, 1      ; advance pointer
         ST   [R0], R2       ; RAM[1] = 1
         MOV  R7, R2         ; R7 = fib(1) = 1
+        OUT  R7, 2          ; display on LEDs
         ADDI R0, R0, 1      ; advance pointer  (R0 now points to RAM[2])
 
 ; ── main loop ─────────────────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ loop:
         JC   done           ; overflow → stop, R7 holds last valid result
 
         MOV  R7, R3         ; R7 = latest Fibonacci result
+        OUT  R7, 2          ; display on LEDs
         ST   [R0], R3       ; RAM[i] = fib(i)
         ADDI R0, R0, 1      ; advance pointer
 
