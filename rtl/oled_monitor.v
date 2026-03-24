@@ -665,14 +665,17 @@ always @(*) begin
                 5'd7:  cur_ascii = "0";
                 5'd8:  cur_ascii = hex_char(pc_r[7:4]);
                 5'd9:  cur_ascii = hex_char(pc_r[3:0]);
-                5'd10: cur_ascii = halt_r ? "H" : " ";  // H = halted, space = running
-                5'd11: cur_ascii = " ";
-                5'd12: cur_ascii = "S";
-                5'd13: cur_ascii = "T";
-                5'd14: cur_ascii = ":";
-                5'd15: cur_ascii = " ";
-                5'd16: cur_ascii = hex_char({3'b0, stack_depth_r[4]});
-                5'd17: cur_ascii = hex_char(stack_depth_r[3:0]);
+                5'd10: cur_ascii = " ";
+                5'd11: cur_ascii = halt_r ? "H" : " ";  // H = halted, space = running
+                5'd12: cur_ascii = " ";
+                5'd13: cur_ascii = " ";
+                5'd14: cur_ascii = " ";
+                5'd15: cur_ascii = "S";
+                5'd16: cur_ascii = "T";
+                5'd17: cur_ascii = ":";
+                5'd18: cur_ascii = " ";
+                5'd19: cur_ascii = hex_char({3'b0, stack_depth_r[4]});
+                5'd20: cur_ascii = hex_char(stack_depth_r[3:0]);
                 default: cur_ascii = " ";
             endcase
         end
