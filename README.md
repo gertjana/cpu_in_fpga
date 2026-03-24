@@ -85,7 +85,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | Program | Tests | Explanation |
 | ------- | ------| ----------- |
 | [examples/infinite_counter.asm](examples/infinite_counter.asm) | Registers, loops| counts from 0 to 63 then starts again |
-| [examples/led_test.asm](examples/led_test.asm) | Led's| counts from 0-255 and writes each value to the LEDs via `OUT Ra, 2`|
+| [examples/led_test.asm](examples/led_test.asm) | LEDs| counts from 0-255 and writes each value to the LEDs via `OUT Ra, 2`|
 | [examples/pc_test.asm](examples/pc_test.asm) | Program counter | executes 32 NOP (nothing operator) to test the program counter |
 | [examples/count_to_9.asm](examples/count_to_9.asm) | Registers, loops | counts from 0 to 9 in R0 repeatedly |
 | [examples/fibonacci.asm](examples/fibonacci.asm) | RAM, Registers | Calculates fibonacci nummers that fit in 8bits, stores in RAM and outputs the result to the LEDs |
