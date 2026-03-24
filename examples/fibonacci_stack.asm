@@ -49,6 +49,7 @@
 push_loop:
         PUSH R4             ; push lo byte of current fib value (b_lo)
         MOV  R7, R4         ; R7 = latest lo byte (for debug display)
+        OUT  R7, 2          ; display on LEDs
 
         ; Compute next = a + b (16-bit)
         ADD  R6, R2, R4     ; next_lo = a_lo + b_lo  (may produce carry in C)
@@ -71,6 +72,7 @@ push_loop:
 
 pop_loop:
         POP  R7             ; R7 = next value from stack (LIFO)
+        OUT  R7, 2          ; display on LEDs
         ADDI R0, R0, 1
         CMPI R0, PUSH_COUNT
         JNZ  pop_loop

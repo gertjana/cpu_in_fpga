@@ -1,53 +1,22 @@
 // =============================================================================
 // top.v — MAX1000 top-level for the CPU (8-bit data path, 16-bit address space)
 //
-// USER_BTN (pin E6, active-low) — single button, dual function:
-//   Short press (<0.35 s) → toggles LED display mode; CPU keeps running
-//   Long  press (≥0.35 s) → resets the CPU; display mode is preserved
+// USER_BTN (pin E6, active-low) — resets the CPU on long press (≥0.35 s).
 //
-// Display modes:
-//
-//   Mode 0 — flags + PC (default):
-//     LED[0]  — flag C  (carry)
-//     LED[1]  — flag V  (overflow)
-//     LED[2]  — heartbeat blink (toggles at CPU clock rate); solid ON when halted
-//     LED[3]  — PC[4]  (MSB)
-//     LED[4]  — PC[3]
-//     LED[5]  — PC[2]
-//     LED[6]  — PC[1]
-//     LED[7]  — PC[0]  (LSB)
-//
-//   Mode 1 — R7 register value:
-//     LED[0]  — R7[7]  (MSB)
-//     LED[1]  — R7[6]
-//     LED[2]  — R7[5]
-//     LED[3]  — R7[4]
-//     LED[4]  — R7[3]
-//     LED[5]  — R7[2]
-//     LED[6]  — R7[1]
-//     LED[7]  — R7[0]  (LSB)
-//
-//   Mode 2 — OLED debug (FSM state + power/control signals):
-//     LED[4:0] — oled_monitor FSM state (see localparam table in oled_monitor.v)
-//     LED[5]   — vdd_en  (1 = VDD off, 0 = VDD on)
-//     LED[6]   — vbat_en (1 = VBAT off, 0 = VBAT on)
-//     LED[7]   — spi_res_n (0 = display in reset, 1 = released)
-//
-// LEDs are active-low: led=0 illuminates the LED (hardware-inverted on the board).
+// LEDs are driven by the CPU via the OUT Ra, 2 instruction:
+//   LED[0] = Ra[7] (MSB), LED[7] = Ra[0] (LSB)
+//   Active-low: led=0 illuminates the LED (hardware-inverted on the board).
+//   All LEDs are off (0x00) at reset.
 //
 // Clock: 12 MHz oscillator on pin H6.
 //
 // CPU clock: divided down from 12 MHz via a prescaler.
 //   CPU_CLK_DIV_BITS selects how many bits of the prescaler counter are used.
-//     bits=23 → 12_000_000 / 2^23 ≈  1.43 Hz  (one step per heartbeat blink)
+//     bits=23 → 12_000_000 / 2^23 ≈  1.43 Hz
 //     bits=22 → ~2.86 Hz
 //     bits=21 → ~5.7 Hz
 //     bits=20 → ~11.4 Hz
 //     bits=1  → 6 MHz (near full speed)
-//
-// Heartbeat: MSB of the CPU prescaler counter — toggles at the CPU clock
-//   rate, so the blink is always synchronised with program execution speed.
-//   Frozen solid (1) once the CPU halts.
 //
 // OLED Monitor: hardware debug display on the PmodOLED connected to the
 //   MAX1000 PMOD header.  Runs entirely at 12 MHz — independent of CPU speed.
@@ -175,17 +144,7 @@ always @(posedge clk_12m)
 
 wire btn_released = btn_prev & ~btn_db;
 
-// ---------------------------------------------------------------------------
-// Display mode toggle — only on short press (was_long still 0 at release).
-//   0 = flags + PC  (default)
-//   1 = R7 register value
-//   2 = OLED debug (FSM state + vdd_en + vbat_en + spi_res_n)
-// Preserved across CPU resets.
-// ---------------------------------------------------------------------------
-reg [1:0] display_mode = 2'b00;
-always @(posedge clk_12m)
-    if (btn_released && !was_long)
-        display_mode <= (display_mode == 2'd2) ? 2'd0 : display_mode + 2'd1;
+// (display mode removed — LEDs are now driven directly by OUT Ra, 2)
 
 // ---------------------------------------------------------------------------
 // CPU clock prescaler — runs the CPU at a human-visible rate.
@@ -203,13 +162,6 @@ end
 
 // cpu_clk_en pulses for one clk_12m cycle every 2^CPU_CLK_DIV_BITS cycles.
 wire cpu_clk_en = (cpu_div_ctr == {CPU_CLK_DIV_BITS{1'b1}});
-
-// ---------------------------------------------------------------------------
-// Heartbeat — MSB of the CPU prescaler counter.
-// Toggles at exactly the CPU clock rate, so the blink speed always matches
-// program execution speed.  Frozen solid (1) once the CPU halts.
-// ---------------------------------------------------------------------------
-wire heartbeat = cpu_div_ctr[CPU_CLK_DIV_BITS-1];
 
 // ---------------------------------------------------------------------------
 // Hardware PRNG — clocked directly by the 12 MHz board oscillator.
@@ -250,26 +202,42 @@ prng u_prng (
 );
 
 // ---------------------------------------------------------------------------
-// GPIO output register — driven by OUT Ra, 2 (port 2).
+// LED register — driven by OUT Ra, 2 (port 2).
+// LED[0] = Ra[7] (MSB), LED[7] = Ra[0] (LSB).
+// Holds the last value written; reset to 0x00 on CPU reset.
+// Active-low hardware is compensated in the assign statements below,
+// so from the programmer's perspective the LEDs are active-high:
+// 0xFF = all on, 0x00 = all off.
+// ---------------------------------------------------------------------------
+reg [7:0] led_reg = 8'h00;
+always @(posedge clk_12m) begin
+    if (rst)
+        led_reg <= 8'h00;
+    else if (cpu_periph_we & (cpu_periph_port == 3'b010))
+        led_reg <= cpu_periph_data;
+end
+
+// ---------------------------------------------------------------------------
+// GPIO output register — driven by OUT Ra, 3 (port 3).
 // Holds the last value written; reset to 0x00 on CPU reset.
 // ---------------------------------------------------------------------------
 reg [7:0] gpio_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b010))
+    else if (cpu_periph_we & (cpu_periph_port == 3'b011))
         gpio_reg <= cpu_periph_data;
 end
 
 // ---------------------------------------------------------------------------
-// GPIO direction register — driven by OUT Ra, 3 (port 3).
+// GPIO direction register — driven by OUT Ra, 4 (port 4).
 // 1 = output, 0 = input.  Reset to all-inputs (0x00) on CPU reset.
 // ---------------------------------------------------------------------------
 reg [7:0] gpio_dir_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_dir_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b011))
+    else if (cpu_periph_we & (cpu_periph_port == 3'b100))
         gpio_dir_reg <= cpu_periph_data;
 end
 
@@ -337,32 +305,21 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 );
 
 // ---------------------------------------------------------------------------
-// Heartbeat / halt indicator (mode 0 only).
+// LED output — driven by led_reg (OUT Ra, 2).
+// LED[0] = Ra MSB (bit 7), LED[7] = Ra LSB (bit 0).
+// Active-low hardware is compensated here so the programmer sees active-high:
+// writing 0xFF lights all LEDs, 0x00 turns all off.
 // ---------------------------------------------------------------------------
-wire hb_or_halt = halt_out ? 1'b1 : heartbeat;
+assign led[0] = led_reg[7];
+assign led[1] = led_reg[6];
+assign led[2] = led_reg[5];
+assign led[3] = led_reg[4];
+assign led[4] = led_reg[3];
+assign led[5] = led_reg[2];
+assign led[6] = led_reg[1];
+assign led[7] = led_reg[0];
 
 wire [7:0] dbg_oled;  // OLED debug: {spi_res_n, vbat_was_on, vdd_was_on, state[4:0]}
-
-// ---------------------------------------------------------------------------
-// LED mux — mode 0: flags + PC   mode 1: R7   mode 2: OLED debug
-// Active-low: led=0 illuminates the LED (hardware-inverted on the board).
-// ---------------------------------------------------------------------------
-assign led[0] = (display_mode == 2'd1) ? dbg_r7[7] :
-                 (display_mode == 2'd2) ? dbg_oled[0] : dbg_flag_c;
-assign led[1] = (display_mode == 2'd1) ? dbg_r7[6] :
-                 (display_mode == 2'd2) ? dbg_oled[1] : dbg_flag_v;
-assign led[2] = (display_mode == 2'd1) ? dbg_r7[5] :
-                 (display_mode == 2'd2) ? dbg_oled[2] : hb_or_halt;
-assign led[3] = (display_mode == 2'd1) ? dbg_r7[4] :
-                 (display_mode == 2'd2) ? dbg_oled[3] : dbg_pc[4];
-assign led[4] = (display_mode == 2'd1) ? dbg_r7[3] :
-                 (display_mode == 2'd2) ? dbg_oled[4] : dbg_pc[3];
-assign led[5] = (display_mode == 2'd1) ? dbg_r7[2] :
-                 (display_mode == 2'd2) ? dbg_oled[5] : dbg_pc[2];
-assign led[6] = (display_mode == 2'd1) ? dbg_r7[1] :
-                 (display_mode == 2'd2) ? dbg_oled[6] : dbg_pc[1];
-assign led[7] = (display_mode == 2'd1) ? dbg_r7[0] :
-                 (display_mode == 2'd2) ? dbg_oled[7] : dbg_pc[0];
 
 // ---------------------------------------------------------------------------
 // OLED Hardware Monitor — runs at 12 MHz, reads CPU state directly.
@@ -374,6 +331,7 @@ oled_monitor #(
 ) u_oled (
     .clk         (clk_12m),
     .rst         (por_rst),
+    .halt        (halt_out),
     .r0          (dbg_r0),
     .r1          (dbg_r1),
     .r2          (dbg_r2),

@@ -85,14 +85,14 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | Program | Tests | Explanation |
 | ------- | ------| ----------- |
 | [examples/infinite_counter.asm](examples/infinite_counter.asm) | Registers, loops| counts from 0 to 63 then starts again |
-| [examples/led_test.asm](examples/led_test.asm) | Led's| counts from 0-255 in R7 (this register is used to drive the 8 leds on the board)|
-| [examples/pc_test.asm](examples/pc_test.asm) | Program counter | executes 32 NOP (nothing operator) to test the program counter leds |
+| [examples/led_test.asm](examples/led_test.asm) | LEDs| counts from 0-255 and writes each value to the LEDs via `OUT Ra, 2`|
+| [examples/pc_test.asm](examples/pc_test.asm) | Program counter | executes 32 NOP (nothing operator) to test the program counter |
 | [examples/count_to_9.asm](examples/count_to_9.asm) | Registers, loops | counts from 0 to 9 in R0 repeatedly |
-| [examples/fibonacci.asm](examples/fibonacci.asm) | RAM, Registers | Calculates fibonacci nummers that fit in 8bits, stores in RAM and R7 to view the result |
+| [examples/fibonacci.asm](examples/fibonacci.asm) | RAM, Registers | Calculates fibonacci numbers that fit in 8bits, stores in RAM and outputs the result to the LEDs |
 | [examples/fibonacci_stack.asm](examples/fibonacci_stack.asm) | Stack | same as above but uses the stack to store the numbers |
-| [examples/knightrider.asm](examples/knightrider.asm) | Shift left/right | Display the knightrider pattern on the leds |
-| [examples/flag_test.asm](examples/flag_test.asm) | Flags (Z, C, N, V) | Exercises all four flags; halts with C=1 and V=1 lit on LEDs |
-| [examples/prng.asm](examples/prng.asm) | IN instruction, PRNG | Uses the `IN` instruction to read the hardware Galois LFSR; streams pseudo-random values to R7 (period 255) |
+| [examples/knightrider.asm](examples/knightrider.asm) | Shift left/right | Display the knightrider pattern on the leds via `OUT Ra, 2` |
+| [examples/flag_test.asm](examples/flag_test.asm) | Flags (Z, C, N, V) | Exercises all four flags |
+| [examples/prng.asm](examples/prng.asm) | IN instruction, PRNG | Uses the `IN` instruction to read the hardware Galois LFSR; streams pseudo-random values to the LEDs via `OUT Ra, 2` (period 255) |
 
 ---
 
@@ -143,45 +143,29 @@ cp examples/count_to_9.hex program.hex
 
 Then recompile in Quartus and reprogram the board as described above. The LEDs will immediately reflect the new program's execution.
 
-> **Note:** If your program never executes a HALT instruction, the heartbeat LED keeps blinking indefinitely. If it halts, the heartbeat LED freezes solid ON.
+> **Note:** The LEDs show whatever value was last written by `OUT Ra, 2`. If the program never executes that instruction the LEDs remain off.
 
 ---
 
 ## LED Indicators
 
-The USER_BTN (pin E6) serves a dual purpose:
-- **Short press** (<0.5 s) — toggles the LED display mode; CPU keeps running
-- **Long press** (≥0.5 s) — resets the CPU (program restarts); display mode is preserved
+The 8 onboard LEDs are controlled directly by the CPU via the `OUT Ra, 2` instruction.
+`LED[0]` shows the MSB (bit 7) of Ra and `LED[7]` shows the LSB (bit 0).
 
-### Mode 0 — Flags + PC (default)
-
-| LED | Pin | Signal | Meaning |
-|-----|-----|--------|---------|
-| LED[0] | A8  | Flag C           | ON = carry or borrow out |
-| LED[1] | A9  | Flag V           | ON = signed overflow |
-| LED[2] | A11 | Heartbeat / Halt | Blinks ~1.4 Hz while running; solid ON when halted |
-| LED[3] | A10 | PC[4]            | Program counter bit 4 |
-| LED[4] | B10 | PC[3]            | Program counter bit 3 |
-| LED[5] | C9  | PC[2]            | Program counter bit 2 |
-| LED[6] | C10 | PC[1]            | Program counter bit 1 |
-| LED[7] | D8  | PC[0]            | Program counter bit 0 |
-
-### Mode 1 — R7 register value
-
-| LED | Pin | Signal | Meaning |
-|-----|-----|--------|---------|
-| LED[0] | A8  | R7[7] | MSB of register R7 |
-| LED[1] | A9  | R7[6] | |
-| LED[2] | A11 | R7[5] | |
-| LED[3] | A10 | R7[4] | |
-| LED[4] | B10 | R7[3] | |
-| LED[5] | C9  | R7[2] | |
-| LED[6] | C10 | R7[1] | |
-| LED[7] | D8  | R7[0] | LSB of register R7 |
+| LED | Pin | Ra bit |
+|-----|-----|--------|
+| LED[0] | A8  | Ra[7] (MSB) |
+| LED[1] | A9  | Ra[6] |
+| LED[2] | A11 | Ra[5] |
+| LED[3] | A10 | Ra[4] |
+| LED[4] | B10 | Ra[3] |
+| LED[5] | C9  | Ra[2] |
+| LED[6] | C10 | Ra[1] |
+| LED[7] | D8  | Ra[0] (LSB) |
 
 LEDs are **active-low** on the MAX1000 — `led=0` illuminates the LED.
 
-LED[3]–LED[7] in mode 0 display PC[4:0], giving 5 bits of program counter visibility (addresses 0–31). Mode 1 shows the full 8-bit value of R7, useful for inspecting the latest Fibonacci result during execution.
+The LED register resets to `0x00` (all off) on CPU reset. The LEDs hold their last written value until the next `OUT Ra, 2` instruction.
 
 ---
 
@@ -194,11 +178,9 @@ A Digilent [PmodOLED](https://digilent.com/reference/pmod/pmodoled/start) (128×
 ```
 C R0-R3:  XX XX XX XX    ← flag C  + R0..R3 in hex
 Z R4-R7:  XX XX XX XX    ← flag Z  + R4..R7 in hex
-N PC: XXXX  ST: XX       ← flag N  + PC (4 hex digits) + stack depth (2 hex digits)
+N PC: XXXXH ST: XX       ← flag N  + PC (4 hex digits) + H if halted + stack depth (2 hex digits)
 V <PROGRAM NAME>         ← flag V  + up to 19-char program name (injected at synthesis)
 ```
-
-Flags appear as their letter when set, `.` when clear.
 
 ### PMOD wiring (MAX1000 PMOD header → PmodOLED)
 

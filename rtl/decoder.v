@@ -457,8 +457,9 @@ always @(*) begin
         GRP_OUT: begin
             case (f_ra)   // port number in Ra field [16:14]
                 3'b001,   // port 1 = PRNG seed
-                3'b010,   // port 2 = GPIO out
-                3'b011: begin  // port 3 = GPIO direction
+                3'b010,   // port 2 = onboard LEDs
+                3'b011,   // port 3 = GPIO output data
+                3'b100: begin  // port 4 = GPIO direction
                     ra_addr    = f_rd;   // source register is in [19:17]
                     periph_we  = 1'b1;
                     periph_port = f_ra;
