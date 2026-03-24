@@ -2,7 +2,7 @@
 ; clk_div: 20
 ; name: Random
 ;
-; Reads the hardware Galois psuedo-random number generator (rtl/prng.v) and displays each value on the LEDs
+; Reads the hardware Galois pseudo-random number generator (rtl/prng.v) and displays each value on the LEDs
 
 .equ PRNG_PORT,     0x01     ; Port 1 is PRNG
 .equ LEDS_PORT,     0x02     ; Port 2 is LEDs
