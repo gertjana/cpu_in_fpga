@@ -152,12 +152,12 @@ wire btn_released = btn_prev & ~btn_db;
 // ---------------------------------------------------------------------------
 parameter CPU_CLK_DIV_BITS = 20;
 
+// Free-running counter — intentionally no reset gate so the low 8 bits
+// hold unpredictable timing entropy when the reset button is released.
+// This value is used as the PRNG seed in prng.v.
 reg [CPU_CLK_DIV_BITS-1:0] cpu_div_ctr = {CPU_CLK_DIV_BITS{1'b0}};
 always @(posedge clk_12m) begin
-    if (rst)
-        cpu_div_ctr <= {CPU_CLK_DIV_BITS{1'b0}};
-    else
-        cpu_div_ctr <= cpu_div_ctr + 1'b1;
+    cpu_div_ctr <= cpu_div_ctr + 1'b1;
 end
 
 // cpu_clk_en pulses for one clk_12m cycle every 2^CPU_CLK_DIV_BITS cycles.

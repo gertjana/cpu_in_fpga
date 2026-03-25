@@ -225,7 +225,7 @@ I8-format: [15:12] group | [11:9] sub | [8] x    | [7:0] imm8
 | `SHL  Rd, Ra`       | R  | `0000 ddd aaa xxx 110` | Rd = Ra << 1        | Z C N   |
 | `SHR  Rd, Ra`       | R  | `0000 ddd aaa xxx 111` | Rd = Ra >> 1        | Z C N   |
 | `ADDI Rd, Ra, imm6` | I  | `0001 ddd aaa iiiiii`  | Rd = Ra + imm6      | Z C N V |
-| `LDI  Rd, imm8`     | I8 | `0010 000 ddd iiiiii`  | Rd = imm8 (6-bit)   | —       |
+| `LDI  Rd, imm6`     | I  | `0010 000 ddd iiiiii`  | Rd = imm6 (0–63)    | —       |
 | `LD   Rd, [Ra]`     | R  | `0010 001 ddd aaa xxx` | Rd = RAM[Ra]        | —       |
 | `ST   [Ra], Rb`     | R  | `0010 010 xxx aaa bbb` | RAM[Ra] = Rb        | —       |
 | `MOV  Rd, Ra`       | R  | `0011 ddd aaa xxxxxxx` | Rd = Ra             | —       |
