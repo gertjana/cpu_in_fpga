@@ -66,13 +66,13 @@ jobs:
       # 1. Check out the repository on the runner (not inside the container)
       # -----------------------------------------------------------------------
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # -----------------------------------------------------------------------
       # 2. Assemble the selected program into quartus/program.hex
       # -----------------------------------------------------------------------
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -132,7 +132,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Cache Quartus Docker image
         id: cache-quartus-image
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/quartus-image.tar
           key: quartus-docker-image-raetro-21.1
@@ -175,7 +175,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Upload output files
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quartus-output-${{ github.ref_name }}-${{ inputs.name }}
           path: |
