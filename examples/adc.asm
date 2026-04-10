@@ -1,0 +1,22 @@
+; adc.asm — MAX10 internal ADC demo
+; clk_div: 20
+; name: ADC Demo
+;
+; Continuously reads the 8-bit ADC value from the dedicated analogue input
+; pin (ANAIN / PIN_D2) and displays it on the 8 onboard LEDs.
+;
+; Port map:
+;   IN  Rd, 4  — read the ADC sampled value (0x00 = 0V, 0xFF = 3.3V)
+;   OUT Ra, 2  — drive the 8 onboard LEDs
+;
+; The ADC result tracks the voltage on the AIN pin in real time.
+; Connecting AIN to GND produces 0x00 (all LEDs off).
+; Connecting AIN to 3.3V produces 0xFF (all LEDs on).
+
+.equ ADC_PORT,  0x04     ; Port 4 = MAX10 internal ADC (ANAIN / PIN_D2)
+.equ LEDS_PORT, 0x02     ; Port 2 = onboard LEDs
+
+loop:
+        IN   R0, ADC_PORT    ; sample ADC value into R0
+        OUT  R0, LEDS_PORT   ; display on LEDs
+        JMP  loop            ; repeat forever

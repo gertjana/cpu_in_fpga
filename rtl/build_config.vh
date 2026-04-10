@@ -8,4 +8,4 @@
 //
 // PROG_NAME must be exactly 19 ASCII characters (pad with spaces on the right).
 // The first 2 display columns on line 3 are reserved for the flag V indicator.
-`define PROG_NAME "UNKNOWN            "
+`define PROG_NAME "ADC Demo           "

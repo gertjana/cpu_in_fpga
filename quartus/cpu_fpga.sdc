@@ -17,5 +17,3 @@ set_false_path -to [get_ports {pmod_cs_n pmod_mosi pmod_sclk pmod_dc pmod_res_n 
 set_false_path -to   [get_ports {gpio[*]}]
 set_false_path -from [get_ports {gpio[*]}]
 
-# ADC input is driven by the internal ADC IP — no external timing path
-set_false_path -from [get_ports {adc_in[*]}]

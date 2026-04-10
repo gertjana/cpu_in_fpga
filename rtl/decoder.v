@@ -458,13 +458,12 @@ always @(*) begin
             case (f_ra)   // port number in Ra field [16:14]
                 3'b001,   // port 1 = PRNG seed
                 3'b010,   // port 2 = onboard LEDs
-                3'b011,   // port 3 = GPIO data (OUT writes output data reg; IN reads pin levels)
-                3'b100: begin  // port 4 = GPIO direction
+                3'b011: begin  // port 3 = GPIO direction register (1=output, 0=input)
                     ra_addr    = f_rd;   // source register is in [19:17]
                     periph_we  = 1'b1;
                     periph_port = f_ra;
                 end
-                default: ; // unknown port — NOP
+                default: ; // unknown / reserved port — NOP (ports 4–7 reserved)
             endcase
         end
 
