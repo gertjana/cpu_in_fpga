@@ -176,13 +176,15 @@ Flags: none
 
 Port field `ppp` is in bits `[8:6]` (range 0–7):
 
-| Port | Peripheral | Direction | Description |
-|------|------------|-----------|-------------|
-| `1`  | PRNG       | read      | 8-bit Galois LFSR hardware random number generator |
-| `2`  | GPIO input | read      | Read current logic level of all 8 GPIO pins (pins configured as input by `OUT Ra, 3`; pins configured as output return their driven value) |
-| `3`  | GPIO dir   | —         | Write-only; `IN` on port `3` is treated as NOP |
-| `4`  | ADC        | read      | Read the 8-bit sampled value from ADC channel 0 (AIN0, PIN_E1 on J1/2). The MAX10 internal ADC samples this pin and returns a 0–255 value proportional to the input voltage (0V = 0x00, 3.3V = 0xFF). |
-| all others | — | — | Undefined; treated as NOP |
+| Port | Peripheral   | Direction | Description |
+|------|--------------|-----------|-------------|
+| `1`  | PRNG         | read      | 8-bit Galois LFSR hardware random number generator |
+| `2`  | GPIO input.  | read      | Read current logic level of all 8 GPIO pins (pins configured as input by `OUT Ra, 3`; pins configured as output return their driven value) |
+| `3`  | GPIO dir.    | —         | Write-only; `IN` on port `3` is treated as NOP |
+| `4`  | ADC          | read      | Read the 8-bit sampled value from ADC channel 0 (ANAIN, PIN_D2 — the dedicated analogue input pin on the MAX1000 board). The MAX10 internal ADC samples this pin and returns a 0–255 value proportional to the input voltage (0V = 0x00, 3.3V = 0xFF).   |
+| `5`  | Accel X | read      | Read X-Axis of the Accelometer |
+| `6`  | Accel Y | read      | Read Y-Axis of the Accelometer |
+| `7`  | Accel S | read      | Read Z-Axis of the Accelometer |
 
 The PRNG (port `1`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective. Period: 255.
 

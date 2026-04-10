@@ -41,6 +41,15 @@ set_global_assignment -name VERILOG_FILE ../rtl/prng.v
 set_global_assignment -name VERILOG_FILE ../rtl/oled_monitor.v
 set_global_assignment -name VERILOG_FILE ../rtl/input_barrier.v
 
+# alt_adc_ctrl IP — MAX10 internal ADC controller (Platform Designer / Qsys).
+# Generate this IP in Quartus: IP Catalog → Library → Basic Functions →
+#   On Chip Memory → Altera Modular ADC Core → configure for 1 channel
+#   (ANAIN, channel 0), continuous sampling, 12-bit, clock = 12 MHz.
+# The generated .qip file will add the correct simulation models and
+# synthesis netlists automatically.  Add the generated .qip path here:
+set_global_assignment -name QIP_FILE alt_adc_ctrl/synthesis/alt_adc_ctrl.qip
+set_global_assignment -name QIP_FILE alt_pll/synthesis/alt_pll.qip
+
 # ---------------------------------------------------------------------------
 # Pin assignments — MAX1000 well-known pinout
 # ---------------------------------------------------------------------------
@@ -112,20 +121,13 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[5]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[6]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[7]
 
-# ADC — The MAX 10 internal ADC hard block samples AIN0 (PIN_E1, J1/2).
-# The alt_adc_ctrl IP core is configured for channel 0 and drives the
-# adc_in[7:0] bus in RTL. No separate pin assignment is needed;
-# the IP handles analog pin configuration.
-# Mark adc_in as VIRTUAL_PIN so Quartus does not attempt to place these
-# signals on physical I/O pads (they are internal IP connections).
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[0]
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[1]
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[2]
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[3]
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[4]
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[5]
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[6]
-set_instance_assignment -name VIRTUAL_PIN ON -to adc_in[7]
+# ADC — The MAX10 internal ADC hard block samples the dedicated analogue input
+# pin ANAIN (PIN_D2, labelled AIN on the MAX1000 board / J1 header).
+# The alt_adc_ctrl Qsys/Platform Designer IP core is instantiated inside
+# top.v and drives the ADC hard block.  PIN_D2 is declared as the `ain` port
+# in top.v so Quartus routes it to the dedicated analogue pad.
+# No I/O standard assignment is needed for analogue pins.
+set_location_assignment PIN_D2 -to ain
 set_global_assignment -name SDC_FILE cpu_fpga.sdc
 
 set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"

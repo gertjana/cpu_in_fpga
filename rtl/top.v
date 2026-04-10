@@ -23,6 +23,13 @@
 //   Continuously shows all 8 registers and flags in hex on the OLED.
 //   The program name is injected at synthesis time via PROG_NAME parameter,
 //   set from a "; name: <PROGRAM_NAME>" comment in the .asm source.
+//
+// ADC: The MAX10 internal ADC is driven by the alt_adc_ctrl Qsys/Platform
+//   Designer IP core, instantiated directly inside this module.  The analog
+//   input is the dedicated ANAIN pin (PIN_D2, labelled AIN on the MAX1000
+//   board / J1 header).  The IP continuously samples channel 0 (ANAIN) and
+//   exposes the 12-bit result via an Avalon-ST response port.  Only the top
+//   8 bits [11:4] are forwarded to the CPU as adc_data[7:0] (IN Rd, 4).
 // =============================================================================
 
 `include "build_config.vh"
@@ -32,11 +39,13 @@ module top (
     input  wire       rst_n,      // USER_BTN active-low (pin E6)
     output wire [7:0] led,        // active-low LEDs: LED[0]..LED[7]
     inout  wire [7:0] gpio,       // 8 bidirectional GPIO pins
-    // adc_in: 8 MSBs of the MAX 10 internal ADC result, supplied by the
-    // alt_adc_ctrl IP core. The external analog input is ADC channel AIN0 on
-    // PIN_E1 (J1 pin 2 on the MAX1000 board). This port is driven by the IP
-    // wrapper, not tied directly to a pad.
-    input  wire [7:0] adc_in,     // ADC result [11:4] from alt_adc_ctrl IP
+    // ain: dedicated analogue input pin PIN_D2 (labelled AIN on MAX1000/J1).
+    // Connected directly to the MAX10 internal ADC hard block.  Declared as a
+    // top-level port so that Quartus can route it to the dedicated analogue
+    // input pad; the alt_adc_ctrl IP inside this module samples it as
+    // channel 0 (ANAIN).  No I/O standard assignment is needed — the pin is
+    // analogue-only and Quartus handles it automatically.
+    input  wire       ain,        // Dedicated analogue input — PIN_D2
 
     // PmodOLED signals — MAX1000 PMOD header pins
     output wire       pmod_cs_n,  // PIN_M3  PMOD pin 1  — SPI chip select
@@ -218,26 +227,25 @@ always @(posedge clk_12m) begin
 end
 
 // ---------------------------------------------------------------------------
-// GPIO output register — driven by OUT Ra, 3 (port 3).
-// Holds the last value written; reset to 0x00 on CPU reset.
+// GPIO output register — reset to 0x00 on CPU reset.
+// NOTE: Writing GPIO output data is not exposed via a dedicated OUT port in
+// this design.  GPIO pins configured as outputs will drive 0 by default.
 // ---------------------------------------------------------------------------
 reg [7:0] gpio_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b011))
-        gpio_reg <= cpu_periph_data;
 end
 
 // ---------------------------------------------------------------------------
-// GPIO direction register — driven by OUT Ra, 4 (port 4).
+// GPIO direction register — driven by OUT Ra, 3 (port 3).
 // 1 = output, 0 = input.  Reset to all-inputs (0x00) on CPU reset.
 // ---------------------------------------------------------------------------
 reg [7:0] gpio_dir_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_dir_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b100))
+    else if (cpu_periph_we & (cpu_periph_port == 3'b011))
         gpio_dir_reg <= cpu_periph_data;
 end
 
@@ -255,6 +263,83 @@ endgenerate
 
 // Read-back: capture current pin value regardless of direction.
 wire [7:0] gpio_in = gpio;
+
+// ---------------------------------------------------------------------------
+// MAX10 internal ADC — alt_adc_ctrl IP instantiation
+//
+// The alt_adc_ctrl IP (from the Quartus IP Catalog / Platform Designer) wraps
+// the MAX10 ADC hard block.  It operates in "run continuously" mode, sampling
+// a single channel (channel 0 = ANAIN = PIN_D2) and presenting each result
+// on the Avalon-ST response port.
+//
+// Interface summary:
+//   clk_clk             — system clock (12 MHz)
+//   reset_sink_reset_n  — active-low reset
+//   adc_pll_clock_clk   — dedicated ADC clock; for the MAX10 internal ADC the
+//                         IP generates this from the PLL inside the hard block,
+//                         so we feed clk_12m and let the IP manage it.
+//   command_valid       — tied 1'b1: always issue sample commands
+//   command_channel     — tied 5'b00000: sample ANAIN (channel 0)
+//   command_startofpacket / endofpacket — tie both 1'b1 for single-channel
+//   command_ready       — output from IP (we ignore it; command is always valid)
+//   response_valid      — pulses 1 each time a new 12-bit result is ready
+//   response_channel    — channel index of the result (always 0 here)
+//   response_data       — 12-bit ADC result (0x000 = 0V, 0xFFF = 3.3V)
+//   response_startofpacket / endofpacket — Avalon-ST framing (ignored)
+//   response_ready      — we tie 1'b1: always accept results
+//
+// The top 8 bits [11:4] of the 12-bit result are latched into adc_result on
+// each valid pulse, giving a 0–255 range over 0–3.3V (≈12.9 mV resolution).
+// This value is forwarded to the CPU as adc_data (IN Rd, 4).
+// ---------------------------------------------------------------------------
+
+wire        adc_pll_clk;     // 2 MHz from ALTPLL C0 — fed to ADC hard block
+wire        adc_pll_locked;  // ALTPLL locked flag — forwarded to alt_adc_ctrl
+
+wire        adc_response_valid;
+wire [4:0]  adc_response_channel;
+wire [11:0] adc_response_data;
+
+// Latch the 8 MSBs of the ADC result each time a new sample arrives.
+reg [7:0] adc_result = 8'h00;
+always @(posedge clk_12m) begin
+    if (rst)
+        adc_result <= 8'h00;
+    else if (adc_response_valid)
+        adc_result <= adc_response_data[11:4];
+end
+
+// ---------------------------------------------------------------------------
+// ALTPLL — generates 2 MHz (÷6 from 12 MHz) for the ADC hard block.
+// inclk0 = 12 MHz board oscillator; c0 = 2 MHz → adc_pll_clock_clk.
+// areset is tied low (no async reset needed for the PLL).
+// ---------------------------------------------------------------------------
+alt_pll u_pll (
+    .inclk0 (clk_12m),
+    .areset (1'b0),
+    .c0     (adc_pll_clk),
+    .locked (adc_pll_locked)
+);
+
+alt_adc_ctrl u_adc (
+    // Clocks & reset
+    .clock_clk                  (clk_12m),      // system clock (12 MHz)
+    .reset_sink_reset_n         (~rst),
+    .adc_pll_clock_clk          (adc_pll_clk),  // 2 MHz from ALTPLL C0
+    .adc_pll_locked_export      (adc_pll_locked), // PLL locked signal
+    // Command channel — continuously request channel 0 (ANAIN = PIN_D2)
+    .command_valid              (1'b1),
+    .command_channel            (5'd0),
+    .command_startofpacket      (1'b1),
+    .command_endofpacket        (1'b1),
+    .command_ready              (),       // ignored — we always send
+    // Response channel — capture ADC results
+    .response_valid             (adc_response_valid),
+    .response_channel           (adc_response_channel),
+    .response_data              (adc_response_data),
+    .response_startofpacket     (),       // ignored
+    .response_endofpacket       ()        // ignored
+);
 
 // ---------------------------------------------------------------------------
 // CPU instantiation
@@ -282,7 +367,7 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
     .halt_out        (halt_out),
     .prng_data       (prng_data),
     .gpio_data       (gpio_in),
-    .adc_data        (adc_in),
+    .adc_data        (adc_result),
     .periph_we       (cpu_periph_we),
     .periph_port     (cpu_periph_port),
     .periph_data     (cpu_periph_data),
