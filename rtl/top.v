@@ -24,12 +24,14 @@
 //   The program name is injected at synthesis time via PROG_NAME parameter,
 //   set from a "; name: <PROGRAM_NAME>" comment in the .asm source.
 //
-// ADC: The MAX10 internal ADC is driven by the alt_adc_ctrl Qsys/Platform
-//   Designer IP core, instantiated directly inside this module.  The analog
-//   input is the dedicated ANAIN pin (PIN_D2, labelled AIN on the MAX1000
-//   board / J1 header).  The IP continuously samples channel 0 (ANAIN) and
-//   exposes the 12-bit result via an Avalon-ST response port.  Only the top
-//   8 bits [11:4] are forwarded to the CPU as adc_data[7:0] (IN Rd, 4).
+// ADC: The MAX10 internal ADC is driven by the alt_adc_ctrl IP core,
+//   instantiated directly inside this module.  The analog input is the
+//   dedicated ANAIN pin (PIN_D2, labelled AIN on the MAX1000 board / J1
+//   header).  This pin is connected internally by the IP — it must NOT be
+//   declared as a top-level port.  The IP continuously samples channel 0
+//   (ANAIN) and exposes the 12-bit result via an Avalon-ST response port.
+//   Only the top 8 bits [11:4] are forwarded to the CPU as adc_data[7:0]
+//   (IN Rd, 4).
 // =============================================================================
 
 `include "build_config.vh"
@@ -39,14 +41,6 @@ module top (
     input  wire       rst_n,      // USER_BTN active-low (pin E6)
     output wire [7:0] led,        // active-low LEDs: LED[0]..LED[7]
     inout  wire [7:0] gpio,       // 8 bidirectional GPIO pins
-    // ain: dedicated analogue input pin PIN_D2 (labelled AIN on MAX1000/J1).
-    // Connected directly to the MAX10 internal ADC hard block.  Declared as a
-    // top-level port so that Quartus can route it to the dedicated analogue
-    // input pad; the alt_adc_ctrl IP inside this module samples it as
-    // channel 0 (ANAIN).  No I/O standard assignment is needed — the pin is
-    // analogue-only and Quartus handles it automatically.
-    input  wire       ain,        // Dedicated analogue input — PIN_D2
-
     // PmodOLED signals — MAX1000 PMOD header pins
     output wire       pmod_cs_n,  // PIN_M3  PMOD pin 1  — SPI chip select
     output wire       pmod_mosi,  // PIN_L3  PMOD pin 2  — SPI MOSI (SDIN)

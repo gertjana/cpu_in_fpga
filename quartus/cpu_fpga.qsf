@@ -123,11 +123,10 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[7]
 
 # ADC — The MAX10 internal ADC hard block samples the dedicated analogue input
 # pin ANAIN (PIN_D2, labelled AIN on the MAX1000 board / J1 header).
-# The alt_adc_ctrl Qsys/Platform Designer IP core is instantiated inside
-# top.v and drives the ADC hard block.  PIN_D2 is declared as the `ain` port
-# in top.v so Quartus routes it to the dedicated analogue pad.
-# No I/O standard assignment is needed for analogue pins.
-set_location_assignment PIN_D2 -to ain
+# The alt_adc_ctrl IP core is instantiated inside top.v and drives the ADC
+# hard block.  PIN_D2 is a dedicated analogue-only pin — it is connected
+# internally by the IP and must NOT be declared as a top-level digital port.
+# No pin assignment or I/O standard is needed here.
 set_global_assignment -name SDC_FILE cpu_fpga.sdc
 
 set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
