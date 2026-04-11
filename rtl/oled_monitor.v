@@ -903,7 +903,11 @@ always @(posedge clk) begin
 
             // --- Send one column byte of font data ---
             ST_COL_DATA: begin
+                `ifdef OLED_DIAG
+                spi_send(8'hFF, 1'b1);       // DIAG: force all pixels ON
+                `else
                 spi_send(font_byte, 1'b1);   // DC=1: data
+                `endif
                 state <= ST_COL_WAIT;
             end
 
