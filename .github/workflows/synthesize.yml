@@ -184,5 +184,6 @@ jobs:
             quartus/output_files/cpu_fpga.flow.rpt
             quartus/output_files/cpu_fpga.fit.rpt
             quartus/output_files/cpu_fpga.sta.rpt
+            quartus/output_files/cpu_fpga.map.rpt
           retention-days: 30
           if-no-files-found: warn
