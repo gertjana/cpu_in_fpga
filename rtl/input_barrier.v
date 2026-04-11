@@ -1,25 +1,37 @@
 // =============================================================================
-// input_barrier.v — Synthesis black-box register barrier for oled_monitor
+// input_barrier.v — Anti-optimisation register barrier for oled_monitor
 //
-// This module is declared as a synthesis black box so that Quartus cannot
-// perform constant-propagation or Auto Clock Enable (ACE) optimisation
-// through it.  It simply registers its inputs on the rising clock edge.
+// This module registers all CPU debug outputs on the rising clock edge,
+// preventing Quartus from performing constant-propagation or Auto Clock
+// Enable (ACE) optimisation from the CPU into the oled_monitor.
 //
 // Without this barrier, Quartus analyses the CPU program ROM, determines
-// the exact value of every register for simple programs (e.g. infinite_counter
-// where R0 counts 0-63, R1=63, R2-R7 always 0), and then:
+// the exact value of every register for simple programs (e.g. adc where
+// only R0 changes, R1-R7 always 0), and then:
 //   1. Derives clock-enable signals from proven-constant register bits
 //      (e.g. R0[7]=0 always → CE=0 → input pipeline FF never loads)
 //   2. Constant-folds the entire cur_ascii / font_byte combinatorial path
 //      to 0x00, producing a permanently blank display
 //
-// By marking this module black_box, Quartus treats all outputs as unknown
-// at synthesis time, which defeats both optimisations.
+// Defence-in-depth strategy:
+//   (* preserve *)    — keeps each register; prevents optimisation/removal
+//   (* noprune *)     — prevents removal even if outputs appear unused
+//   (* dont_merge *)  — prevents merging with other equivalent registers
+//   altera_attribute  — disables Auto Clock Enable recognition on all FFs
+//                       in this module, so Quartus cannot infer a CE signal
+//                       from proven-constant input bits
+//
+// NOTE: An earlier version used /* synthesis black_box */ on the module,
+// but that directive tells Quartus to NOT synthesize the module body at
+// all (outputs left undriven / tied to GND).  This caused the OLED to be
+// completely blank for some programs.  The per-register attributes above
+// are the correct approach: Quartus synthesizes the FFs normally but
+// cannot optimise across them.
 //
 // The one-cycle pipeline latency is imperceptible at ~11 Hz CPU clock speeds.
 // =============================================================================
 
-/* synthesis black_box */
+(* altera_attribute = "-name AUTO_CLOCK_ENABLE_RECOGNITION OFF" *)
 module input_barrier (
     input  wire        clk,
 
@@ -39,21 +51,21 @@ module input_barrier (
     input  wire        flag_v_in,
     input  wire        halt_in,
 
-    output reg  [7:0]  r0_out,
-    output reg  [7:0]  r1_out,
-    output reg  [7:0]  r2_out,
-    output reg  [7:0]  r3_out,
-    output reg  [7:0]  r4_out,
-    output reg  [7:0]  r5_out,
-    output reg  [7:0]  r6_out,
-    output reg  [7:0]  r7_out,
-    output reg  [7:0]  pc_out,
-    output reg  [4:0]  stack_depth_out,
-    output reg         flag_c_out,
-    output reg         flag_z_out,
-    output reg         flag_n_out,
-    output reg         flag_v_out,
-    output reg         halt_out
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r0_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r1_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r2_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r3_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r4_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r5_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r6_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  r7_out,
+    (* preserve, noprune, dont_merge *) output reg  [7:0]  pc_out,
+    (* preserve, noprune, dont_merge *) output reg  [4:0]  stack_depth_out,
+    (* preserve, noprune, dont_merge *) output reg         flag_c_out,
+    (* preserve, noprune, dont_merge *) output reg         flag_z_out,
+    (* preserve, noprune, dont_merge *) output reg         flag_n_out,
+    (* preserve, noprune, dont_merge *) output reg         flag_v_out,
+    (* preserve, noprune, dont_merge *) output reg         halt_out
 );
 
 always @(posedge clk) begin

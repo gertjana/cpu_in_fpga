@@ -92,22 +92,21 @@ module oled_monitor #(
 );
 
 // ---------------------------------------------------------------------------
-// Registered CPU inputs — routed through a synthesis black-box barrier to
-// prevent Quartus from performing cross-module constant propagation and
-// Auto Clock Enable (ACE) optimisation into oled_monitor.
+// Registered CPU inputs — routed through a register barrier to prevent
+// Quartus from performing cross-module constant propagation and Auto Clock
+// Enable (ACE) optimisation into oled_monitor.
 //
 // Without this barrier, Quartus analyses the CPU program ROM and determines
-// the exact value of every register for simple programs (e.g. infinite_counter
-// where R0 counts 0-63, R1=63, R2-R7 always 0).  It then:
+// the exact value of every register for simple programs (e.g. adc where
+// only R0 changes, R1-R7 are always 0).  It then:
 //   1. Derives CE signals from proven-constant register bits (e.g. R0[7]=0)
 //      and uses them to gate the input pipeline FFs — so r0_r never loads
 //   2. Constant-folds the entire cur_ascii/font_byte path to 0x00, blanking
 //      the display
 //
-// Because input_barrier is declared /* synthesis black_box */, Quartus treats
-// all its outputs as completely unknown at synthesis time, defeating both
-// optimisations.  The one-cycle pipeline latency is imperceptible at ~11 Hz
-// CPU clock speeds.
+// The input_barrier output registers carry (* preserve, noprune, dont_merge *)
+// attributes, so Quartus synthesizes the FFs normally but cannot optimise
+// across them.
 // ---------------------------------------------------------------------------
 
 wire [7:0] r0_r, r1_r, r2_r, r3_r;

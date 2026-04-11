@@ -135,18 +135,22 @@ set_global_assignment -name LAST_QUARTUS_VERSION "22.1std.2 Lite Edition"
 # oled_monitor synthesis constraints
 #
 # Quartus performs global constant-propagation and, for simple programs with
-# small bounded CPUs (e.g. infinite_counter where R0 counts 0-63 and R2-R7
-# are always 0), can prove the value of every CPU register at every cycle.
-# It then applies Auto Clock Enable (ACE) optimisation to the oled_monitor
-# input pipeline FFs: it derives a CE from the MSB of a CPU register
-# (e.g. R0[7]=0 always) and uses it to gate all bits of r0_r — so the FF
-# never loads, and cur_ascii/font_byte are driven by stale zero data,
-# producing a blank display.
+# small bounded CPUs (e.g. adc where only R0 changes, R1-R7 always 0), can
+# prove the value of every CPU register at every cycle.  It then applies
+# Auto Clock Enable (ACE) optimisation to the oled_monitor input pipeline
+# FFs: it derives a CE from the MSB of a CPU register (e.g. R0[7]=0 always)
+# and uses it to gate all bits of r0_r — so the FF never loads, and
+# cur_ascii/font_byte are driven by stale zero data, producing a blank
+# display.
 #
-# This is solved by routing CPU inputs through input_barrier.v, which is
-# declared as a synthesis black box (/* synthesis black_box */).  Quartus
-# treats black-box outputs as completely unknown, preventing any
-# constant-propagation or ACE optimisation through the barrier.
+# This is solved by routing CPU inputs through input_barrier.v, whose output
+# registers carry (* preserve, noprune, dont_merge *) attributes.  Quartus
+# synthesizes the FFs normally but cannot optimise across the barrier.
+#
+# NOTE: An earlier version used /* synthesis black_box */ on input_barrier.
+# That directive caused Quartus to skip synthesizing the module body entirely,
+# leaving outputs undriven (GND) for some programs — producing a completely
+# blank OLED.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
