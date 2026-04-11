@@ -382,11 +382,34 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 );
 
 // ---------------------------------------------------------------------------
-// LED output — driven by led_reg (OUT Ra, 2).
-// LED[0] = Ra MSB (bit 7), LED[7] = Ra LSB (bit 0).
-// Active-low hardware is compensated here so the programmer sees active-high:
-// writing 0xFF lights all LEDs, 0x00 turns all off.
+// LED output — normally driven by led_reg (OUT Ra, 2).
+//
+// DIAGNOSTIC MODE (OLED_DIAG): route dbg_oled to LEDs so the OLED FSM
+// state can be observed on a build where the display is completely black.
+//
+//   dbg_oled = {spi_res_n, vbat_was_on, vdd_was_on, state[4:0]}
+//
+//   LED[0] = spi_res_n    — 1 after reset released
+//   LED[1] = vbat_was_on  — 1 after VBAT enabled (sticky)
+//   LED[2] = vdd_was_on   — 1 after VDD enabled (sticky)
+//   LED[3..7] = state[4:0] — FSM state (see oled_monitor.v localparams)
+//
+// Expected if init completes: LEDs 0-2 all lit, LEDs 3-7 cycling 01011..10001
+// (states 11-17 = refresh loop).  If stuck: LEDs 0-2 partially off, LEDs 3-7
+// frozen at the stuck state number.
+//
+// To disable: comment out `define OLED_DIAG in build_config.vh and rebuild.
 // ---------------------------------------------------------------------------
+`ifdef OLED_DIAG
+assign led[0] = dbg_oled[7];  // spi_res_n
+assign led[1] = dbg_oled[6];  // vbat_was_on
+assign led[2] = dbg_oled[5];  // vdd_was_on
+assign led[3] = dbg_oled[4];  // state[4]
+assign led[4] = dbg_oled[3];  // state[3]
+assign led[5] = dbg_oled[2];  // state[2]
+assign led[6] = dbg_oled[1];  // state[1]
+assign led[7] = dbg_oled[0];  // state[0]
+`else
 assign led[0] = led_reg[7];
 assign led[1] = led_reg[6];
 assign led[2] = led_reg[5];
@@ -395,6 +418,7 @@ assign led[4] = led_reg[3];
 assign led[5] = led_reg[2];
 assign led[6] = led_reg[1];
 assign led[7] = led_reg[0];
+`endif
 
 wire [7:0] dbg_oled;  // OLED debug: {spi_res_n, vbat_was_on, vdd_was_on, state[4:0]}
 
