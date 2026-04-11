@@ -31,6 +31,7 @@ reg        rst;
 reg  [7:0] r0, r1, r2, r3, r4, r5, r6, r7;
 reg  [7:0] pc;
 reg        flag_c, flag_z, flag_n, flag_v;
+reg        halt;
 
 wire       spi_cs_n;
 wire       spi_clk;
@@ -56,6 +57,7 @@ oled_monitor #(
     .flag_z   (flag_z),
     .flag_n   (flag_n),
     .flag_v   (flag_v),
+    .halt     (halt),
     .spi_cs_n (spi_cs_n),
     .spi_clk  (spi_clk),
     .spi_mosi (spi_mosi),
@@ -167,11 +169,12 @@ initial begin
     capturing     = 1'b0;
     spi_clk_prev  = 1'b0;
 
-    // Registers, PC, and flags
+    // Registers, PC, flags and halt
     r0 = 8'hAB; r1 = 8'hCD; r2 = 8'hEF; r3 = 8'h12;
     r4 = 8'h34; r5 = 8'h56; r6 = 8'h78; r7 = 8'h9A;
     pc = 8'h42;
     flag_c = 1'b1; flag_z = 1'b0; flag_n = 1'b1; flag_v = 1'b0;
+    halt = 1'b0;
 
     // Apply reset for 10 cycles
     rst = 1'b1;

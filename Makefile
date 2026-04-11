@@ -102,7 +102,7 @@ sim-knightrider: $(SIM_DIR)
 
 sim-oled_monitor: $(SIM_DIR)
 	@echo "--- tb_oled_monitor ---"
-	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_oled_monitor tb/tb_oled_monitor.v rtl/oled_monitor.v
+	$(IVERILOG) -g2005 -o $(SIM_DIR)/tb_oled_monitor tb/tb_oled_monitor.v rtl/oled_monitor.v rtl/input_barrier.v
 	$(VVP) $(SIM_DIR)/tb_oled_monitor
 
 # ---------------------------------------------------------------------------

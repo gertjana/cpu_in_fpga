@@ -29,26 +29,29 @@ Addr    Word  Source
               
 0003  240100          ST   [R0], R1       ; RAM[0] = 0
 0004  3E4000          MOV  R7, R1         ; R7 = fib(0) = 0
-0005  100100          ADDI R0, R0, 1      ; advance pointer
-0006  240200          ST   [R0], R2       ; RAM[1] = 1
-0007  3E8000          MOV  R7, R2         ; R7 = fib(1) = 1
-0008  100100          ADDI R0, R0, 1      ; advance pointer  (R0 now points to RAM[2])
+0005  9E8000          OUT  R7, 2          ; display on LEDs
+0006  100100          ADDI R0, R0, 1      ; advance pointer
+0007  240200          ST   [R0], R2       ; RAM[1] = 1
+0008  3E8000          MOV  R7, R2         ; R7 = fib(1) = 1
+0009  9E8000          OUT  R7, 2          ; display on LEDs
+000A  100100          ADDI R0, R0, 1      ; advance pointer  (R0 now points to RAM[2])
               
               ; ── main loop ─────────────────────────────────────────────────────────────────
               
               loop:
-0009  006500          ADD  R3, R1, R2     ; next = a + b; carry set if > 255
-000A  460011          JC   done           ; overflow → stop, R7 holds last valid result
+000B  006500          ADD  R3, R1, R2     ; next = a + b; carry set if > 255
+000C  460014          JC   done           ; overflow → stop, R7 holds last valid result
               
-000B  3EC000          MOV  R7, R3         ; R7 = latest Fibonacci result
-000C  240300          ST   [R0], R3       ; RAM[i] = fib(i)
-000D  100100          ADDI R0, R0, 1      ; advance pointer
+000D  3EC000          MOV  R7, R3         ; R7 = latest Fibonacci result
+000E  9E8000          OUT  R7, 2          ; display on LEDs
+000F  240300          ST   [R0], R3       ; RAM[i] = fib(i)
+0010  100100          ADDI R0, R0, 1      ; advance pointer
               
-000E  328000          MOV  R1, R2         ; a = b
-000F  34C000          MOV  R2, R3         ; b = next
-0010  400009          JMP  loop
+0011  328000          MOV  R1, R2         ; a = b
+0012  34C000          MOV  R2, R3         ; b = next
+0013  40000B          JMP  loop
               
               ; ── halt ──────────────────────────────────────────────────────────────────────
               
               done:
-0011  F00000          HALT
+0014  F00000          HALT
