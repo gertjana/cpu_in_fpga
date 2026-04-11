@@ -270,8 +270,7 @@ wire [7:0] gpio_in = gpio;
 //   clk_clk             — system clock (12 MHz)
 //   reset_sink_reset_n  — active-low reset
 //   adc_pll_clock_clk   — dedicated ADC clock; for the MAX10 internal ADC the
-//                         IP generates this from the PLL inside the hard block,
-//                         so we feed clk_12m and let the IP manage it.
+//                         IP uses the alt_pll IP for this
 //   command_valid       — tied 1'b1: always issue sample commands
 //   command_channel     — tied 5'b00000: sample ANAIN (channel 0)
 //   command_startofpacket / endofpacket — tie both 1'b1 for single-channel
@@ -280,7 +279,6 @@ wire [7:0] gpio_in = gpio;
 //   response_channel    — channel index of the result (always 0 here)
 //   response_data       — 12-bit ADC result (0x000 = 0V, 0xFFF = 3.3V)
 //   response_startofpacket / endofpacket — Avalon-ST framing (ignored)
-//   response_ready      — we tie 1'b1: always accept results
 //
 // The top 8 bits [11:4] of the 12-bit result are latched into adc_result on
 // each valid pulse, giving a 0–255 range over 0–3.3V (≈12.9 mV resolution).

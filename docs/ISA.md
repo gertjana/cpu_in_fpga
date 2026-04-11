@@ -179,14 +179,14 @@ Port field `ppp` is in bits `[8:6]` (range 0–7):
 | Port | Peripheral   | Direction | Description |
 |------|--------------|-----------|-------------|
 | `1`  | PRNG         | read      | 8-bit Galois LFSR hardware random number generator |
-| `2`  | GPIO input.  | read      | Read current logic level of all 8 GPIO pins (pins configured as input by `OUT Ra, 3`; pins configured as output return their driven value) |
-| `3`  | GPIO dir.    | —         | Write-only; `IN` on port `3` is treated as NOP |
+| `2`  | GPIO input   | read      | Read current logic level of all 8 GPIO pins (pins configured as input by `OUT Ra, 3`; pins configured as output return their driven value) |
+| `3`  | GPIO dir     | —         | Write-only; `IN` on port `3` is treated as NOP |
 | `4`  | ADC          | read      | Read the 8-bit sampled value from ADC channel 0 (ANAIN, PIN_D2 — the dedicated analogue input pin on the MAX1000 board). The MAX10 internal ADC samples this pin and returns a 0–255 value proportional to the input voltage (0V = 0x00, 3.3V = 0xFF).   |
 | `5`  | Accel X | read      | Read X-Axis of the Accelometer |
 | `6`  | Accel Y | read      | Read Y-Axis of the Accelometer |
 | `7`  | Accel S | read      | Read Z-Axis of the Accelometer |
 
-The PRNG (port `1`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective. Period: 255.
+> The PRNG (port `1`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective.
 
 ### Group 9 — OUT (write hardware peripheral)  `4'h9`
 
@@ -205,8 +205,8 @@ Port numbers are shared with `IN` where the same peripheral supports both read a
 | `1`  | PRNG seed    | write      | Load a seed value into the PRNG LFSR. Clears the zero-lock guard automatically (writing `0x00` is mapped to `0x01`). |
 | `2`  | GPIO out     | write      | Set all 8 GPIO output data pins simultaneously. Each bit maps to one pin (bit 0 = GPIO0, …, bit 7 = GPIO7). Only pins whose direction bit (port 3) is 1 drive the output. |
 | `3`  | GPIO dir     | write      | Set GPIO direction register (1 = output, 0 = input, per bit). Resets to `0x00` (all inputs) on CPU reset. |
-| `4`  | —            | —          | Reserved; `OUT` to port 4 is treated as NOP (MAX10 has no DAC). |
-| `5`–`7` | —        | —          | Reserved for future peripherals; currently treated as NOP. |
+
+Ports 4-7 are read only, so any OUT instruction with these ports will be treated as NOP's
 
 **Notes:**
 - `OUT` has no effect on CPU registers or flags.
