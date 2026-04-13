@@ -184,15 +184,25 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_res_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vbatc
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pmod_vddc
 
-# Weak pull-ups on OLED power and reset pins.
+# Weak pull-ups on OLED control and chip-select pins.
 # During FPGA configuration (~100 ms) all I/O pins are tri-stated. Without
 # pull-ups, pmod_res_n floats and the SSD1306 may latch into a bad reset
 # state; vbatc/vddc may float low and power the display before the FSM can
-# run the controlled power-on sequence. These pull-ups (~25 kΩ) keep the
-# lines at their safe idle levels (reset asserted = low is wrong; res_n
-# should be high = not in reset during float, and power-enable pins should
-# be high = off) until the bitstream drives them. They have no effect during
-# normal operation because the FPGA output drivers override them.
+# run the controlled power-on sequence; and — critically — pmod_cs_n may
+# float low, causing the SSD1306 to interpret noise on the floating SCLK
+# and MOSI lines as valid SPI commands.  This can corrupt the SSD1306's
+# internal state (charge pump, addressing mode, display on/off) in ways
+# that the subsequent init sequence cannot always recover from.
+#
+# These pull-ups (~25 kΩ) keep the lines at their safe idle levels until
+# the bitstream drives them.  They have no effect during normal operation
+# because the FPGA output drivers override them.
+#
+#   pmod_cs_n  — high = SSD1306 deselected, ignores SCLK/MOSI noise
+#   pmod_res_n — high = SSD1306 not in reset
+#   pmod_vbatc — high = display panel power OFF
+#   pmod_vddc  — high = logic power OFF
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_cs_n
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_res_n
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_vbatc
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_vddc

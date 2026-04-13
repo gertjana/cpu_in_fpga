@@ -12,4 +12,4 @@
 
 // Uncomment to route OLED FSM debug state to the 8 LEDs instead of the
 // normal program-driven LED output.  See top.v for the LED-to-signal mapping.
-`define OLED_DIAG
+// `define OLED_DIAG

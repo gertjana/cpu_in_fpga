@@ -533,6 +533,10 @@ endfunction
 // Main FSM
 // ---------------------------------------------------------------------------
 // Power-on sequence (matches Digilent PmodOLED reference driver):
+//   0. Force VDD+VBAT OFF for 10 ms                — ST_POWER_DOWN / _W
+//      (ensures clean SSD1306 state after FPGA reconfig — during reconfig
+//      I/O pins are tri-stated and the SSD1306 may have received garbage
+//      SPI commands from floating SCLK/MOSI lines)
 //   1. VDD on (VDDC low)                          — ST_VDD_ON
 //   2. Wait 1 ms for VDD to stabilise             — ST_VDD_WAIT
 //   3. Release RES (high) for 1 ms                — ST_RES_HIGH
@@ -563,7 +567,9 @@ localparam [4:0]
     ST_COL_DATA     = 5'd14,  // send one column of font data
     ST_COL_WAIT     = 5'd15,  // wait for SPI
     ST_NEXT_COL     = 5'd16,  // advance column / character / line
-    ST_DONE         = 5'd17;  // loop back to refresh
+    ST_DONE         = 5'd17,  // loop back to refresh
+    ST_POWER_DOWN   = 5'd18,  // force VDD+VBAT off for clean SSD1306 reset
+    ST_POWER_DOWN_W = 5'd19;  // wait for full discharge
 
 (* preserve, noprune *) reg [4:0] state = ST_VDD_ON;
 
@@ -730,7 +736,7 @@ endtask
 
 always @(posedge clk) begin
     if (rst) begin
-        state       <= ST_VDD_ON;  // ST_VDD_ON=5'd0 is the first state
+        state       <= ST_POWER_DOWN;  // start with full power-down cycle
         spi_cs_n    <= 1'b1;
         spi_clk     <= 1'b0;
         spi_mosi    <= 1'b0;
@@ -946,6 +952,29 @@ always @(posedge clk) begin
                     cur_col <= cur_col + 3'd1;
                     state   <= ST_COL_DATA;
                 end
+            end
+
+            // --- Force SSD1306 fully off before init ---
+            // During FPGA reconfiguration, I/O pins are tri-stated and the
+            // SSD1306 (still powered from the previous build) may receive
+            // garbage SPI commands from floating SCLK/CS/MOSI lines.  This
+            // can corrupt the charge pump, addressing mode, or display-on
+            // state.  A 10 ms power-off period ensures the SSD1306 fully
+            // resets before the controlled power-on sequence begins.
+            ST_POWER_DOWN: begin
+                vdd_en    <= 1'b1;           // VDDC high = power OFF
+                vbat_en   <= 1'b1;           // VBATC high = power OFF
+                spi_res_n <= 1'b0;           // hold RES low
+                spi_cs_n  <= 1'b1;           // deassert CS
+                delay_ctr <= 21'd120_000;    // 10 ms at 12 MHz
+                state     <= ST_POWER_DOWN_W;
+            end
+
+            ST_POWER_DOWN_W: begin
+                if (!delay_done)
+                    delay_ctr <= delay_ctr - 21'd1;
+                else
+                    state <= ST_VDD_ON;
             end
 
             default: state <= ST_RESET;
