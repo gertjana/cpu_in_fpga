@@ -87,7 +87,7 @@ module oled_monitor #(
     input  wire        halt,
 
     // PmodOLED SPI signals
-    (* preserve, noprune *) output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — deasserted at power-on
+    (* preserve, noprune *) output reg         spi_cs_n  = 1'b0,  // Chip Select (active low) — driven low at config to block ESD diode path
     (* preserve, noprune *) output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
     (* preserve, noprune *) output reg         spi_mosi  = 1'b0,  // MOSI
     (* preserve, noprune *) output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
@@ -748,7 +748,7 @@ endtask
 always @(posedge clk) begin
     if (rst) begin
         state       <= ST_POWER_DOWN;  // start with full power-down cycle
-        spi_cs_n    <= 1'b1;
+        spi_cs_n    <= 1'b0;           // CS low — block ESD diode current during power-down
         spi_clk     <= 1'b0;
         spi_mosi    <= 1'b0;
         spi_dc      <= 1'b0;
@@ -977,16 +977,25 @@ always @(posedge clk) begin
             // ~200-300 ms to discharge below the SSD1306's POR threshold
             // through its ~10 µA quiescent current.  500 ms provides ample
             // margin for a genuine power-on reset.
+            //
+            // CRITICAL: All SPI signals (CS, SCLK, MOSI, DC) must be
+            // driven LOW during the power-down phase.  If CS is HIGH
+            // (3.3 V) while VDD is off, current flows through the
+            // SSD1306's internal ESD protection diode (CS pad → VDD rail),
+            // clamping VDD at ~2.6 V — above the 1.65 V minimum operating
+            // voltage.  The chip never loses power and the corrupted state
+            // from the FPGA-config garbage persists.
             ST_POWER_DOWN: begin
                 vdd_en    <= 1'b1;           // VDDC high = power OFF
                 vbat_en   <= 1'b1;           // VBATC high = power OFF
                 spi_res_n <= 1'b0;           // hold RES low
-                spi_cs_n  <= 1'b1;           // deassert CS
+                spi_cs_n  <= 1'b0;           // CS low — block ESD diode current to SSD1306
                 delay_ctr <= POWER_DOWN_CLKS; // default 500 ms at 12 MHz
                 state     <= ST_POWER_DOWN_W;
             end
 
             ST_POWER_DOWN_W: begin
+                spi_cs_n <= 1'b0;  // override SPI-engine de-assert — block ESD diode
                 if (!delay_done)
                     delay_ctr <= delay_ctr - 24'd1;
                 else
