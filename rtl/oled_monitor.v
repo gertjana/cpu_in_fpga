@@ -87,7 +87,7 @@ module oled_monitor #(
     input  wire        halt,
 
     // PmodOLED SPI signals
-    (* preserve, noprune *) output reg         spi_cs_n  = 1'b0,  // Chip Select (active low) — driven low at config to block ESD diode path
+    (* preserve, noprune *) output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — HIGH at config to deselect SSD1306 during I/O transition
     (* preserve, noprune *) output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
     (* preserve, noprune *) output reg         spi_mosi  = 1'b0,  // MOSI
     (* preserve, noprune *) output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
@@ -544,10 +544,11 @@ endfunction
 // Main FSM
 // ---------------------------------------------------------------------------
 // Power-on sequence (matches Digilent PmodOLED reference driver):
-//   0. Force VDD+VBAT OFF for 10 ms                — ST_POWER_DOWN / _W
+//   0. Force VDD+VBAT OFF for 500 ms              — ST_POWER_DOWN / _W
 //      (ensures clean SSD1306 state after FPGA reconfig — during reconfig
 //      I/O pins are tri-stated and the SSD1306 may have received garbage
 //      SPI commands from floating SCLK/MOSI lines)
+//  0b. Flush SPI bus: 16 SCLK toggles, CS HIGH    — ST_SPI_FLUSH
 //   1. VDD on (VDDC low)                          — ST_VDD_ON
 //   2. Wait 1 ms for VDD to stabilise             — ST_VDD_WAIT
 //   3. Release RES (high) for 1 ms                — ST_RES_HIGH
@@ -580,9 +581,10 @@ localparam [4:0]
     ST_NEXT_COL     = 5'd16,  // advance column / character / line
     ST_DONE         = 5'd17,  // loop back to refresh
     ST_POWER_DOWN   = 5'd18,  // force VDD+VBAT off for clean SSD1306 reset
-    ST_POWER_DOWN_W = 5'd19;  // wait for full discharge
+    ST_POWER_DOWN_W = 5'd19,  // wait for full discharge
+    ST_SPI_FLUSH    = 5'd20;  // toggle SCLK 16× with CS HIGH to clear partial byte state
 
-(* preserve, noprune *) reg [4:0] state = ST_VDD_ON;
+(* preserve, noprune *) reg [4:0] state = ST_POWER_DOWN;
 
 // Sticky debug flags — set when the corresponding power rail is first enabled,
 // never cleared by rst. Used to distinguish "VDD was on then lost" from
@@ -748,7 +750,7 @@ endtask
 always @(posedge clk) begin
     if (rst) begin
         state       <= ST_POWER_DOWN;  // start with full power-down cycle
-        spi_cs_n    <= 1'b0;           // CS low — block ESD diode current during power-down
+        spi_cs_n    <= 1'b1;           // CS high initially — deselect SSD1306 while other pins settle
         spi_clk     <= 1'b0;
         spi_mosi    <= 1'b0;
         spi_dc      <= 1'b0;
@@ -972,19 +974,18 @@ always @(posedge clk) begin
             // SCLK, MOSI, VDDC, VBATC all float, the SSD1306 powers up
             // randomly, and noise on SCLK clocks garbage SPI commands.
             //
-            // After the FPGA configures, this state forces both power rails
-            // OFF for 500 ms.  The PmodOLED's bypass caps (~1 µF) take
-            // ~200-300 ms to discharge below the SSD1306's POR threshold
-            // through its ~10 µA quiescent current.  500 ms provides ample
-            // margin for a genuine power-on reset.
-            //
-            // CRITICAL: All SPI signals (CS, SCLK, MOSI, DC) must be
-            // driven LOW during the power-down phase.  If CS is HIGH
-            // (3.3 V) while VDD is off, current flows through the
-            // SSD1306's internal ESD protection diode (CS pad → VDD rail),
-            // clamping VDD at ~2.6 V — above the 1.65 V minimum operating
-            // voltage.  The chip never loses power and the corrupted state
-            // from the FPGA-config garbage persists.
+            // Strategy (two-phase):
+            //   Phase 1 (initial value / rst): CS=1 (HIGH).  This deselects
+            //     the SSD1306 at the instant I/O pins transition from
+            //     tri-state to driven, so any SCLK glitch is ignored.
+            //   Phase 2 (this state): CS=0 (LOW).  With VDD/VBAT FETs off,
+            //     all SPI pins are driven LOW to block ESD diode current
+            //     paths (CS HIGH + VDD off → current flows CS→VDD via ESD
+            //     diode, clamping VDD at ~2.6V, preventing true power-off).
+            //     We hold this for 500 ms so the 1µF bypass caps fully
+            //     discharge through the ~10µA quiescent current.
+            //   Phase 3 (ST_SPI_FLUSH): CS=1, toggle SCLK 16× to clear
+            //     any residual partial byte in the SPI shift register.
             ST_POWER_DOWN: begin
                 vdd_en    <= 1'b1;           // VDDC high = power OFF
                 vbat_en   <= 1'b1;           // VBATC high = power OFF
@@ -998,8 +999,35 @@ always @(posedge clk) begin
                 spi_cs_n <= 1'b0;  // override SPI-engine de-assert — block ESD diode
                 if (!delay_done)
                     delay_ctr <= delay_ctr - 24'd1;
-                else
-                    state <= ST_VDD_ON;
+                else begin
+                    // Power-down complete — flush any partial SPI byte state.
+                    // Drive CS HIGH (deselect) and toggle SCLK 16 times.
+                    // This clears the SSD1306's SPI shift register of any
+                    // residual bits clocked in during the FPGA config phase.
+                    spi_cs_n    <= 1'b1;   // deselect during flush
+                    delay_ctr   <= 24'd31; // 32 half-cycles = 16 full SCLK toggles
+                    spi_mosi    <= 1'b0;
+                    spi_clk     <= 1'b0;
+                    state       <= ST_SPI_FLUSH;
+                end
+            end
+
+            // --- Flush SPI bus: 16 SCLK toggles with CS HIGH ---
+            // After the power-down, the SSD1306 has just undergone a genuine
+            // POR (caps discharged).  But during the brief moment between
+            // FPGA user-mode activation and the power-down FSM asserting
+            // CS LOW, a stray SCLK edge may have clocked in a partial bit.
+            // Toggling SCLK 16× with CS de-asserted ensures the SPI shift
+            // register is fully flushed before we begin the init sequence.
+            ST_SPI_FLUSH: begin
+                spi_cs_n <= 1'b1;         // keep de-selected
+                spi_clk  <= ~spi_clk;     // toggle SCLK each cycle
+                if (!delay_done)
+                    delay_ctr <= delay_ctr - 24'd1;
+                else begin
+                    spi_clk <= 1'b0;      // park SCLK low
+                    state   <= ST_VDD_ON;
+                end
             end
 
             default: state <= ST_RESET;
