@@ -45,7 +45,8 @@ wire       vdd_en;
 // DUT instantiation
 // ---------------------------------------------------------------------------
 oled_monitor #(
-    .PROG_NAME("TB TEST            ")  // 19 chars
+    .PROG_NAME("TB TEST            "),  // 19 chars
+    .POWER_DOWN_CLKS(24'd120)           // 10 µs in TB (500 ms in synthesis)
 ) dut (
     .clk      (clk),
     .rst      (rst),
