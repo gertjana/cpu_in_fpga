@@ -6,7 +6,7 @@
 
 .equ PRNG_PORT,     0x01     ; Port 1 is PRNG
 .equ LEDS_PORT,     0x02     ; Port 2 is LEDs
-.equ INITIAL_SEED,  0x28   
+.equ INITIAL_SEED,  0x2A   
 
         LDI  R0, INITIAL_SEED     
         OUT  R0, PRNG_PORT

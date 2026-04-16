@@ -8,9 +8,9 @@ Addr    Word  Source
               
               .equ PRNG_PORT,     0x01     ; Port 1 is PRNG
               .equ LEDS_PORT,     0x02     ; Port 2 is LEDs
-              .equ INITIAL_SEED,  0x28   
+              .equ INITIAL_SEED,  0x2A   
               
-0000  200028          LDI  R0, INITIAL_SEED     
+0000  20002A          LDI  R0, INITIAL_SEED     
 0001  904000          OUT  R0, PRNG_PORT
               loop:
 0002  8E4000          IN   R7, PRNG_PORT
