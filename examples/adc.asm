@@ -6,7 +6,7 @@
 ; pin (ANAIN / PIN_D2) and displays it on the 8 onboard LEDs.
 ;
 ; Port map:
-;   IN  Rd, 4  — read the ADC sampled value (0x00 = 0V, 0xFF = 3.3V)
+;   IN  Rd, 3  — read the ADC sampled value (0x00 = 0V, 0xFF = 3.3V)
 ;   OUT Ra, 2  — drive the 8 onboard LEDs
 ;
 ; Test circuit — potentiometer between GND and 3.3V:
@@ -19,7 +19,7 @@
 ;         └┬┘
 ;   GND  ──┘
 
-.equ ADC_PORT,  0x04     ; Port 4 = MAX10 internal ADC (ANAIN / PIN_D2)
+.equ ADC_PORT,  0x03     ; Port 3 = MAX10 internal ADC (ANAIN / PIN_D2)
 .equ LEDS_PORT, 0x02     ; Port 2 = onboard LEDs
 
 loop:

@@ -74,12 +74,12 @@ module decoder (
 
     // Write-back source select
     // 3'b000 = ALU result
-    // 3'b001 = data memory read
-    // 3'b010 = immediate (LDI)
-    // 3'b011 = stack pop
-    // 3'b100 = PRNG   (IN port 1)
-    // 3'b101 = GPIO   (IN port 2)
-    // 3'b110 = ADC    (IN port 4)
+     // 3'b001 = data memory read
+     // 3'b010 = immediate (LDI)
+     // 3'b011 = stack pop
+     // 3'b100 = PRNG   (IN port 1)
+     // 3'b101 = GPIO   (IN port 5)
+     // 3'b110 = ADC    (IN port 3)
     output reg  [2:0]  wb_sel,
 
     // Memory
@@ -180,8 +180,8 @@ localparam WB_MEM   = 3'b001;
 localparam WB_IMM   = 3'b010;
 localparam WB_STACK = 3'b011;
 localparam WB_PRNG  = 3'b100;
-localparam WB_GPIO  = 3'b101;   // IN port 2 — GPIO pin values
-localparam WB_ADC   = 3'b110;   // IN port 4 — ADC sampled value
+localparam WB_GPIO  = 3'b101;   // IN port 5 — GPIO data read
+localparam WB_ADC   = 3'b110;   // IN port 3 — ADC sampled value
 
 // ---------------------------------------------------------------------------
 // Branch condition evaluation (combinational)
@@ -415,9 +415,10 @@ always @(*) begin
         //   [19:17] Rd   — destination register
         //   [16:14] port — peripheral select
         //     3'b001 = PRNG data
-        //     3'b010 = GPIO input pin values
-        //     3'b011 = GPIO direction (read-back, not implemented — NOP)
-        //     3'b100 = ADC sampled value
+        //     3'b010 = onboard LEDs (write-only — NOP)
+        //     3'b011 = ADC sampled value
+        //     3'b100 = GPIO direction (write-only — NOP)
+        //     3'b101 = GPIO data (read pin levels)
         // Undefined port numbers are treated as NOP.
         // ------------------------------------------------------------------
         GRP_IN: begin
@@ -427,18 +428,21 @@ always @(*) begin
                     reg_we  = 1'b1;
                     wb_sel  = WB_PRNG;
                 end
-                3'b010: begin   // port 2 = GPIO input
-                    rd_addr = f_rd;
-                    reg_we  = 1'b1;
-                    wb_sel  = WB_GPIO;
-                end
-                3'b011: begin   // port 3 = GPIO direction (write-only, IN not supported — NOP)
+                3'b010: begin   // port 2 = onboard LEDs (write-only, IN not supported — NOP)
                     ; // fall through to default
                 end
-                3'b100: begin   // port 4 = ADC value
+                3'b011: begin   // port 3 = ADC value
                     rd_addr = f_rd;
                     reg_we  = 1'b1;
                     wb_sel  = WB_ADC;
+                end
+                3'b100: begin   // port 4 = GPIO direction (write-only, IN not supported — NOP)
+                    ; // fall through to default
+                end
+                3'b101: begin   // port 5 = GPIO data (read pin levels)
+                    rd_addr = f_rd;
+                    reg_we  = 1'b1;
+                    wb_sel  = WB_GPIO;
                 end
                 default: ; // unknown port — NOP
             endcase
@@ -450,20 +454,23 @@ always @(*) begin
         //   [19:17] Ra   — source register (value to write)
         //   [16:14] port — peripheral select
         //     3'b001 = PRNG seed (reseed the LFSR)
-        //     3'b010 = GPIO output register (8 digital output pins)
-        //     3'b011 = GPIO direction register (1=output, 0=input)
-        // Undefined port numbers (including 4–7) are treated as NOP.
+        //     3'b010 = onboard LEDs
+        //     3'b011 = ADC (read-only — NOP)
+        //     3'b100 = GPIO direction register (1=output, 0=input)
+        //     3'b101 = GPIO data register (output pin values)
+        // Undefined port numbers (6–7) are treated as NOP.
         // ------------------------------------------------------------------
         GRP_OUT: begin
             case (f_ra)   // port number in Ra field [16:14]
                 3'b001,   // port 1 = PRNG seed
                 3'b010,   // port 2 = onboard LEDs
-                3'b011: begin  // port 3 = GPIO direction register (1=output, 0=input)
+                3'b100,   // port 4 = GPIO direction register (1=output, 0=input)
+                3'b101: begin  // port 5 = GPIO data register (output pin values)
                     ra_addr    = f_rd;   // source register is in [19:17]
                     periph_we  = 1'b1;
                     periph_port = f_ra;
                 end
-                default: ; // unknown / reserved port — NOP (ports 4–7 reserved)
+                default: ; // unknown / reserved port — NOP (port 3 ADC read-only; ports 6–7 reserved)
             endcase
         end
 

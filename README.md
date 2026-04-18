@@ -76,7 +76,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [rtl/prng.v](rtl/prng.v) | 8-bit Galois LFSR hardware PRNG (period 255, tap mask 0xB8) |
 | [rtl/oled_monitor.v](rtl/oled_monitor.v) | SSD1306 OLED debug monitor — SPI driver + font ROM + display FSM |
 | [rtl/input_barrier.v](rtl/input_barrier.v) | Synthesis black-box register barrier (prevents Quartus ACE optimisation through oled_monitor) |
-| [rtl/top.v](rtl/top.v) | MAX1000 top-level (clock, reset, LED logic) |
+| [rtl/top.v](rtl/top.v) | MAX1000 top-level (clock, reset, LED/GPIO/ADC logic) |
 
 ---
 
@@ -93,6 +93,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [examples/knightrider.asm](examples/knightrider.asm) | Shift left/right | Display the knightrider pattern on the leds via `OUT Ra, 2` |
 | [examples/flag_test.asm](examples/flag_test.asm) | Flags (Z, C, N, V) | Exercises all four flags |
 | [examples/prng.asm](examples/prng.asm) | IN instruction, PRNG | Uses the `IN` instruction to read the hardware Galois LFSR; streams pseudo-random values to the LEDs via `OUT Ra, 2` (period 255) |
+| [examples/adc.asm](examples/adc.asm) | IN instruction, ADC | Reads the MAX10 internal ADC on ANAIN (PIN_D2) via `IN R0, 3` and streams the 8-bit sampled value to the LEDs via `OUT R0, 2` |
 
 ---
 
@@ -265,14 +266,13 @@ See [docs/ISA.md](docs/ISA.md) for the complete specification including flag beh
 
 ### Peripheral port map (IN / OUT)
 
-| Port | Peripheral    | IN (read)                    | OUT (write)                        |
-|------|---------------|------------------------------|------------------------------------|
-| `1`  | PRNG          | Read 8-bit LFSR value        | Seed the LFSR                      |
-| `2`  | Onboard LEDs  | — (write-only, IN = NOP)     | Set Onboard LEDS                   |
-| `3`  | GPIO data     | Read GPIO pin logic levels   | Set GPIO output data register      |
-| `4`  | GPIO direction| — (write-only, IN = NOP)     | Set pin direction (1=out, 0=in)    |
-| `5`  | ADC (AIN0)    | Read 8-bit sampled value.    | — (NOP, no DAC)                    |
-| `6`  | User Button   | Read debounched Button State | — (NOP)                            |
-| `7`  | Reserved      | —                            | —                                  |
+| Port | Peripheral      | IN (read)                                              | OUT (write)                                      |
+|------|-----------------|--------------------------------------------------------|--------------------------------------------------|
+| `1`  | PRNG            | Read 8-bit Galois LFSR value                           | Seed the LFSR (0x00 is remapped to 0x01)         |
+| `2`  | Onboard LEDs    | — (write-only, IN = NOP)                               | Set onboard LEDs                                 |
+| `3`  | ADC (ANAIN)     | Read 8-bit sampled value (0x00=0V, 0xFF=3.3V, PIN_D2) | — (read-only, OUT = NOP)                         |
+| `4`  | GPIO direction  | — (write-only, IN = NOP)                               | Set pin direction per bit (1=output, 0=input)    |
+| `5`  | GPIO data       | Read GPIO pin logic levels                             | Set GPIO output data register                    |
+| `6–7`| Reserved        | — (NOP)                                                | — (NOP)                                          |
 
 Port `ppp` occupies bits `[8:6]` of the instruction word for both `IN` and `OUT`. Undefined ports are treated as NOP.

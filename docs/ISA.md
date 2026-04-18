@@ -179,12 +179,11 @@ Port field `ppp` is in bits `[8:6]` (range 0–7):
 | Port | Peripheral   | Direction | Description |
 |------|--------------|-----------|-------------|
 | `1`  | PRNG         | read      | 8-bit Galois LFSR hardware random number generator |
-| `2`  | GPIO input   | read      | Read current logic level of all 8 GPIO pins (pins configured as input by `OUT Ra, 3`; pins configured as output return their driven value) |
-| `3`  | GPIO dir     | —         | Write-only; `IN` on port `3` is treated as NOP |
-| `4`  | ADC          | read      | Read the 8-bit sampled value from ADC channel 0 (ANAIN, PIN_D2 — the dedicated analogue input pin on the MAX1000 board). The MAX10 internal ADC samples this pin and returns a 0–255 value proportional to the input voltage (0V = 0x00, 3.3V = 0xFF).   |
-| `5`  | Accel X | read      | Read X-Axis of the Accelometer |
-| `6`  | Accel Y | read      | Read Y-Axis of the Accelometer |
-| `7`  | Accel S | read      | Read Z-Axis of the Accelometer |
+| `2`  | Onboard LEDs | —         | Write-only; `IN` on port `2` is treated as NOP |
+| `3`  | ADC          | read      | Read the 8-bit sampled value from ADC channel 0 (ANAIN, PIN_D2 — the dedicated analogue input pin on the MAX1000 board). The MAX10 internal ADC samples this pin and returns a 0–255 value proportional to the input voltage (0V = 0x00, 3.3V = 0xFF). |
+| `4`  | GPIO dir     | —         | Write-only; `IN` on port `4` is treated as NOP |
+| `5`  | GPIO data    | read      | Read current logic level of all 8 GPIO pins (pins configured as input by `OUT Ra, 4`; pins configured as output return their driven value) |
+| `6–7`| Reserved     | —         | `IN` on these ports is treated as NOP |
 
 > The PRNG (port `1`) is an 8-bit Galois LFSR (polynomial x⁸ + x⁶ + x⁵ + x⁴ + 1, tap mask `0xB8`) that advances at the **board clock rate** (12 MHz), independent of the CPU clock. Each `IN` therefore samples the LFSR at a different phase, producing values that are effectively unpredictable from the program's perspective.
 
@@ -203,10 +202,11 @@ Port numbers are shared with `IN` where the same peripheral supports both read a
 | Port | Peripheral   | Direction  | Description |
 |------|--------------|------------|-------------|
 | `1`  | PRNG seed    | write      | Load a seed value into the PRNG LFSR. Clears the zero-lock guard automatically (writing `0x00` is mapped to `0x01`). |
-| `2`  | GPIO out     | write      | Set all 8 GPIO output data pins simultaneously. Each bit maps to one pin (bit 0 = GPIO0, …, bit 7 = GPIO7). Only pins whose direction bit (port 3) is 1 drive the output. |
-| `3`  | GPIO dir     | write      | Set GPIO direction register (1 = output, 0 = input, per bit). Resets to `0x00` (all inputs) on CPU reset. |
-
-Ports 4-7 are read only, so any OUT instruction with these ports will be treated as NOP's
+| `2`  | Onboard LEDs | write      | Set all 8 onboard LEDs. Bit 7 = LED[0] (MSB), bit 0 = LED[7] (LSB). LEDs are active-low on the MAX1000. |
+| `3`  | ADC          | —          | Read-only; `OUT` on port `3` is treated as NOP. |
+| `4`  | GPIO dir     | write      | Set GPIO direction register (1 = output, 0 = input, per bit). Resets to `0x00` (all inputs) on CPU reset. |
+| `5`  | GPIO data    | write      | Set all 8 GPIO output data pins simultaneously. Each bit maps to one pin (bit 0 = GPIO0, …, bit 7 = GPIO7). Only pins whose direction bit (port 4) is 1 drive the output. |
+| `6–7`| Reserved     | —          | `OUT` on these ports is treated as NOP. |
 
 **Notes:**
 - `OUT` has no effect on CPU registers or flags.
@@ -224,21 +224,21 @@ Ports 4-7 are read only, so any OUT instruction with these ports will be treated
 **Example — configure GPIO and read pins:**
 ```asm
         LDI  R0, 0xF0    ; upper 4 pins = output, lower 4 = input
-        OUT  R0, 3       ; set GPIO direction
+        OUT  R0, 4       ; set GPIO direction (port 4)
         LDI  R1, 0xA0    ; output pattern for upper pins
-        OUT  R1, 2       ; drive GPIO output data
-        IN   R2, 2       ; read back all 8 GPIO pin values
+        OUT  R1, 5       ; drive GPIO output data (port 5)
+        IN   R2, 5       ; read back all 8 GPIO pin values (port 5)
 ```
 
 **Example — set GPIO outputs:**
 ```asm
         LDI  R0, 0x55    ; alternating high/low pattern (0101 0101)
-        OUT  R0, 2       ; drive GPIO pins
+        OUT  R0, 5       ; drive GPIO pins (port 5)
 ```
 
 **Example — read ADC:**
 ```asm
-        IN   R0, 4       ; sample ADC into R0
+        IN   R0, 3       ; sample ADC into R0 (port 3)
 ```
 
 ### Group 14 — NOP  `4'hE`

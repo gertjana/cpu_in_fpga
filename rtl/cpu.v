@@ -32,6 +32,7 @@ module cpu #(
     input  wire [7:0]  prng_data,
 
     // GPIO input pin values (sampled in top.v, passed as plain wire).
+    // Read via IN Rd, 5.
     input  wire [7:0]  gpio_data,
 
     // ADC sampled value (external, passed as plain wire from top.v).

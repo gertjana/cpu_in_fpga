@@ -31,7 +31,7 @@
 //   declared as a top-level port.  The IP continuously samples channel 0
 //   (ANAIN) and exposes the 12-bit result via an Avalon-ST response port.
 //   Only the top 8 bits [11:4] are forwarded to the CPU as adc_data[7:0]
-//   (IN Rd, 4).
+//   (IN Rd, 3).
 // =============================================================================
 
 `include "build_config.vh"
@@ -221,25 +221,27 @@ always @(posedge clk_12m) begin
 end
 
 // ---------------------------------------------------------------------------
-// GPIO output register — reset to 0x00 on CPU reset.
-// NOTE: Writing GPIO output data is not exposed via a dedicated OUT port in
-// this design.  GPIO pins configured as outputs will drive 0 by default.
+// GPIO output register — driven by OUT Ra, 5 (port 5).
+// Only pins whose direction bit is 1 (output) will drive this value.
+// Reset to 0x00 on CPU reset.
 // ---------------------------------------------------------------------------
 reg [7:0] gpio_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_reg <= 8'h00;
+    else if (cpu_periph_we & (cpu_periph_port == 3'b101))
+        gpio_reg <= cpu_periph_data;
 end
 
 // ---------------------------------------------------------------------------
-// GPIO direction register — driven by OUT Ra, 3 (port 3).
+// GPIO direction register — driven by OUT Ra, 4 (port 4).
 // 1 = output, 0 = input.  Reset to all-inputs (0x00) on CPU reset.
 // ---------------------------------------------------------------------------
 reg [7:0] gpio_dir_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_dir_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b011))
+    else if (cpu_periph_we & (cpu_periph_port == 3'b100))
         gpio_dir_reg <= cpu_periph_data;
 end
 
@@ -282,7 +284,7 @@ wire [7:0] gpio_in = gpio;
 //
 // The top 8 bits [11:4] of the 12-bit result are latched into adc_result on
 // each valid pulse, giving a 0–255 range over 0–3.3V (≈12.9 mV resolution).
-// This value is forwarded to the CPU as adc_data (IN Rd, 4).
+// This value is forwarded to the CPU as adc_data (IN Rd, 3).
 // ---------------------------------------------------------------------------
 
 wire        adc_pll_clk;     // 2 MHz from ALTPLL C0 — fed to ADC hard block
