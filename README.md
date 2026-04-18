@@ -94,6 +94,7 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [examples/flag_test.asm](examples/flag_test.asm) | Flags (Z, C, N, V) | Exercises all four flags |
 | [examples/prng.asm](examples/prng.asm) | IN instruction, PRNG | Uses the `IN` instruction to read the hardware Galois LFSR; streams pseudo-random values to the LEDs via `OUT Ra, 2` (period 255) |
 | [examples/adc.asm](examples/adc.asm) | IN instruction, ADC | Reads the MAX10 internal ADC on ANAIN (PIN_D2) via `IN R0, 3` and streams the 8-bit sampled value to the LEDs via `OUT R0, 2` |
+| [examples/gpio.asm](examples/gpio.asm) | GPIO in/out, ports 4 & 5 | Configures gpio[3:0] as inputs and gpio[7:4] as outputs; mirrors the 4 input pin states onto the 4 output pins and the LEDs in a loop |
 
 ---
 
