@@ -4,26 +4,31 @@ Addr    Word  Source
               ; clk_div: 20
               ; name: GPIO Demo
               ;
-              ; Demonstrates bidirectional GPIO using ports 4 and 5.
+              ;
+              ; Pin layout on the MAX1000 board
+              ;         \
+              ;         │
+              ;    D0 ──┤ H8
+              ;    D1 ──┤ K10
+              ;    D2 ──┤ H5              \
+              ;    D3 ──┤ H4              │
+              ;    D4 ──┤ J1           L1 ├── D6
+              ;    D5 ──┤ J2          J12 ├── D7
+              ;         └─────────────────┘ 
               ;
               ; Pin setup:
-              ;   gpio[3:0]  (J1 pins 9–12) — configured as INPUTS
-              ;   gpio[7:4]  (J1 pins 13–14, J2 pins 1–2) — configured as OUTPUTS
+              ;   D0-D3 — configured as INPUTS
+              ;   D4-D7 — configured as OUTPUTS
               ;
               ; Behaviour:
               ;   Continuously reads the 4 input pins and mirrors their state onto the
-              ;   4 output pins (shifted up to bits [7:4]).  That mirrored output pattern
-              ;   is also shown on the onboard LEDs so you can verify the outputs.
+              ;   4 output pins (shifted up to bits [7:4]). The mirrored upper-nibble
+              ;   output pattern is also shown on the onboard LEDs.
               ;
               ; Wiring suggestion:
-              ;   Connect a jumper wire from any of J1/9–12 to 3.3V or GND and watch
-              ;   the corresponding output pin (J1/13–14, J2/1–2) and LED follow it.
-              ;
-              ; Port map:
-              ;   OUT Ra, 4  — set GPIO direction register (1=output, 0=input per bit)
-              ;   OUT Ra, 5  — set GPIO output data register
-              ;   IN  Rd, 5  — read GPIO pin logic levels
-              ;   OUT Ra, 2  — drive onboard LEDs
+              ;   Connect a jumper wire from any of D0-D3 to 3.3V or GND and watch
+              ;   the corresponding output pin (D4-D7) and LED follow it.
+              
               
               .equ GPIO_DIR_PORT,  0x04   ; Port 4 = GPIO direction
               .equ GPIO_DATA_PORT, 0x05   ; Port 5 = GPIO data (in and out)
@@ -40,11 +45,11 @@ Addr    Word  Source
                       ; isolate lower nibble (input pins [3:0])
 0003  20C00F          LDI  R3, 0x0F
 0004  024580          AND  R2, R1, R3          ; R2 = gpio[3:0] input values
-                      ; shift left by 4 total (four 1-bit SHL steps) to mirror onto output pins [7:4]
-0005  064800          SHL  R2, R2              ; shift left by 1 (total: 1)
-0006  064800          SHL  R2, R2              ; shift left by 1 (total: 2)
-0007  064800          SHL  R2, R2              ; shift left by 1 (total: 3)
-0008  064800          SHL  R2, R2              ; shift left by 1 (total: 4)  →  R2 = inputs mirrored to [7:4]
+                      ; shift left 4 to mirror onto output pins [7:4]
+0005  064800          SHL  R2, R2              ; after 1 shift: R2 <<= 1
+0006  064800          SHL  R2, R2              ; after 2 shifts: R2 <<= 2
+0007  064800          SHL  R2, R2              ; after 3 shifts: R2 <<= 3
+0008  064800          SHL  R2, R2              ; after 4 shifts: R2 <<= 4  →  R2 = inputs mirrored to [7:4]
 0009  954000          OUT  R2, GPIO_DATA_PORT  ; drive output pins
 000A  948000          OUT  R2, LEDS_PORT       ; show on LEDs too
 000B  400002          JMP  loop

@@ -14,7 +14,7 @@
 ;   3.3V ──┐
 ;         ┌┴┐ 
 ;         │ │ 10kΩ
-;         │ │◄─────────── AIN (J1 header, PIN_D2)
+;         │ │◄─────────── AIN (dedicated 3-pin header top-left, PIN_D2)
 ;         │ │
 ;         └┬┘
 ;   GND  ──┘

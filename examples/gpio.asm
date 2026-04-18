@@ -2,11 +2,21 @@
 ; clk_div: 20
 ; name: GPIO Demo
 ;
-; Demonstrates bidirectional GPIO using ports 4 and 5.
+;
+; Pin layout on the MAX1000 board
+;         \
+;         │
+;    D0 ──┤ H8
+;    D1 ──┤ K10
+;    D2 ──┤ H5              \
+;    D3 ──┤ H4              │
+;    D4 ──┤ J1           L1 ├── D6
+;    D5 ──┤ J2          J12 ├── D7
+;         └─────────────────┘ 
 ;
 ; Pin setup:
-;   gpio[3:0]  (J1 pins 9–12) — configured as INPUTS
-;   gpio[7:4]  (J1 pins 13–14, J2 pins 1–2) — configured as OUTPUTS
+;   D0-D3 — configured as INPUTS
+;   D4-D7 — configured as OUTPUTS
 ;
 ; Behaviour:
 ;   Continuously reads the 4 input pins and mirrors their state onto the
@@ -14,14 +24,9 @@
 ;   output pattern is also shown on the onboard LEDs.
 ;
 ; Wiring suggestion:
-;   Connect a jumper wire from any of J1/9–12 to 3.3V or GND and watch
-;   the corresponding output pin (J1/13–14, J2/1–2) and LED follow it.
-;
-; Port map:
-;   OUT Ra, 4  — set GPIO direction register (1=output, 0=input per bit)
-;   OUT Ra, 5  — set GPIO output data register
-;   IN  Rd, 5  — read GPIO pin logic levels
-;   OUT Ra, 2  — drive onboard LEDs
+;   Connect a jumper wire from any of D0-D3 to 3.3V or GND and watch
+;   the corresponding output pin (D4-D7) and LED follow it.
+
 
 .equ GPIO_DIR_PORT,  0x04   ; Port 4 = GPIO direction
 .equ GPIO_DATA_PORT, 0x05   ; Port 5 = GPIO data (in and out)
