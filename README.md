@@ -149,6 +149,33 @@ Then recompile in Quartus and reprogram the board as described above. The LEDs w
 
 ---
 
+## Peripheral Ports
+
+The `IN Rd, port` and `OUT Ra, port` instructions address hardware peripherals via a 4-bit port number (0–15), giving 16 addressable ports.
+
+| Port | Peripheral        | IN (read)  | OUT (write) | Description |
+|------|-------------------|------------|-------------|-------------|
+| `0`  | —                 | NOP        | NOP         | Reserved |
+| `1`  | PRNG              | read value | load seed   | 8-bit Galois LFSR random number generator (12 MHz, period 255) |
+| `2`  | Onboard LEDs      | NOP        | write       | Set all 8 LEDs (bit 7 = LED[0] MSB; active-low on hardware) |
+| `3`  | ADC               | read value | NOP         | 8-bit sample from MAX10 internal ADC on ANAIN (PIN_D2); 0x00 = 0V, 0xFF = 3.3V |
+| `4`  | GPIO direction    | NOP        | write       | Per-bit direction register (1 = output, 0 = input); resets to 0x00 |
+| `5`  | GPIO data         | read pins  | write pins  | Read/write all 8 GPIO pins simultaneously |
+| `6`  | —                 | —          | —           | Not yet implemented — reserved |
+| `7`  | —                 | —          | —           | Not yet implemented — reserved |
+| `8`  | —                 | —          | —           | Not yet implemented — reserved |
+| `9`  | —                 | —          | —           | Not yet implemented — reserved |
+| `10` | —                 | —          | —           | Not yet implemented — reserved |
+| `11` | —                 | —          | —           | Not yet implemented — reserved |
+| `12` | —                 | —          | —           | Not yet implemented — reserved |
+| `13` | —                 | —          | —           | Not yet implemented — reserved |
+| `14` | —                 | —          | —           | Not yet implemented — reserved |
+| `15` | —                 | —          | —           | Not yet implemented — reserved |
+
+See [docs/ISA.md](docs/ISA.md) for the full IN/OUT encoding specification.
+
+---
+
 ## LED Indicators
 
 The 8 onboard LEDs are controlled directly by the CPU via the `OUT Ra, 2` instruction.

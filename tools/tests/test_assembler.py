@@ -31,40 +31,40 @@ def asmn(source: str) -> list[int]:
 # ---------------------------------------------------------------------------
 # Group 0 — ALU register-register
 # ---------------------------------------------------------------------------
-# 24-bit format: [23:20]=group [19:17]=alu_op [16:14]=rd [13:11]=ra [10:8]=rb [7:0]=0
-# ADD R1,R2,R3: grp=0 op=0 rd=1 ra=2 rb=3 → 0x005300
-# SUB R0,R0,R1: grp=0 op=1 rd=0 ra=0 rb=1 → 0x020100
-# AND R3,R3,R4: grp=0 op=2 rd=3 ra=3 rb=4 → 0x04DC00
-# OR  R0,R1,R2: grp=0 op=3 rd=0 ra=1 rb=2 → 0x060A00
-# XOR R5,R5,R5: grp=0 op=4 rd=5 ra=5 rb=5 → 0x096D00
-# NOT R2,R3:    grp=0 op=5 rd=2 ra=3 rb=0 → 0x0A9800
-# SHL R0,R0:    grp=0 op=6 rd=0 ra=0 rb=0 → 0x0C0000
-# SHR R7,R7:    grp=0 op=7 rd=7 ra=7 rb=0 → 0x0FF800
+# 24-bit ALU format: [23:20]=0000 [19:16]=op(4b) [15:13]=Rd [12:10]=Ra [9:7]=Rb [6:0]=0
+# ADD R1,R2,R3: op=0000 Rd=001 Ra=010 Rb=011 → 0x002980
+# SUB R0,R0,R1: op=0001 Rd=000 Ra=000 Rb=001 → 0x010080
+# AND R3,R3,R4: op=0010 Rd=011 Ra=011 Rb=100 → 0x026E00
+# OR  R0,R1,R2: op=0011 Rd=000 Ra=001 Rb=010 → 0x030500
+# XOR R5,R5,R5: op=0100 Rd=101 Ra=101 Rb=101 → 0x04B680
+# NOT R2,R3:    op=0101 Rd=010 Ra=011 Rb=000 → 0x054C00
+# SHL R0,R0:    op=0110 Rd=000 Ra=000 Rb=000 → 0x060000
+# SHR R7,R7:    op=0111 Rd=111 Ra=111 Rb=000 → 0x07FC00
 
 class TestALU:
     def test_add(self):
-        assert asm1("ADD R1, R2, R3") == 0x005300
+        assert asm1("ADD R1, R2, R3") == 0x002980
 
     def test_sub(self):
-        assert asm1("SUB R0, R0, R1") == 0x020100
+        assert asm1("SUB R0, R0, R1") == 0x010080
 
     def test_and(self):
-        assert asm1("AND R3, R3, R4") == 0x04DC00
+        assert asm1("AND R3, R3, R4") == 0x026E00
 
     def test_or(self):
-        assert asm1("OR R0, R1, R2") == 0x060A00
+        assert asm1("OR R0, R1, R2") == 0x030500
 
     def test_xor(self):
-        assert asm1("XOR R5, R5, R5") == 0x096D00
+        assert asm1("XOR R5, R5, R5") == 0x04B680
 
     def test_not(self):
-        assert asm1("NOT R2, R3") == 0x0A9800
+        assert asm1("NOT R2, R3") == 0x054C00
 
     def test_shl(self):
-        assert asm1("SHL R0, R0") == 0x0C0000
+        assert asm1("SHL R0, R0") == 0x060000
 
     def test_shr(self):
-        assert asm1("SHR R7, R7") == 0x0FF800
+        assert asm1("SHR R7, R7") == 0x07FC00
 
     def test_alu_case_insensitive(self):
         assert asm1("add r0, r1, r2") == asm1("ADD R0, R1, R2")
@@ -81,23 +81,27 @@ class TestALU:
 # ---------------------------------------------------------------------------
 # Group 1 — ADDI
 # ---------------------------------------------------------------------------
-# 24-bit: [23:20]=1 [19:17]=rd [16:14]=ra [13:8]=imm6 [7:0]=0
-# ADDI R0,R0,1:  grp=1 rd=0 ra=0 imm6=1  → 0x100100
-# ADDI R1,R2,63: grp=1 rd=1 ra=2 imm6=63 → 0x12BF00
+# 24-bit: [23:20]=1 [19:17]=rd [16:14]=ra [13:8]=unused [7:0]=imm8
+# ADDI R0,R0,1:   grp=1 rd=0 ra=0 imm8=1   → 0x100001
+# ADDI R1,R2,63:  grp=1 rd=1 ra=2 imm8=63  → 0x12803F
+# ADDI R1,R2,255: grp=1 rd=1 ra=2 imm8=255 → 0x1280FF
 
 class TestADDI:
     def test_addi_basic(self):
-        assert asm1("ADDI R0, R0, 1") == 0x100100
+        assert asm1("ADDI R0, R0, 1") == 0x100001
 
-    def test_addi_max_imm(self):
-        assert asm1("ADDI R1, R2, 63") == 0x12BF00
+    def test_addi_max_imm6_still_works(self):
+        assert asm1("ADDI R1, R2, 63") == 0x12803F
+
+    def test_addi_max_imm8(self):
+        assert asm1("ADDI R1, R2, 255") == 0x1280FF
 
     def test_addi_hex_imm(self):
         assert asm1("ADDI R0, R0, 0x0A") == asm1("ADDI R0, R0, 10")
 
     def test_addi_imm_overflow(self):
         with pytest.raises(AsmError, match="out of range"):
-            asm1("ADDI R0, R0, 64")
+            asm1("ADDI R0, R0, 256")
 
     def test_addi_wrong_operand_count(self):
         with pytest.raises(AsmError, match="3 operands"):
@@ -259,8 +263,9 @@ class TestStack:
 # ---------------------------------------------------------------------------
 # CMP R0,R1:  grp=6 sub=0 rd=0 ra=0 rb=1 → 0x600800
 # CMP R3,R4:  grp=6 sub=0 rd=0 ra=3 rb=4 → 0x60E000
-# CMPI R0,5:  grp=7 sub=0 rd=0 ra=0 imm6=5  → 0x700500
-# CMPI R0,63: grp=7 sub=0 rd=0 ra=0 imm6=63 → 0x703F00
+# CMPI R0,5:  grp=7 ra=0 imm8=5   → 0x700005
+# CMPI R0,63: grp=7 ra=0 imm8=63  → 0x70003F
+# CMPI R0,255: grp=7 ra=0 imm8=255 → 0x7000FF
 
 class TestCMP:
     def test_cmp(self):
@@ -270,42 +275,49 @@ class TestCMP:
         assert asm1("CMP R3, R4") == 0x60E000
 
     def test_cmpi(self):
-        assert asm1("CMPI R0, 5") == 0x700500
+        assert asm1("CMPI R0, 5") == 0x700005
 
-    def test_cmpi_max_imm(self):
-        assert asm1("CMPI R0, 63") == 0x703F00
+    def test_cmpi_max_imm6_still_works(self):
+        assert asm1("CMPI R0, 63") == 0x70003F
+
+    def test_cmpi_max_imm8(self):
+        assert asm1("CMPI R0, 255") == 0x7000FF
 
     def test_cmpi_overflow(self):
         with pytest.raises(AsmError, match="out of range"):
-            asm1("CMPI R0, 64")
+            asm1("CMPI R0, 256")
 
 
 # ---------------------------------------------------------------------------
 # Group 8 — IN (read hardware PRNG)
 # ---------------------------------------------------------------------------
-# 24-bit: [23:20]=8 [19:17]=rd [16:14]=port [13:0]=0
-# IN R0,1: rd=0 port=1→[16:14]=001 → 0x804000
-# IN R7,1: rd=7 port=1             → 0x8E4000
-# IN R3,1: rd=3 port=1             → 0x864000
-# IN R0,2: rd=0 port=2→[16:14]=010 → 0x808000
-# IN R0,7: rd=0 port=7→[16:14]=111 → 0x81C000
-# IN R0,0: rd=0 port=0             → 0x800000
+# 24-bit: [23:20]=8 [19:17]=rd [16:13]=port(4-bit) [12:0]=0
+# IN R0,1: rd=0 port=1→(1<<13) → 0x802000
+# IN R7,1: rd=7 port=1         → 0x8E2000
+# IN R3,1: rd=3 port=1         → 0x862000
+# IN R0,2: rd=0 port=2         → 0x804000
+# IN R0,7: rd=0 port=7         → 0x80E000
+# IN R0,15: rd=0 port=15       → 0x81E000
+# IN R0,0: rd=0 port=0         → 0x800000
 
 class TestIN:
     def test_in_r0_port1(self):
-        assert asm1("IN R0, 1") == 0x804000
+        assert asm1("IN R0, 1") == 0x802000
 
     def test_in_r7_port1(self):
-        assert asm1("IN R7, 1") == 0x8E4000
+        assert asm1("IN R7, 1") == 0x8E2000
 
     def test_in_r3_port1(self):
-        assert asm1("IN R3, 1") == 0x864000
+        assert asm1("IN R3, 1") == 0x862000
 
     def test_in_port2(self):
-        assert asm1("IN R0, 2") == 0x808000
+        assert asm1("IN R0, 2") == 0x804000
 
     def test_in_port7(self):
-        assert asm1("IN R0, 7") == 0x81C000
+        assert asm1("IN R0, 7") == 0x80E000
+
+    def test_in_port15(self):
+        assert asm1("IN R0, 15") == 0x81E000
 
     def test_in_port0(self):
         # IN R0, 0 → undefined port, assembles fine
@@ -316,7 +328,7 @@ class TestIN:
 
     def test_in_port_overflow(self):
         with pytest.raises(AsmError, match="out of range"):
-            asm1("IN R0, 8")
+            asm1("IN R0, 16")
 
     def test_in_wrong_operand_count_one(self):
         with pytest.raises(AsmError, match="2 operands"):
@@ -334,33 +346,33 @@ class TestIN:
 # ---------------------------------------------------------------------------
 # Group 9 — OUT (write hardware peripheral)
 # ---------------------------------------------------------------------------
-# 24-bit: [23:20]=9 [19:17]=rd [16:14]=port [13:0]=0
-# OUT R0,1: rd=0 port=1 → 0x904000
-# OUT R3,1: rd=3 port=1 → 0x964000
-# OUT R7,1: rd=7 port=1 → 0x9E4000
-# OUT R0,2: rd=0 port=2 → 0x908000
-# OUT R0,3: rd=0 port=3 → 0x90C000
-# OUT R0,7: rd=0 port=7 → 0x91C000
-# OUT R0,0: rd=0 port=0 → 0x900000
+# 24-bit: [23:20]=9 [19:17]=ra [16:13]=port(4-bit) [12:0]=0
+# OUT R0,1: ra=0 port=1→(1<<13) → 0x902000
+# OUT R3,1: ra=3 port=1         → 0x962000
+# OUT R7,1: ra=7 port=1         → 0x9E2000
+# OUT R0,2: ra=0 port=2         → 0x904000
+# OUT R0,3: ra=0 port=3         → 0x906000
+# OUT R0,7: ra=0 port=7         → 0x90E000
+# OUT R0,0: ra=0 port=0         → 0x900000
 
 class TestOUT:
     def test_out_r0_port1(self):
-        assert asm1("OUT R0, 1") == 0x904000
+        assert asm1("OUT R0, 1") == 0x902000
 
     def test_out_r3_port1(self):
-        assert asm1("OUT R3, 1") == 0x964000
+        assert asm1("OUT R3, 1") == 0x962000
 
     def test_out_r7_port1(self):
-        assert asm1("OUT R7, 1") == 0x9E4000
+        assert asm1("OUT R7, 1") == 0x9E2000
 
-    def test_out_port2_gpio(self):
-        assert asm1("OUT R0, 2") == 0x908000
+    def test_out_port2_leds(self):
+        assert asm1("OUT R0, 2") == 0x904000
 
-    def test_out_port3_gpio_dir(self):
-        assert asm1("OUT R0, 3") == 0x90C000
+    def test_out_port3(self):
+        assert asm1("OUT R0, 3") == 0x906000
 
     def test_out_port7(self):
-        assert asm1("OUT R0, 7") == 0x91C000
+        assert asm1("OUT R0, 7") == 0x90E000
 
     def test_out_port0(self):
         # OUT R0, 0 → undefined port, assembles fine
@@ -371,7 +383,7 @@ class TestOUT:
 
     def test_out_port_overflow(self):
         with pytest.raises(AsmError, match="out of range"):
-            asm1("OUT R0, 8")
+            asm1("OUT R0, 16")
 
     def test_out_wrong_operand_count_one(self):
         with pytest.raises(AsmError, match="2 operands"):
@@ -485,7 +497,7 @@ class TestEqu:
 .equ ONE, 1
     ADDI R0, R0, ONE
 """
-        assert asmn(src) == [0x100100]
+        assert asmn(src) == [0x100001]
 
     def test_equ_in_jump(self):
         src = """
@@ -591,4 +603,4 @@ loop:
         JMP  0           ; addr 5
 """
         words = asmn(src)
-        assert words == [0x200000, 0x204009, 0x100100, 0x600800, 0x440002, 0x400000]
+        assert words == [0x200000, 0x204009, 0x100001, 0x600800, 0x440002, 0x400000]

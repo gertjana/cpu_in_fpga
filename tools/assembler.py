@@ -4,15 +4,17 @@ assembler.py — Two-pass assembler for the CPU (8-bit data path, 16-bit address
 
 All instructions are 24 bits wide.
 
-Instruction format summary (non-ALU groups):
+Instruction format summary:
   Bits [23:20] — group (4 bits)
   Bits [19:17] — Rd / sub-opcode (3 bits)
   Bits [16:14] — Ra (3 bits)
   Bits [13:11] — Rb (3 bits)
   Bits [10:8]  — sub / extra Rb (3 bits)
-  Bits [13:8]  — imm6  (I6-format: ADDI, CMPI)
-  Bits [7:0]   — imm8  (I8-format: LDI)
+  Bits [7:0]   — imm8  (all immediate instructions: LDI, ADDI, CMPI)
   Bits [15:0]  — addr16 (I16-format: JMP, Jcc, CALL)
+
+All instructions that take an immediate operand place it in the last byte [7:0],
+giving a consistent 8-bit (0–255) range for LDI, ADDI, and CMPI.
 
 ALU group (0) uses an extended 4-bit sub-opcode field:
   Bits [19:16] — alu_op (4 bits; bit[3]=carry-in enable for ADC)
@@ -104,8 +106,7 @@ _SH_RD   = 17   # Rd/sub:  bits [19:17]
 _SH_RA   = 14   # Ra:      bits [16:14]
 _SH_RB   = 11   # Rb:      bits [13:11]
 _SH_SUB  = 8    # sub/Rb:  bits [10:8]
-_SH_IMM6 = 8    # imm6:    bits [13:8]
-# imm8:   bits [7:0]  — no shift
+# imm8:   bits [7:0]  — no shift (used by LDI, ADDI, CMPI)
 # addr16: bits [15:0] — no shift
 
 # ALU group (0) uses a 4-bit sub-opcode; register fields shift down by 1 bit
@@ -226,8 +227,7 @@ def _find_binary_op(expr: str):
 #   [16:14] Ra
 #   [13:11] Rb
 #   [10:8]  sub / Rb-extra
-#   [13:8]  imm6  (I6-format)
-#   [7:0]   imm8  (I8-format)
+#   [7:0]   imm8  (all immediate instructions: LDI, ADDI, CMPI)
 #   [15:0]  addr16 (I16-format: JMP/Jcc/CALL)
 #
 # ALU group (0) layout:
@@ -263,16 +263,17 @@ def encode_alu(mnemonic, operands, symbols, filename, lineno) -> int:
 
 
 def encode_addi(operands, symbols, filename, lineno) -> int:
-    # I6-format: 0001 ddd aaa iiiiii 00000000
+    # I8-format: 0001 ddd aaa xxxxxx iiiiiiii
     #   [19:17] Rd
     #   [16:14] Ra
-    #   [13:8]  imm6
+    #   [13:8]  unused
+    #   [7:0]   imm8  (0–255)
     if len(operands) != 3:
-        raise AsmError("ADDI requires 3 operands: Rd, Ra, imm6", filename, lineno)
+        raise AsmError("ADDI requires 3 operands: Rd, Ra, imm8", filename, lineno)
     rd  = parse_reg(operands[0], filename, lineno)
     ra  = parse_reg(operands[1], filename, lineno)
-    imm = parse_imm(operands[2], symbols, filename, lineno, bits=6)
-    return (GRP_ADDI << _SH_GRP) | (rd << _SH_RD) | (ra << _SH_RA) | (imm << _SH_IMM6)
+    imm = parse_imm(operands[2], symbols, filename, lineno, bits=8)
+    return (GRP_ADDI << _SH_GRP) | (rd << _SH_RD) | (ra << _SH_RA) | imm
 
 
 def encode_ldi(operands, symbols, filename, lineno) -> int:
@@ -375,32 +376,33 @@ def encode_cmp(operands, symbols, filename, lineno) -> int:
 
 
 def encode_cmpi(operands, symbols, filename, lineno) -> int:
-    # CMPI Ra, imm6  →  0111 000 aaa iiiiii 00000000
+    # I8-format: 0111 xxx aaa xxxxxx iiiiiiii
     #   [16:14] Ra
-    #   [13:8]  imm6
+    #   [13:8]  unused
+    #   [7:0]   imm8  (0–255)
     if len(operands) != 2:
-        raise AsmError("CMPI requires 2 operands: Ra, imm6", filename, lineno)
+        raise AsmError("CMPI requires 2 operands: Ra, imm8", filename, lineno)
     ra  = parse_reg(operands[0], filename, lineno)
-    imm = parse_imm(operands[1], symbols, filename, lineno, bits=6)
-    return (GRP_CMPI << _SH_GRP) | (ra << _SH_RA) | (imm << _SH_IMM6)
+    imm = parse_imm(operands[1], symbols, filename, lineno, bits=8)
+    return (GRP_CMPI << _SH_GRP) | (ra << _SH_RA) | imm
 
 
 def encode_in(operands, symbols, filename, lineno) -> int:
-    # IN Rd, port  →  1000 ddd ppp 000000000000000  (port in bits [16:14])
+    # IN Rd, port  →  1000 ddd pppp 0000000000000  (port in bits [16:13], 4-bit field)
     if len(operands) != 2:
         raise AsmError("IN requires 2 operands: Rd, port", filename, lineno)
     rd   = parse_reg(operands[0], filename, lineno)
-    port = parse_imm(operands[1], symbols, filename, lineno, bits=3)
-    return (GRP_IN << _SH_GRP) | (rd << _SH_RD) | (port << _SH_RA)
+    port = parse_imm(operands[1], symbols, filename, lineno, bits=4)
+    return (GRP_IN << _SH_GRP) | (rd << _SH_RD) | (port << 13)
 
 
 def encode_out(operands, symbols, filename, lineno) -> int:
-    # OUT Ra, port  →  1001 aaa ppp 000000000000000  (Ra in [19:17], port in [16:14])
+    # OUT Ra, port  →  1001 aaa pppp 0000000000000  (Ra in [19:17], port in [16:13], 4-bit field)
     if len(operands) != 2:
         raise AsmError("OUT requires 2 operands: Ra, port", filename, lineno)
     ra   = parse_reg(operands[0], filename, lineno)
-    port = parse_imm(operands[1], symbols, filename, lineno, bits=3)
-    return (GRP_OUT << _SH_GRP) | (ra << _SH_RD) | (port << _SH_RA)
+    port = parse_imm(operands[1], symbols, filename, lineno, bits=4)
+    return (GRP_OUT << _SH_GRP) | (ra << _SH_RD) | (port << 13)
 
 
 def encode_nop(operands, filename, lineno) -> int:

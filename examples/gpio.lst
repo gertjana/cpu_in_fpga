@@ -38,10 +38,10 @@ Addr    Word  Source
               
                       ; --- initialise ---
 0000  2000F0          LDI  R0, DIR_MASK
-0001  910000          OUT  R0, GPIO_DIR_PORT   ; set direction: upper nibble out, lower in
+0001  908000          OUT  R0, GPIO_DIR_PORT   ; set direction: upper nibble out, lower in
               
               loop:
-0002  834000          IN   R1, GPIO_DATA_PORT  ; read all 8 GPIO pins
+0002  82A000          IN   R1, GPIO_DATA_PORT  ; read all 8 GPIO pins
                       ; isolate lower nibble (input pins [3:0])
 0003  20C00F          LDI  R3, 0x0F
 0004  024580          AND  R2, R1, R3          ; R2 = gpio[3:0] input values
@@ -50,6 +50,6 @@ Addr    Word  Source
 0006  064800          SHL  R2, R2              ; after 2 shifts: R2 <<= 2
 0007  064800          SHL  R2, R2              ; after 3 shifts: R2 <<= 3
 0008  064800          SHL  R2, R2              ; after 4 shifts: R2 <<= 4  →  R2 = inputs mirrored to [7:4]
-0009  954000          OUT  R2, GPIO_DATA_PORT  ; drive output pins
-000A  948000          OUT  R2, LEDS_PORT       ; show on LEDs too
+0009  94A000          OUT  R2, GPIO_DATA_PORT  ; drive output pins
+000A  944000          OUT  R2, LEDS_PORT       ; show on LEDs too
 000B  400002          JMP  loop
