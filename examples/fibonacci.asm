@@ -15,7 +15,6 @@
 ;   R1 = fib[i-2]  (a)
 ;   R2 = fib[i-1]  (b)
 ;   R3 = fib[i]    (next = a + b)
-;   R7 = latest Fibonacci result that fits in 8 bits shown on the 8 LEDs of the MAX1000 board.
 
 .equ BASE, 0           ; RAM base address
 
