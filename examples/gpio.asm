@@ -39,10 +39,10 @@ loop:
         LDI  R3, 0x0F
         AND  R2, R1, R3          ; R2 = gpio[3:0] input values
         ; shift left 4 to mirror onto output pins [7:4]
-        SHL  R2, R2              ; R2 <<= 1
-        SHL  R2, R2              ; R2 <<= 2
-        SHL  R2, R2              ; R2 <<= 3
-        SHL  R2, R2              ; R2 <<= 4  →  R2 = inputs mirrored to [7:4]
+        SHL  R2, R2              ; after 1 shift: R2 <<= 1
+        SHL  R2, R2              ; after 2 shifts: R2 <<= 2
+        SHL  R2, R2              ; after 3 shifts: R2 <<= 3
+        SHL  R2, R2              ; after 4 shifts: R2 <<= 4  →  R2 = inputs mirrored to [7:4]
         OUT  R2, GPIO_DATA_PORT  ; drive output pins
         OUT  R2, LEDS_PORT       ; show on LEDs too
         JMP  loop
