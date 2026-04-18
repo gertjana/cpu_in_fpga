@@ -12,8 +12,8 @@ Addr    Word  Source
               ;
               ; Behaviour:
               ;   Continuously reads the 4 input pins and mirrors their state onto the
-              ;   4 output pins (shifted up to bits [7:4]).  The full GPIO port value is
-              ;   also shown on the onboard LEDs so you can verify both halves at once.
+              ;   4 output pins (shifted up to bits [7:4]).  That mirrored output pattern
+              ;   is also shown on the onboard LEDs so you can verify the outputs.
               ;
               ; Wiring suggestion:
               ;   Connect a jumper wire from any of J1/9–12 to 3.3V or GND and watch
