@@ -17,7 +17,6 @@ Addr    Word  Source
               ;   R1 = fib[i-2]  (a)
               ;   R2 = fib[i-1]  (b)
               ;   R3 = fib[i]    (next = a + b)
-              ;   R7 = latest Fibonacci result that fits in 8 bits shown on the 8 LEDs of the MAX1000 board.
               
               .equ BASE, 0           ; RAM base address
               
@@ -28,30 +27,25 @@ Addr    Word  Source
 0002  200000          LDI  R0, BASE       ; R0 = RAM address pointer
               
 0003  240100          ST   [R0], R1       ; RAM[0] = 0
-0004  3E4000          MOV  R7, R1         ; R7 = fib(0) = 0
-0005  9E8000          OUT  R7, 2          ; display on LEDs
-0006  100100          ADDI R0, R0, 1      ; advance pointer
-0007  240200          ST   [R0], R2       ; RAM[1] = 1
-0008  3E8000          MOV  R7, R2         ; R7 = fib(1) = 1
-0009  9E8000          OUT  R7, 2          ; display on LEDs
-000A  100100          ADDI R0, R0, 1      ; advance pointer  (R0 now points to RAM[2])
+0004  100001          ADDI R0, R0, 1      ; advance pointer
+0005  240200          ST   [R0], R2       ; RAM[1] = 1
+0006  100001          ADDI R0, R0, 1      ; advance pointer  (R0 now points to RAM[2])
               
               ; ── main loop ─────────────────────────────────────────────────────────────────
               
               loop:
-000B  006500          ADD  R3, R1, R2     ; next = a + b; carry set if > 255
-000C  460014          JC   done           ; overflow → stop, R7 holds last valid result
+0007  006500          ADD  R3, R1, R2     ; next = a + b; carry set if > 255
+0008  46000F          JC   done           ; overflow → stop, R7 holds last valid result
               
-000D  3EC000          MOV  R7, R3         ; R7 = latest Fibonacci result
-000E  9E8000          OUT  R7, 2          ; display on LEDs
-000F  240300          ST   [R0], R3       ; RAM[i] = fib(i)
-0010  100100          ADDI R0, R0, 1      ; advance pointer
+0009  964000          OUT  R3, 2          ; display on LEDs
+000A  240300          ST   [R0], R3       ; RAM[i] = fib(i)
+000B  100001          ADDI R0, R0, 1      ; advance pointer
               
-0011  328000          MOV  R1, R2         ; a = b
-0012  34C000          MOV  R2, R3         ; b = next
-0013  40000B          JMP  loop
+000C  328000          MOV  R1, R2         ; a = b
+000D  34C000          MOV  R2, R3         ; b = next
+000E  400007          JMP  loop
               
               ; ── halt ──────────────────────────────────────────────────────────────────────
               
               done:
-0014  F00000          HALT
+000F  F00000          HALT

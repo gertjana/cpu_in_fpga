@@ -6,9 +6,12 @@
 // Instruction formats:
 //
 //  R-format:   [23:20] group | [19:17] Rd/sub | [16:14] Ra | [13:11] Rb | [10:8] sub | [7:0] unused
-//  I6-format:  [23:20] group | [19:17] Rd      | [16:14] Ra | [13:8] imm6             | [7:0] unused
-//  I8-format:  [23:20] group | [19:17] Rd/sub  | [16:14] Ra |                           [7:0] imm8
+//  I8-format:  [23:20] group | [19:17] Rd/sub  | [16:14] Ra | [13:8] unused |           [7:0] imm8
 //  I16-format: [23:20] group | [19:17] sub      | [18] unused |                         [15:0] addr16
+//  IN/OUT:     [23:20] group | [19:17] Rd/Ra    | [16:13] pppp (4-bit port) | [12:0] unused
+//
+// All instructions that take an immediate use the last byte [7:0] for the immediate value.
+// This is consistent across LDI, ADDI, and CMPI (all use imm8 in [7:0]; range 0–255).
 //
 // ALU group (0) uses an extended 4-bit sub-opcode field — field positions
 // differ from all other groups:
@@ -28,13 +31,13 @@
 //   [16:14] f_ra        — Ra (3 bits)
 //   [13:11] f_rb        — Rb (3 bits)
 //   [10:8]  f_sub       — sub field / Rb extra (3 bits)
-//   [13:8]  f_imm6      — 6-bit immediate (I6-format: ADDI, CMPI)
-//   [7:0]   f_imm8      — 8-bit immediate (I8-format: LDI)
+//   [13:8]  unused      — (formerly imm6; now reserved / zero for ADDI and CMPI)
+//   [7:0]   f_imm8      — 8-bit immediate (I8-format: LDI, ADDI, CMPI)
 //   [15:0]  f_addr16    — 16-bit address  (I16-format: JMP, Jcc, CALL)
 //
 // Groups:
 //   4'h0  ALU reg-reg    4-bit sub-op in [19:16]; Rd/Ra/Rb in [15:13]/[12:10]/[9:7]
-//   4'h1  ADDI           Rd = Ra + imm6   (I6-format)
+//   4'h1  ADDI           Rd = Ra + imm8   (I8-format)
 //   4'h2  Mem            sub-op in [19:17] (mixed)
 //          LDI: 0010 000 ddd xxxxxx iiiiiiii  (I8-format: dest=Ra field, imm8 in [7:0])
 //          LD:  0010 001 ddd aaa xxxxxxxxxx   (R-format: dest=Ra field)
@@ -43,7 +46,7 @@
 //   4'h4  Jump/Branch    sub-op in [19:17] (I16/R)
 //   4'h5  Stack/Call     sub-op in [19:17] (I16/R)
 //   4'h6  CMP            Ra - Rb flags     (R-format)
-//   4'h7  CMPI           Ra - imm6 flags   (I6-format)
+//   4'h7  CMPI           Ra - imm8 flags   (I8-format)
 //   4'h8  IN             Rd = peripheral[port]  (R-format)
 //   4'h9  OUT            peripheral[port] = Ra  (R-format)
 //   4'hE  NOP
@@ -70,7 +73,7 @@ module decoder (
     output reg  [2:0]  alu_op,
     output reg         alu_src_b,  // 0=Rb, 1=immediate
     output reg         alu_cin,    // 1=carry-in enabled (ADC); 0=normal ADD
-    output reg  [7:0]  imm,        // immediate value (imm6 zero-ext or imm8)
+    output reg  [7:0]  imm,        // immediate value (imm8)
 
     // Write-back source select
     // 3'b000 = ALU result
@@ -99,7 +102,7 @@ module decoder (
 
     // Peripheral write (OUT instruction)
     output reg         periph_we,    // 1 = write to peripheral this cycle
-    output reg  [2:0]  periph_port,  // which peripheral (port number)
+    output reg  [3:0]  periph_port,  // which peripheral (port number, 0–15)
 
     // CPU control
     output reg         halt
@@ -122,10 +125,14 @@ wire [2:0] f_alu_rd = instr[15:13]; // Rd for ALU instructions
 wire [2:0] f_alu_ra = instr[12:10]; // Ra for ALU instructions
 wire [2:0] f_alu_rb = instr[9:7];   // Rb for ALU instructions
 
-// Immediate values (non-ALU groups)
-wire [5:0]  f_imm6  = instr[13:8];    // I6-format: 6-bit immediate (ADDI, CMPI)
-wire [7:0]  f_imm8  = instr[7:0];     // I8-format: 8-bit immediate (LDI)
+// Immediate values
+wire [7:0]  f_imm8  = instr[7:0];     // I8-format: 8-bit immediate (LDI, ADDI, CMPI)
 wire [15:0] f_addr16 = instr[15:0];   // I16-format: 16-bit address (JMP, Jcc, CALL)
+
+// IN/OUT port field — 4 bits at [16:13], giving 16 addressable peripheral ports.
+// Bit 13 is not globally unused; it is repurposed here because in the IN/OUT
+// encoding, bits [13:0] were previously zero/reserved when group = 8/9.
+wire [3:0]  f_port  = instr[16:13];   // IN/OUT peripheral port select (0–15)
 
 // ---------------------------------------------------------------------------
 // Group constants
@@ -225,7 +232,7 @@ always @(*) begin
     flags_we   = 1'b0;
     halt       = 1'b0;
     periph_we  = 1'b0;
-    periph_port = 3'b000;
+    periph_port = 4'b0000;
 
     case (group)
 
@@ -253,18 +260,19 @@ always @(*) begin
         end
 
         // ------------------------------------------------------------------
-        // Group 1: ADDI — Rd = Ra + imm6
-        // I6-format: 0001 ddd aaa iiiiii 00000000
+        // Group 1: ADDI — Rd = Ra + imm8
+        // I8-format: 0001 ddd aaa xxxxxx iiiiiiii
         //   [19:17] Rd
         //   [16:14] Ra
-        //   [13:8]  imm6
+        //   [13:8]  unused
+        //   [7:0]   imm8
         // ------------------------------------------------------------------
         GRP_ADDI: begin
             rd_addr   = f_rd;
             ra_addr   = f_ra;
             alu_op    = ALU_ADD;
             alu_src_b = 1'b1;
-            imm       = {2'b00, f_imm6};   // zero-extend imm6 to 8 bits
+            imm       = f_imm8;
             reg_we    = 1'b1;
             wb_sel    = WB_ALU;
             flags_we  = 1'b1;
@@ -395,82 +403,87 @@ always @(*) begin
         end
 
         // ------------------------------------------------------------------
-        // Group 7: CMPI Ra, imm6 — flags from Ra - imm6, no write
-        // I6-format: 0111 000 aaa iiiiii 00000000
+        // Group 7: CMPI Ra, imm8 — flags from Ra - imm8, no write
+        // I8-format: 0111 xxx aaa xxxxxx iiiiiiii
         //   [16:14] Ra
-        //   [13:8]  imm6
+        //   [13:8]  unused
+        //   [7:0]   imm8
         // ------------------------------------------------------------------
         GRP_CMPI: begin
             ra_addr   = f_ra;
             alu_op    = ALU_SUB;
             alu_src_b = 1'b1;
-            imm       = {2'b00, f_imm6};
+            imm       = f_imm8;
             flags_we  = 1'b1;
             reg_we    = 1'b0;
         end
 
         // ------------------------------------------------------------------
         // Group 8: IN Rd, port — read hardware peripheral into register
-        // R-format: 1000 ddd ppp 000000000000000
+        // Format: 1000 ddd pppp 0000000000000
         //   [19:17] Rd   — destination register
-        //   [16:14] port — peripheral select
-        //     3'b001 = PRNG data
-        //     3'b010 = onboard LEDs (write-only — NOP)
-        //     3'b011 = ADC sampled value
-        //     3'b100 = GPIO direction (write-only — NOP)
-        //     3'b101 = GPIO data (read pin levels)
+        //   [16:13] port — peripheral select (4-bit, 0–15)
+        //     4'd1 = PRNG data
+        //     4'd2 = onboard LEDs (write-only — NOP)
+        //     4'd3 = ADC sampled value
+        //     4'd4 = GPIO direction (write-only — NOP)
+        //     4'd5 = GPIO data (read pin levels)
+        //     4'd6–4'd15 = reserved / not yet implemented — NOP
         // Undefined port numbers are treated as NOP.
         // ------------------------------------------------------------------
         GRP_IN: begin
-            case (f_ra)   // port number in Ra field [16:14]
-                3'b001: begin   // port 1 = PRNG
+            case (f_port)   // port number in bits [16:13]
+                4'd1: begin   // port 1 = PRNG
                     rd_addr = f_rd;
                     reg_we  = 1'b1;
                     wb_sel  = WB_PRNG;
                 end
-                3'b010: begin   // port 2 = onboard LEDs (write-only, IN not supported — NOP)
+                4'd2: begin   // port 2 = onboard LEDs (write-only, IN not supported — NOP)
                     ; // fall through to default
                 end
-                3'b011: begin   // port 3 = ADC value
+                4'd3: begin   // port 3 = ADC value
                     rd_addr = f_rd;
                     reg_we  = 1'b1;
                     wb_sel  = WB_ADC;
                 end
-                3'b100: begin   // port 4 = GPIO direction (write-only, IN not supported — NOP)
+                4'd4: begin   // port 4 = GPIO direction (write-only, IN not supported — NOP)
                     ; // fall through to default
                 end
-                3'b101: begin   // port 5 = GPIO data (read pin levels)
+                4'd5: begin   // port 5 = GPIO data (read pin levels)
                     rd_addr = f_rd;
                     reg_we  = 1'b1;
                     wb_sel  = WB_GPIO;
                 end
+                // ports 6–15: reserved / not yet implemented — NOP
                 default: ; // unknown port — NOP
             endcase
         end
 
         // ------------------------------------------------------------------
         // Group 9: OUT Ra, port — write register value to hardware peripheral
-        // R-format: 1001 aaa ppp 000000000000000
+        // Format: 1001 aaa pppp 0000000000000
         //   [19:17] Ra   — source register (value to write)
-        //   [16:14] port — peripheral select
-        //     3'b001 = PRNG seed (reseed the LFSR)
-        //     3'b010 = onboard LEDs
-        //     3'b011 = ADC (read-only — NOP)
-        //     3'b100 = GPIO direction register (1=output, 0=input)
-        //     3'b101 = GPIO data register (output pin values)
-        // Undefined port numbers (6–7) are treated as NOP.
+        //   [16:13] port — peripheral select (4-bit, 0–15)
+        //     4'd1 = PRNG seed (reseed the LFSR)
+        //     4'd2 = onboard LEDs
+        //     4'd3 = ADC (read-only — NOP)
+        //     4'd4 = GPIO direction register (1=output, 0=input)
+        //     4'd5 = GPIO data register (output pin values)
+        //     4'd6–4'd15 = reserved / not yet implemented — NOP
+        // Undefined port numbers are treated as NOP.
         // ------------------------------------------------------------------
         GRP_OUT: begin
-            case (f_ra)   // port number in Ra field [16:14]
-                3'b001,   // port 1 = PRNG seed
-                3'b010,   // port 2 = onboard LEDs
-                3'b100,   // port 4 = GPIO direction register (1=output, 0=input)
-                3'b101: begin  // port 5 = GPIO data register (output pin values)
+            case (f_port)   // port number in bits [16:13]
+                4'd1,   // port 1 = PRNG seed
+                4'd2,   // port 2 = onboard LEDs
+                4'd4,   // port 4 = GPIO direction register (1=output, 0=input)
+                4'd5: begin  // port 5 = GPIO data register (output pin values)
                     ra_addr    = f_rd;   // source register is in [19:17]
                     periph_we  = 1'b1;
-                    periph_port = f_ra;
+                    periph_port = f_port;
                 end
-                default: ; // unknown / reserved port — NOP (port 3 ADC read-only; ports 6–7 reserved)
+                // port 3 = ADC read-only; ports 6–15 reserved — NOP
+                default: ; // unknown / reserved port — NOP
             endcase
         end
 

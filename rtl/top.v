@@ -179,7 +179,7 @@ wire [7:0] prng_data;
 // They are stable for many clk_12m cycles (cpu_clk period >> clk_12m period),
 // so it is safe to sample them directly in the fast clock domain.
 wire        cpu_periph_we;
-wire [2:0]  cpu_periph_port;
+wire [3:0]  cpu_periph_port;
 wire [7:0]  cpu_periph_data;
 
 // PRNG load pulse: register the previous value of periph_we (as seen in the
@@ -193,7 +193,7 @@ always @(posedge clk_12m) begin
 end
 
 wire prng_load_req = cpu_periph_we & ~cpu_periph_we_prev
-                     & (cpu_periph_port == 3'b001);  // port 1 = PRNG seed
+                     & (cpu_periph_port == 4'd1);  // port 1 = PRNG seed
 
 prng u_prng (
     .clk       (clk_12m),
@@ -216,7 +216,7 @@ reg [7:0] led_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         led_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b010))
+    else if (cpu_periph_we & (cpu_periph_port == 4'd2))
         led_reg <= cpu_periph_data;
 end
 
@@ -229,7 +229,7 @@ reg [7:0] gpio_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b101))
+    else if (cpu_periph_we & (cpu_periph_port == 4'd5))
         gpio_reg <= cpu_periph_data;
 end
 
@@ -241,7 +241,7 @@ reg [7:0] gpio_dir_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_dir_reg <= 8'h00;
-    else if (cpu_periph_we & (cpu_periph_port == 3'b100))
+    else if (cpu_periph_we & (cpu_periph_port == 4'd4))
         gpio_dir_reg <= cpu_periph_data;
 end
 

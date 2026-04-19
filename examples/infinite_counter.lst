@@ -14,10 +14,11 @@ Addr    Word  Source
               
               .equ LIMIT, 63
               
+              start:
 0000  200000          LDI  R0, 0          ; R0 = 0  (counter)
 0001  20403F          LDI  R1, LIMIT      ; R1 = 63
               loop:
-0002  100100          ADDI R0, R0, 1      ; R0++  (updates Z/C/N/V)
+0002  100001          ADDI R0, R0, 1      ; R0++  (updates Z/C/N/V)
 0003  600800          CMP  R0, R1         ; flags = R0 - R1
 0004  440002          JNZ  loop           ; repeat while R0 != 63
-0005  400000          JMP  0              ; restart from the top
+0005  400000          JMP  start          ; restart from the top

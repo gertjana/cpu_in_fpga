@@ -9,7 +9,7 @@ Addr    Word  Source
               ; Register use:
               ;   R1 = 0x80  — leftmost edge value
               ;   R2 = 0x01  — rightmost edge value
-              ;   R7 = current LED pattern (shown on LEDs in display mode 1)
+              ;   R7 = current LED pattern
               ;
               ; This program runs forever — it never halts.
               
@@ -22,15 +22,18 @@ Addr    Word  Source
 0003  208001          LDI  R2, 1          ; R2 = 0x01  — rightmost edge
               
 0004  3E4000          MOV  R7, R1         ; R7 = 0x80 (LED[0] on), start scanning right
+0005  9E4000          OUT  R7, 2          ; display initial pattern
               
               scan_right:
-0005  61D000          CMP  R7, R2         ; R7 == 0x01 (rightmost edge)?
-0006  420009          JZ   scan_left      ; yes → reverse, scan left
-0007  07FC00          SHR  R7, R7         ; no  → step right
-0008  400005          JMP  scan_right
+0006  61D000          CMP  R7, R2         ; R7 == 0x01 (rightmost edge)?
+0007  42000B          JZ   scan_left      ; yes → reverse, scan left
+0008  07FC00          SHR  R7, R7         ; no  → step right
+0009  9E4000          OUT  R7, 2          ; display updated pattern
+000A  400006          JMP  scan_right
               
               scan_left:
-0009  607800          CMP  R1, R7         ; R7 == 0x80 (leftmost edge)?
-000A  420005          JZ   scan_right     ; yes → reverse, scan right
-000B  06FC00          SHL  R7, R7         ; no  → step left
-000C  400009          JMP  scan_left
+000B  607800          CMP  R1, R7         ; R7 == 0x80 (leftmost edge)?
+000C  420006          JZ   scan_right     ; yes → reverse, scan right
+000D  06FC00          SHL  R7, R7         ; no  → step left
+000E  9E4000          OUT  R7, 2          ; display updated pattern
+000F  40000B          JMP  scan_left

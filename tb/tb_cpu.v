@@ -41,7 +41,7 @@ wire       dbg_flag_z, dbg_flag_c, dbg_flag_n, dbg_flag_v;
 wire [7:0] dbg_r7;
 wire [7:0] prng_data;  // output of the PRNG module, fed into the CPU
 wire        periph_we;
-wire [2:0]  periph_port;
+wire [3:0]  periph_port;
 wire [7:0]  periph_data;
 
 // ---------------------------------------------------------------------------
@@ -261,27 +261,28 @@ initial begin
         check(periph_we, 0, "periph_we=0 during reset");
 
         // Force the instruction word seen by the decoder to OUT R3, 1:
-        //   1001 011 001 000 000 00000000 = 24'h964000
+        //   1001 011 0001 0000000000000 = 24'h962000
+        // port field is 4 bits at [16:13]; Ra is at [19:17].
         // Then read back periph_we, periph_port, and ra_addr from the
         // decoder sub-module (hierarchical access).
-        force u_cpu.instr = 24'h964000;   // OUT R3, port=1 (PRNG seed)
+        force u_cpu.instr = 24'h962000;   // OUT R3, port=1 (PRNG seed)
         #2;   // allow combinational logic to settle
         check(u_cpu.u_dec.periph_we,   1, "OUT R3,1: periph_we");
-        check(u_cpu.u_dec.periph_port, 3'b001, "OUT R3,1: periph_port=1");
-        check(u_cpu.u_dec.ra_addr,     3'd3,   "OUT R3,1: ra_addr=3");
+        check(u_cpu.u_dec.periph_port, 4'd1, "OUT R3,1: periph_port=1");
+        check(u_cpu.u_dec.ra_addr,     3'd3, "OUT R3,1: ra_addr=3");
         check(u_cpu.u_dec.reg_we,      0, "OUT R3,1: reg_we=0");
 
-        force u_cpu.instr = 24'h908000;   // OUT R0, port=2 (GPIO)
+        force u_cpu.instr = 24'h904000;   // OUT R0, port=2 (LEDs)
         #2;
         check(u_cpu.u_dec.periph_we,   1, "OUT R0,2: periph_we");
-        check(u_cpu.u_dec.periph_port, 3'b010, "OUT R0,2: periph_port=2");
-        check(u_cpu.u_dec.ra_addr,     3'd0,   "OUT R0,2: ra_addr=0");
+        check(u_cpu.u_dec.periph_port, 4'd2, "OUT R0,2: periph_port=2");
+        check(u_cpu.u_dec.ra_addr,     3'd0, "OUT R0,2: ra_addr=0");
 
-        force u_cpu.instr = 24'h9EC000;   // OUT R7, port=3 (GPIO direction)
+        force u_cpu.instr = 24'h9EA000;   // OUT R7, port=5 (GPIO data)
         #2;
-        check(u_cpu.u_dec.periph_we,   1, "OUT R7,3: periph_we");
-        check(u_cpu.u_dec.periph_port, 3'b011, "OUT R7,3: periph_port=3");
-        check(u_cpu.u_dec.ra_addr,     3'd7,   "OUT R7,3: ra_addr=7");
+        check(u_cpu.u_dec.periph_we,   1, "OUT R7,5: periph_we");
+        check(u_cpu.u_dec.periph_port, 4'd5, "OUT R7,5: periph_port=5");
+        check(u_cpu.u_dec.ra_addr,     3'd7, "OUT R7,5: ra_addr=7");
 
         force u_cpu.instr = 24'h900000;   // OUT R0, port=0 (undefined → NOP)
         #2;
@@ -298,30 +299,31 @@ initial begin
         rst = 1; prng_seed = 8'h00;
         repeat(2) @(posedge clk); @(negedge clk);
 
-        // IN R2, port=2 (GPIO): 1000 010 010 000 000 00000000 = 24'h848000
-        force u_cpu.instr = 24'h848000;
+        // IN R2, port=5 (GPIO): 1000 010 0101 0000000000000 = 24'h84A000
+        // port field is 4 bits at [16:13]; Rd is at [19:17].
+        force u_cpu.instr = 24'h84A000;
         #2;
-        check(u_cpu.u_dec.reg_we,  1,      "IN R2,2: reg_we");
-        check(u_cpu.u_dec.wb_sel,  3'b101, "IN R2,2: wb_sel=WB_GPIO");
-        check(u_cpu.u_dec.rd_addr, 3'd2,   "IN R2,2: rd_addr=2");
+        check(u_cpu.u_dec.reg_we,  1,      "IN R2,5: reg_we");
+        check(u_cpu.u_dec.wb_sel,  3'b101, "IN R2,5: wb_sel=WB_GPIO");
+        check(u_cpu.u_dec.rd_addr, 3'd2,   "IN R2,5: rd_addr=2");
 
-        // IN R6, port=4 (ADC): 1000 110 100 000 000 00000000 = 24'h8D0000
-        force u_cpu.instr = 24'h8D0000;
+        // IN R6, port=3 (ADC): 1000 110 0011 0000000000000 = 24'h8C6000
+        force u_cpu.instr = 24'h8C6000;
         #2;
-        check(u_cpu.u_dec.reg_we,  1,      "IN R6,4: reg_we");
-        check(u_cpu.u_dec.wb_sel,  3'b110, "IN R6,4: wb_sel=WB_ADC");
-        check(u_cpu.u_dec.rd_addr, 3'd6,   "IN R6,4: rd_addr=6");
+        check(u_cpu.u_dec.reg_we,  1,      "IN R6,3: reg_we");
+        check(u_cpu.u_dec.wb_sel,  3'b110, "IN R6,3: wb_sel=WB_ADC");
+        check(u_cpu.u_dec.rd_addr, 3'd6,   "IN R6,3: rd_addr=6");
 
-        // IN R0, port=0 (undefined, NOP): 1000 000 000 000 000 00000000 = 24'h800000
+        // IN R0, port=0 (undefined, NOP): 1000 000 0000 0000000000000 = 24'h800000
         force u_cpu.instr = 24'h800000;
         #2;
         check(u_cpu.u_dec.reg_we,  0, "IN R0,0: reg_we=0 (undef port)");
 
-        // OUT R4, port=4 (reserved/NOP): 1001 100 100 000 000 00000000 = 24'h990000
-        force u_cpu.instr = 24'h990000;
+        // OUT R4, port=3 (ADC read-only → NOP): 1001 100 0011 0000000000000 = 24'h986000
+        force u_cpu.instr = 24'h986000;
         #2;
-        check(u_cpu.u_dec.periph_we,   0, "OUT R4,4: periph_we=0 (undef port)");
-        check(u_cpu.u_dec.reg_we,      0, "OUT R4,4: reg_we=0");
+        check(u_cpu.u_dec.periph_we,   0, "OUT R4,3: periph_we=0 (ADC read-only)");
+        check(u_cpu.u_dec.reg_we,      0, "OUT R4,3: reg_we=0");
 
         release u_cpu.instr;
         rst = 0;

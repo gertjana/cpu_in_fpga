@@ -51,32 +51,34 @@ Addr    Word  Source
               push_loop:
 0005  510000          PUSH R4             ; push lo byte of current fib value (b_lo)
 0006  3F0000          MOV  R7, R4         ; R7 = latest lo byte (for debug display)
+0007  9E4000          OUT  R7, 2          ; display on LEDs
               
                       ; Compute next = a + b (16-bit)
-0007  00CA00          ADD  R6, R2, R4     ; next_lo = a_lo + b_lo  (may produce carry in C)
-0008  082E80          ADC  R1, R3, R5     ; next_hi = a_hi + b_hi + C
+0008  00CA00          ADD  R6, R2, R4     ; next_lo = a_lo + b_lo  (may produce carry in C)
+0009  082E80          ADC  R1, R3, R5     ; next_hi = a_hi + b_hi + C
               
                       ; Advance: a ← b,  b ← next
-0009  350000          MOV  R2, R4         ; a_lo = b_lo
-000A  374000          MOV  R3, R5         ; a_hi = b_hi
-000B  398000          MOV  R4, R6         ; b_lo = next_lo
-000C  3A4000          MOV  R5, R1         ; b_hi = next_hi
+000A  350000          MOV  R2, R4         ; a_lo = b_lo
+000B  374000          MOV  R3, R5         ; a_hi = b_hi
+000C  398000          MOV  R4, R6         ; b_lo = next_lo
+000D  3A4000          MOV  R5, R1         ; b_hi = next_hi
               
                       ; Loop control: count up to PUSH_COUNT
-000D  100100          ADDI R0, R0, 1
-000E  701000          CMPI R0, PUSH_COUNT
-000F  440005          JNZ  push_loop
+000E  100001          ADDI R0, R0, 1
+000F  700010          CMPI R0, PUSH_COUNT
+0010  440005          JNZ  push_loop
               
               ; ── Phase 2: POP all 16 values back into R7 ─────────────────────────────────
               
-0010  200000          LDI  R0, 0          ; reset counter
+0011  200000          LDI  R0, 0          ; reset counter
               
               pop_loop:
-0011  53C000          POP  R7             ; R7 = next value from stack (LIFO)
-0012  100100          ADDI R0, R0, 1
-0013  701000          CMPI R0, PUSH_COUNT
-0014  440011          JNZ  pop_loop
+0012  53C000          POP  R7             ; R7 = next value from stack (LIFO)
+0013  9E4000          OUT  R7, 2          ; display on LEDs
+0014  100001          ADDI R0, R0, 1
+0015  700010          CMPI R0, PUSH_COUNT
+0016  440012          JNZ  pop_loop
               
               ; ── Halt ────────────────────────────────────────────────────────────────────
               
-0015  F00000          HALT
+0017  F00000          HALT

@@ -41,7 +41,7 @@ module cpu #(
     // Peripheral write interface (OUT instruction).
     // Asserted for one cpu clk cycle; data is the source register value.
     output wire        periph_we,
-    output wire [2:0]  periph_port,
+    output wire [3:0]  periph_port,
     output wire [7:0]  periph_data,
 
     // Debug / LED outputs (combinational taps of internal state)
@@ -84,7 +84,7 @@ wire        dec_stack_pop;
 wire        dec_flags_we;
 wire        dec_halt;
 wire        dec_periph_we;
-wire [2:0]  dec_periph_port;
+wire [3:0]  dec_periph_port;
 
 // ---------------------------------------------------------------------------
 // Instruction register (ROM output) with branch-delay-slot flush and

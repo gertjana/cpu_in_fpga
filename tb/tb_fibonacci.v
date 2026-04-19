@@ -4,11 +4,10 @@
 // Program: examples/fibonacci.hex
 //
 // Computes Fibonacci numbers iteratively until the next value would overflow
-// 8 bits (carry flag set).  R7 holds the last valid result.
+// 8 bits (carry flag set).
 // Each fib value is also stored in RAM starting at address 0.
 //
 // Expected final state:
-//   R7 == 233  (fib(13) — last value fitting in 8 bits)
 //   RAM[0]  ==   0  (fib(0))
 //   RAM[1]  ==   1  (fib(1))
 //   RAM[2]  ==   1  (fib(2))
@@ -123,9 +122,6 @@ initial begin
     end
 
     check(timeout_cyc < 2000 ? 1 : 0, 1, "no timeout");
-
-    // ---- Register check: R7 should hold last valid fib ----
-    check(u_cpu.u_rf.regs[7], 8'd233, "R7 == fib(13) == 233");
 
     // ---- RAM checks: full fib sequence ----
     check(u_cpu.u_ram.mem[0],  8'd0,   "RAM[0]  == fib(0)  ==   0");

@@ -15,7 +15,7 @@ Addr    Word  Source
 0000  200000          LDI  R0, 0          ; R0 = 0  (counter)
 0001  204009          LDI  R1, LIMIT      ; R1 = 9 (loop bound)
               loop:
-0002  100100          ADDI R0, R0, 1      ; R0++
+0002  100001          ADDI R0, R0, 1      ; R0++
 0003  600800          CMP  R0, R1         ; set flags: R0 - R1
 0004  440002          JNZ  loop           ; repeat while R0 != R1
 0005  F00000          HALT
