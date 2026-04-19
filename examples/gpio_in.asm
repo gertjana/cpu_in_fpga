@@ -8,9 +8,10 @@
 ; Convention: connect a pin to 3.3V → corresponding LED lights.
 ;             connect a pin to GND  → corresponding LED goes dark.
 ;
-; Note: All GPIO pins have weak pull-ups enabled in the pin constraints
-;       (WEAK_PULL_UP_RESISTOR ON).  Unconnected pins read as 1 (LED on).
-;       Connect a pin to GND to see the LED turn off.
+; Note: MAX10 GPIO pins are bidirectional with an output-enable, so Quartus
+;       does not apply weak pull-ups to them.  Unconnected (floating) pins
+;       will read unpredictably and cause the LEDs to cycle.
+;       Drive all pins to a known level (3.3V or GND) for stable results.
 
 .equ GPIO_DIR_PORT,  0x04   ; Port 4 = GPIO direction register (1=output, 0=input)
 .equ GPIO_DATA_PORT, 0x05   ; Port 5 = GPIO data

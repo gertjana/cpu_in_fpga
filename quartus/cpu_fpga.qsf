@@ -120,14 +120,10 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[4]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[5]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[6]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[7]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[0]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[1]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[2]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[3]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[4]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[5]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[6]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to gpio[7]
+# Note: WEAK_PULL_UP_RESISTOR is not applied by Quartus to bidirectional
+# (inout) pins that have an output-enable.  Floating GPIO pins will read
+# unpredictably; drive all pins to a known level (3.3V or GND) for stable
+# results with gpio_in.asm.
 
 # ADC — The MAX10 internal ADC hard block samples the dedicated analogue input
 # pin ANAIN (PIN_D2, labelled AIN on the dedicated 3-pin header at the top-left of the board).
