@@ -257,8 +257,14 @@ generate
     end
 endgenerate
 
-// Read-back: capture current pin value regardless of direction.
-wire [7:0] gpio_in = gpio;
+// Read-back: 2-FF synchroniser — bring the async GPIO inputs into the
+// clk_12m domain and eliminate metastability before the CPU reads them.
+reg [7:0] gpio_meta = 8'h00;
+reg [7:0] gpio_in   = 8'h00;
+always @(posedge clk_12m) begin
+    gpio_meta <= gpio;
+    gpio_in   <= gpio_meta;
+end
 
 // ---------------------------------------------------------------------------
 // MAX10 internal ADC — alt_adc_ctrl IP instantiation
