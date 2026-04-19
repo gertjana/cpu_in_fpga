@@ -130,7 +130,8 @@ wire [7:0]  f_imm8  = instr[7:0];     // I8-format: 8-bit immediate (LDI, ADDI, 
 wire [15:0] f_addr16 = instr[15:0];   // I16-format: 16-bit address (JMP, Jcc, CALL)
 
 // IN/OUT port field — 4 bits at [16:13], giving 16 addressable peripheral ports.
-// Bit 13 is unused in all other instruction formats so stealing it here is safe.
+// Bit 13 is not globally unused; it is repurposed here because in the IN/OUT
+// encoding, bits [13:0] were previously zero/reserved when group = 8/9.
 wire [3:0]  f_port  = instr[16:13];   // IN/OUT peripheral port select (0–15)
 
 // ---------------------------------------------------------------------------
