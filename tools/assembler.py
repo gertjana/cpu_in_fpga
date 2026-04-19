@@ -105,6 +105,7 @@ _SH_GRP  = 20   # group:   bits [23:20]
 _SH_RD   = 17   # Rd/sub:  bits [19:17]
 _SH_RA   = 14   # Ra:      bits [16:14]
 _SH_RB   = 11   # Rb:      bits [13:11]
+_SH_PORT = 13   # port:    bits [16:13] (IN/OUT)
 _SH_SUB  = 8    # sub/Rb:  bits [10:8]
 # imm8:   bits [7:0]  — no shift (used by LDI, ADDI, CMPI)
 # addr16: bits [15:0] — no shift
@@ -393,7 +394,7 @@ def encode_in(operands, symbols, filename, lineno) -> int:
         raise AsmError("IN requires 2 operands: Rd, port", filename, lineno)
     rd   = parse_reg(operands[0], filename, lineno)
     port = parse_imm(operands[1], symbols, filename, lineno, bits=4)
-    return (GRP_IN << _SH_GRP) | (rd << _SH_RD) | (port << 13)
+    return (GRP_IN << _SH_GRP) | (rd << _SH_RD) | (port << _SH_PORT)
 
 
 def encode_out(operands, symbols, filename, lineno) -> int:
@@ -402,7 +403,7 @@ def encode_out(operands, symbols, filename, lineno) -> int:
         raise AsmError("OUT requires 2 operands: Ra, port", filename, lineno)
     ra   = parse_reg(operands[0], filename, lineno)
     port = parse_imm(operands[1], symbols, filename, lineno, bits=4)
-    return (GRP_OUT << _SH_GRP) | (ra << _SH_RD) | (port << 13)
+    return (GRP_OUT << _SH_GRP) | (ra << _SH_RD) | (port << _SH_PORT)
 
 
 def encode_nop(operands, filename, lineno) -> int:
