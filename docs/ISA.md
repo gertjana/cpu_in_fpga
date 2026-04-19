@@ -75,7 +75,7 @@ Group 0 (ALU) uses an extended sub-opcode that shifts all register fields down b
 [12:0]   unused
 ```
 
-Port field `pppp` occupies bits `[16:13]`. Bit 13 is unused by all other instruction formats, making the field extension backward-compatible for the register fields.
+Port field `pppp` occupies bits `[16:13]`. Although bit 13 is used by other instruction formats, there is no conflict here because groups `4'h8` and `4'h9` are decoded using the IN/OUT format. Extending the port field into bit 13 is backward-compatible because the previous IN/OUT encoding left bits `[13:0]` unused.
 
 ---
 
