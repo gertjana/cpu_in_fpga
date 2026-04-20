@@ -216,7 +216,7 @@ reg [7:0] led_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         led_reg <= 8'h00;
-    else if (cpu_clk_en & cpu_periph_we & (cpu_periph_port == 4'd2))
+    else if (cpu_periph_we & (cpu_periph_port == 4'd2))
         led_reg <= cpu_periph_data;
 end
 
@@ -229,7 +229,7 @@ reg [7:0] gpio_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_reg <= 8'h00;
-    else if (cpu_clk_en & cpu_periph_we & (cpu_periph_port == 4'd5))
+    else if (cpu_periph_we & (cpu_periph_port == 4'd5))
         gpio_reg <= cpu_periph_data;
 end
 
@@ -241,7 +241,7 @@ reg [7:0] gpio_dir_reg = 8'h00;
 always @(posedge clk_12m) begin
     if (rst)
         gpio_dir_reg <= 8'h00;
-    else if (cpu_clk_en & cpu_periph_we & (cpu_periph_port == 4'd4))
+    else if (cpu_periph_we & (cpu_periph_port == 4'd4))
         gpio_dir_reg <= cpu_periph_data;
 end
 

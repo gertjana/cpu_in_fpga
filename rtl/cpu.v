@@ -331,11 +331,29 @@ always @(posedge clk) begin
 end
 
 // --- Peripheral write interface (OUT instruction) ---
-// periph_data is the value of the source register (Ra field of OUT).
-// ra_data is already read through the register file with ra_addr set by decoder.
-assign periph_we   = dec_periph_we;
-assign periph_port = dec_periph_port;
-assign periph_data = ra_data;
+// Register periph_we/port/data on the CPU clock edge so they are stable
+// single-cycle pulses rather than combinatorial glitches.
+reg        periph_we_r;
+reg [3:0]  periph_port_r;
+reg [7:0]  periph_data_r;
+
+always @(posedge clk) begin
+    if (rst) begin
+        periph_we_r   <= 1'b0;
+        periph_port_r <= 4'b0;
+        periph_data_r <= 8'h00;
+    end else if (ce) begin
+        periph_we_r   <= dec_periph_we;
+        periph_port_r <= dec_periph_port;
+        periph_data_r <= ra_data;
+    end else begin
+        periph_we_r <= 1'b0;   // clear between CPU cycles
+    end
+end
+
+assign periph_we   = periph_we_r;
+assign periph_port = periph_port_r;
+assign periph_data = periph_data_r;
 
 // --- Halt output (asserted from first HALT cycle and held permanently) ---
 assign halt_out = dec_halt | halted;
