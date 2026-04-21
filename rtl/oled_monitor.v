@@ -584,7 +584,7 @@ localparam [4:0]
     ST_POWER_DOWN_W = 5'd19,  // wait for full discharge
     ST_SPI_FLUSH    = 5'd20;  // toggle SCLK 16× with CS HIGH to clear partial byte state
 
-(* preserve, noprune *) reg [4:0] state = ST_POWER_DOWN;
+(* preserve, noprune *) reg [4:0] state = ST_VDD_ON;  // BYPASS: was ST_POWER_DOWN
 
 // Sticky debug flags — set when the corresponding power rail is first enabled,
 // never cleared by rst. Used to distinguish "VDD was on then lost" from
@@ -749,7 +749,7 @@ endtask
 
 always @(posedge clk) begin
     if (rst) begin
-        state       <= ST_POWER_DOWN;  // start with full power-down cycle
+        state       <= ST_VDD_ON;      // BYPASS: was ST_POWER_DOWN — skip new power-down/flush sequence
         spi_cs_n    <= 1'b1;           // CS high initially — deselect SSD1306 while other pins settle
         spi_clk     <= 1'b0;
         spi_mosi    <= 1'b0;
