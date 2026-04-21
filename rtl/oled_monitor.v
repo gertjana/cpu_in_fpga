@@ -47,16 +47,7 @@ module oled_monitor #(
     // Up to 19 ASCII characters for the program name shown on line 3
     // (2 characters are used by the flag letter and a space prefix).
     // Pad with spaces on the right if shorter.
-    parameter [151:0] PROG_NAME = "UNKNOWN            ",  // 19 chars
-
-    // Power-down hold time in clock cycles.  After FPGA reconfiguration the
-    // SSD1306 may have received garbage SPI commands while I/O pins were
-    // tri-stated.  The FSM forces VDD+VBAT OFF for this many cycles to
-    // ensure the bypass caps (~1 µF) fully discharge and the SSD1306
-    // undergoes a genuine power-on reset.
-    //   Default: 6 000 000 cycles = 500 ms at 12 MHz (discharge needs ~300 ms).
-    //   Override to a small value (e.g. 120) in simulation testbenches.
-    parameter [23:0] POWER_DOWN_CLKS = 24'd6_000_000
+    parameter [151:0] PROG_NAME = "UNKNOWN            "  // 19 chars
 ) (
     input  wire        clk,        // 12 MHz board clock
     input  wire        rst,        // power-on reset only (active high, ~32 cycles)
@@ -87,7 +78,7 @@ module oled_monitor #(
     input  wire        halt,
 
     // PmodOLED SPI signals
-    (* preserve, noprune *) output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — HIGH at config to deselect SSD1306 during I/O transition
+    (* preserve, noprune *) output reg         spi_cs_n  = 1'b1,  // Chip Select (active low) — deasserted at power-on
     (* preserve, noprune *) output reg         spi_clk   = 1'b0,  // SPI clock (6 MHz)
     (* preserve, noprune *) output reg         spi_mosi  = 1'b0,  // MOSI
     (* preserve, noprune *) output reg         spi_dc    = 1'b0,  // Data(1) / Command(0)
@@ -474,14 +465,12 @@ endfunction
 // ---------------------------------------------------------------------------
 // Delay counter — used throughout the FSM for timed waits.
 // At 12 MHz, 1 cycle = 83.3 ns.
-//   3 µs   =       36 cycles
-//   1 ms   =   12 000 cycles
-//   10 ms  =  120 000 cycles
-//   100 ms = 1 200 000 cycles
-//   500 ms = 6 000 000 cycles — needs 23 bits (24-bit counter for headroom)
+//   3 µs   =    36 cycles
+//   10 ms  = 120000 cycles
+//   100 ms = 1200000 cycles — needs 21 bits
 // ---------------------------------------------------------------------------
-(* preserve, noprune *) reg [23:0] delay_ctr = 24'd0;
-wire       delay_done = (delay_ctr == 24'd0);
+(* preserve, noprune *) reg [20:0] delay_ctr = 21'd0;
+wire       delay_done = (delay_ctr == 21'd0);
 
 // ---------------------------------------------------------------------------
 // SPI shift register — sends 8 bits MSB-first at 6 MHz.
@@ -544,11 +533,6 @@ endfunction
 // Main FSM
 // ---------------------------------------------------------------------------
 // Power-on sequence (matches Digilent PmodOLED reference driver):
-//   0. Force VDD+VBAT OFF for 500 ms              — ST_POWER_DOWN / _W
-//      (ensures clean SSD1306 state after FPGA reconfig — during reconfig
-//      I/O pins are tri-stated and the SSD1306 may have received garbage
-//      SPI commands from floating SCLK/MOSI lines)
-//  0b. Flush SPI bus: 16 SCLK toggles, CS HIGH    — ST_SPI_FLUSH
 //   1. VDD on (VDDC low)                          — ST_VDD_ON
 //   2. Wait 1 ms for VDD to stabilise             — ST_VDD_WAIT
 //   3. Release RES (high) for 1 ms                — ST_RES_HIGH
@@ -579,12 +563,9 @@ localparam [4:0]
     ST_COL_DATA     = 5'd14,  // send one column of font data
     ST_COL_WAIT     = 5'd15,  // wait for SPI
     ST_NEXT_COL     = 5'd16,  // advance column / character / line
-    ST_DONE         = 5'd17,  // loop back to refresh
-    ST_POWER_DOWN   = 5'd18,  // force VDD+VBAT off for clean SSD1306 reset
-    ST_POWER_DOWN_W = 5'd19,  // wait for full discharge
-    ST_SPI_FLUSH    = 5'd20;  // toggle SCLK 16× with CS HIGH to clear partial byte state
+    ST_DONE         = 5'd17;  // loop back to refresh
 
-(* preserve, noprune *) reg [4:0] state = ST_VDD_ON;  // BYPASS: was ST_POWER_DOWN
+(* preserve, noprune *) reg [4:0] state = ST_VDD_ON;
 
 // Sticky debug flags — set when the corresponding power rail is first enabled,
 // never cleared by rst. Used to distinguish "VDD was on then lost" from
@@ -749,15 +730,15 @@ endtask
 
 always @(posedge clk) begin
     if (rst) begin
-        state       <= ST_VDD_ON;      // BYPASS: was ST_POWER_DOWN — skip new power-down/flush sequence
-        spi_cs_n    <= 1'b1;           // CS high initially — deselect SSD1306 while other pins settle
+        state       <= ST_VDD_ON;  // ST_VDD_ON=5'd0 is the first state
+        spi_cs_n    <= 1'b1;
         spi_clk     <= 1'b0;
         spi_mosi    <= 1'b0;
         spi_dc      <= 1'b0;
         spi_res_n   <= 1'b0;
         vbat_en     <= 1'b1;   // VBATC high = display power OFF
         vdd_en      <= 1'b1;   // VDDC  high = logic  power OFF
-        delay_ctr   <= 24'd0;
+        delay_ctr   <= 21'd0;
         spi_bit_ctr <= 4'd0;
         seq_idx     <= 5'd0;
         cur_line    <= 2'd0;
@@ -795,17 +776,17 @@ always @(posedge clk) begin
                 vdd_en      <= 1'b0;          // VDDC low = power ON
                 vdd_was_on  <= 1'b1;          // sticky: VDD was ever enabled
                 spi_res_n   <= 1'b0;          // hold RES low during power ramp
-                delay_ctr   <= 24'd12_000;    // 1 ms at 12 MHz
+                delay_ctr   <= 21'd12_000;    // 1 ms at 12 MHz
                 state       <= ST_VDD_WAIT;
             end
 
             ST_VDD_WAIT: begin
                 if (!delay_done)
-                    delay_ctr <= delay_ctr - 24'd1;
+                    delay_ctr <= delay_ctr - 21'd1;
                 else begin
                     // VDD stable — release RES high briefly
                     spi_res_n <= 1'b1;
-                    delay_ctr <= 24'd12_000; // 1 ms
+                    delay_ctr <= 21'd12_000; // 1 ms
                     state     <= ST_RES_HIGH;
                 end
             end
@@ -813,10 +794,10 @@ always @(posedge clk) begin
             // --- RES high for 1 ms, then pulse low for 1 ms ---
             ST_RES_HIGH: begin
                 if (!delay_done)
-                    delay_ctr <= delay_ctr - 24'd1;
+                    delay_ctr <= delay_ctr - 21'd1;
                 else begin
                     spi_res_n <= 1'b0;      // assert RES low
-                    delay_ctr <= 24'd12_000; // 1 ms
+                    delay_ctr <= 21'd12_000; // 1 ms
                     state     <= ST_RESET;
                 end
             end
@@ -824,17 +805,17 @@ always @(posedge clk) begin
             // --- Apply reset pulse to SSD1306 ---
             ST_RESET: begin
                 if (!delay_done)
-                    delay_ctr <= delay_ctr - 24'd1;
+                    delay_ctr <= delay_ctr - 21'd1;
                 else begin
                     spi_res_n <= 1'b1;      // release RES
-                    delay_ctr <= 24'd12_000; // 1 ms settle
+                    delay_ctr <= 21'd12_000; // 1 ms settle
                     state     <= ST_RESET_WAIT;
                 end
             end
 
             ST_RESET_WAIT: begin
                 if (!delay_done)
-                    delay_ctr <= delay_ctr - 24'd1;
+                    delay_ctr <= delay_ctr - 21'd1;
                 else begin
                     seq_idx <= 5'd0;
                     state   <= ST_INIT_START;
@@ -863,13 +844,13 @@ always @(posedge clk) begin
             ST_VBAT_ON: begin
                 vbat_en      <= 1'b0;          // VBATC low = power ON
                 vbat_was_on  <= 1'b1;          // sticky: VBAT was ever enabled
-                delay_ctr    <= 24'd1_200_000; // 100 ms
+                delay_ctr    <= 21'd1_200_000; // 100 ms
                 state        <= ST_VBAT_WAIT;
             end
 
             ST_VBAT_WAIT: begin
                 if (!delay_done)
-                    delay_ctr <= delay_ctr - 24'd1;
+                    delay_ctr <= delay_ctr - 21'd1;
                 else
                     state <= ST_DISP_ON;
             end
@@ -964,69 +945,6 @@ always @(posedge clk) begin
                 end else begin
                     cur_col <= cur_col + 3'd1;
                     state   <= ST_COL_DATA;
-                end
-            end
-
-            // --- Force SSD1306 fully off before init ---
-            // During FPGA reconfiguration (~100 ms), all I/O pins are
-            // tri-stated.  MAX 10 does NOT activate the QSF weak pull-ups
-            // during internal configuration — only in user mode.  So CS,
-            // SCLK, MOSI, VDDC, VBATC all float, the SSD1306 powers up
-            // randomly, and noise on SCLK clocks garbage SPI commands.
-            //
-            // Strategy (two-phase):
-            //   Phase 1 (initial value / rst): CS=1 (HIGH).  This deselects
-            //     the SSD1306 at the instant I/O pins transition from
-            //     tri-state to driven, so any SCLK glitch is ignored.
-            //   Phase 2 (this state): CS=0 (LOW).  With VDD/VBAT FETs off,
-            //     all SPI pins are driven LOW to block ESD diode current
-            //     paths (CS HIGH + VDD off → current flows CS→VDD via ESD
-            //     diode, clamping VDD at ~2.6V, preventing true power-off).
-            //     We hold this for 500 ms so the 1µF bypass caps fully
-            //     discharge through the ~10µA quiescent current.
-            //   Phase 3 (ST_SPI_FLUSH): CS=1, toggle SCLK 16× to clear
-            //     any residual partial byte in the SPI shift register.
-            ST_POWER_DOWN: begin
-                vdd_en    <= 1'b1;           // VDDC high = power OFF
-                vbat_en   <= 1'b1;           // VBATC high = power OFF
-                spi_res_n <= 1'b0;           // hold RES low
-                spi_cs_n  <= 1'b0;           // CS low — block ESD diode current to SSD1306
-                delay_ctr <= POWER_DOWN_CLKS; // default 500 ms at 12 MHz
-                state     <= ST_POWER_DOWN_W;
-            end
-
-            ST_POWER_DOWN_W: begin
-                spi_cs_n <= 1'b0;  // override SPI-engine de-assert — block ESD diode
-                if (!delay_done)
-                    delay_ctr <= delay_ctr - 24'd1;
-                else begin
-                    // Power-down complete — flush any partial SPI byte state.
-                    // Drive CS HIGH (deselect) and toggle SCLK 16 times.
-                    // This clears the SSD1306's SPI shift register of any
-                    // residual bits clocked in during the FPGA config phase.
-                    spi_cs_n    <= 1'b1;   // deselect during flush
-                    delay_ctr   <= 24'd31; // 32 half-cycles = 16 full SCLK toggles
-                    spi_mosi    <= 1'b0;
-                    spi_clk     <= 1'b0;
-                    state       <= ST_SPI_FLUSH;
-                end
-            end
-
-            // --- Flush SPI bus: 16 SCLK toggles with CS HIGH ---
-            // After the power-down, the SSD1306 has just undergone a genuine
-            // POR (caps discharged).  But during the brief moment between
-            // FPGA user-mode activation and the power-down FSM asserting
-            // CS LOW, a stray SCLK edge may have clocked in a partial bit.
-            // Toggling SCLK 16× with CS de-asserted ensures the SPI shift
-            // register is fully flushed before we begin the init sequence.
-            ST_SPI_FLUSH: begin
-                spi_cs_n <= 1'b1;         // keep de-selected
-                spi_clk  <= ~spi_clk;     // toggle SCLK each cycle
-                if (!delay_done)
-                    delay_ctr <= delay_ctr - 24'd1;
-                else begin
-                    spi_clk <= 1'b0;      // park SCLK low
-                    state   <= ST_VDD_ON;
                 end
             end
 
