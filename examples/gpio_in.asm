@@ -19,10 +19,10 @@
         LDI  R0, 0xFE           ; direction: pins 1-7 = output (1), pin 0 = input (0)
         OUT  R0, GPIO_DIR_PORT
 
-        LDI  R2, 0x01           ; mask: bit 0 only
+        LDI  R1, 0x01           ; R1 = mask: bit 0 only (stays constant)
 
 loop:
-        IN   R1, GPIO_DATA_PORT  ; read all 8 GPIO pins
-        AND  R1, R1, R2          ; mask to pin 0 → 0x01 or 0x00
-        OUT  R1, LEDS_PORT       ; LED 0 mirrors pin 0
+        IN   R0, GPIO_DATA_PORT  ; read all 8 GPIO pins into R0
+        AND  R0, R0, R1          ; mask to pin 0 → 0x01 or 0x00
+        OUT  R0, LEDS_PORT       ; LED 0 mirrors pin 0
         JMP  loop
