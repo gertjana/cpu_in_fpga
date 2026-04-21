@@ -278,8 +278,8 @@ stack u_stack (
 // 3'b010 = immediate (LDI)
 // 3'b011 = stack pop (POP/RET) — lower 8 bits only (PUSH zero-extends)
 // 3'b100 = PRNG (IN port 1)
-// 3'b101 = GPIO input (IN port 2)
-// 3'b110 = ADC value (IN port 4)
+// 3'b101 = GPIO input (IN port 5)
+// 3'b110 = ADC value (IN port 3)
 assign wb_data = (dec_wb_sel == 3'b000) ? alu_result           :
                  (dec_wb_sel == 3'b001) ? ram_rdata             :
                  (dec_wb_sel == 3'b010) ? dec_imm               :
