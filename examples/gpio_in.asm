@@ -13,15 +13,7 @@
 .equ GPIO_DATA_PORT, 0x05   ; Port 5 = GPIO data
 .equ LEDS_PORT,      0x02   ; Port 2 = onboard LEDs
 
-        ; --- configure pin 0 as input, pins 1-7 as outputs driven low ---
-        LDI  R0, 0x00           ; all outputs = 0 (drive pins 1-7 low)
-        OUT  R0, GPIO_DATA_PORT
-        LDI  R0, 0xFE           ; direction: pins 1-7 = output (1), pin 0 = input (0)
-        OUT  R0, GPIO_DIR_PORT
-
-        LDI  R1, 0x01           ; R1 = mask: bit 0 only (stays constant) -- UNUSED, kept for ref
-
-loop:
-        IN   R0, GPIO_DATA_PORT  ; read all 8 GPIO pins into R0
-        OUT  R0, LEDS_PORT       ; write raw GPIO value to LEDs
-        JMP  loop
+        ; --- diagnostic: write constant 0xAA to LEDs and halt ---
+        LDI  R0, 0xAA
+        OUT  R0, LEDS_PORT
+        HALT
