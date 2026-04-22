@@ -38,12 +38,13 @@ Three things happened:
 | Property | Value |
 |----------|-------|
 | Data width | 8 bits |
-| Address width | 8 bits (256 locations) |
-| Instruction width | 16 bits (fixed) |
+| Program address width | 16 bits (65536 ROM locations) |
+| Data address width | 8 bits (256 RAM locations) |
+| Instruction width | 24 bits (fixed) |
 | Registers | R0–R7 (8 × 8-bit, general purpose) |
 | Architecture | Harvard (separate program ROM and data RAM) |
 | Pipeline | 2-stage: Fetch → Execute |
-| Stack | Hardware LIFO, 16 entries deep |
+| Stack | Hardware LIFO, 16 entries deep (16-bit entries for CALL/RET) |
 | Flags | Z (zero), C (carry), N (negative), V (overflow) |
 | Clock | 12 MHz on-board oscillator |
 
@@ -67,10 +68,10 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 |------|-------------|
 | [rtl/cpu.v](rtl/cpu.v) | Top-level CPU — wires all modules together |
 | [rtl/decoder.v](rtl/decoder.v) | Instruction decoder / control unit |
-| [rtl/alu.v](rtl/alu.v) | 8-bit ALU (ADD SUB AND OR XOR NOT SHL SHR) |
+| [rtl/alu.v](rtl/alu.v) | 8-bit ALU (ADD SUB ADC AND OR XOR NOT SHL SHR) |
 | [rtl/regfile.v](rtl/regfile.v) | 8 × 8-bit register file |
-| [rtl/pc.v](rtl/pc.v) | 8-bit program counter with load and halt |
-| [rtl/rom.v](rtl/rom.v) | 256 × 16-bit synchronous program ROM |
+| [rtl/pc.v](rtl/pc.v) | 16-bit program counter with load and halt |
+| [rtl/rom.v](rtl/rom.v) | Synchronous program ROM, 24-bit words (default depth 256, 16-bit address bus) |
 | [rtl/ram.v](rtl/ram.v) | 256 × 8-bit data RAM |
 | [rtl/stack.v](rtl/stack.v) | 16-entry hardware stack (PUSH/POP/CALL/RET) |
 | [rtl/prng.v](rtl/prng.v) | 8-bit Galois LFSR hardware PRNG (period 255, tap mask 0xB8) |
@@ -233,49 +234,54 @@ The fix is `rtl/input_barrier.v`, a small registered module declared as `/* synt
 
 ## ISA Quick Reference
 
-All instructions are **16 bits** wide. Three formats are used:
+All instructions are **24 bits** wide. Several formats are used:
 
 ```
-R-format:  [15:12] group | [11:9] Rd  | [8:6] Ra | [5:3] Rb  | [2:0] sub
-I-format:  [15:12] group | [11:9] Rd  | [8:6] Ra | [5:0] imm6
-I8-format: [15:12] group | [11:9] sub | [8] x    | [7:0] imm8
+R-format:    [23:20] group | [19:17] Rd/sub | [16:14] Ra | [13:11] Rb | [10:8] sub | [7:0] unused
+I8-format:   [23:20] group | [19:17] Rd/sub | [16:14] Ra | [13:8]  unused        | [7:0] imm8
+I16-format:  [23:20] group | [19:17] sub    | [16]    x  | [15:0]  addr16
+ALU-format:  [23:20] 0000  | [19:16] alu_op | [15:13] Rd | [12:10] Ra | [9:7] Rb | [6:0] unused
+IN/OUT-fmt:  [23:20] group | [19:17] Rd/Ra  | [16:13] pppp (4-bit port)          | [12:0] unused
 ```
+
+Immediates always live in the last byte `[7:0]` (uniform range 0–255). Jump/CALL targets are 16-bit absolute addresses in `[15:0]`.
 
 ### Instruction table
 
 | Instruction | Format | Encoding | Operation | Flags |
 |---|---|---|---|---|
-| `ADD  Rd, Ra, Rb`   | R  | `0000 ddd aaa bbb 000` | Rd = Ra + Rb        | Z C N V |
-| `SUB  Rd, Ra, Rb`   | R  | `0000 ddd aaa bbb 001` | Rd = Ra − Rb        | Z C N V |
-| `AND  Rd, Ra, Rb`   | R  | `0000 ddd aaa bbb 010` | Rd = Ra & Rb        | Z N     |
-| `OR   Rd, Ra, Rb`   | R  | `0000 ddd aaa bbb 011` | Rd = Ra \| Rb       | Z N     |
-| `XOR  Rd, Ra, Rb`   | R  | `0000 ddd aaa bbb 100` | Rd = Ra ^ Rb        | Z N     |
-| `NOT  Rd, Ra`       | R  | `0000 ddd aaa xxx 101` | Rd = ~Ra            | Z N     |
-| `SHL  Rd, Ra`       | R  | `0000 ddd aaa xxx 110` | Rd = Ra << 1        | Z C N   |
-| `SHR  Rd, Ra`       | R  | `0000 ddd aaa xxx 111` | Rd = Ra >> 1        | Z C N   |
-| `ADDI Rd, Ra, imm6` | I  | `0001 ddd aaa iiiiii`  | Rd = Ra + imm6      | Z C N V |
-| `LDI  Rd, imm6`     | I  | `0010 000 ddd iiiiii`  | Rd = imm6 (0–63)    | —       |
-| `LD   Rd, [Ra]`     | R  | `0010 001 ddd aaa xxx` | Rd = RAM[Ra]        | —       |
-| `ST   [Ra], Rb`     | R  | `0010 010 xxx aaa bbb` | RAM[Ra] = Rb        | —       |
-| `MOV  Rd, Ra`       | R  | `0011 ddd aaa xxxxxxx` | Rd = Ra             | —       |
-| `JMP  addr8`        | I8 | `0100 000 x iiiiiiii`  | PC = addr8          | —       |
-| `JZ   addr8`        | I8 | `0100 001 x iiiiiiii`  | if Z: PC = addr8    | —       |
-| `JNZ  addr8`        | I8 | `0100 010 x iiiiiiii`  | if !Z: PC = addr8   | —       |
-| `JC   addr8`        | I8 | `0100 011 x iiiiiiii`  | if C: PC = addr8    | —       |
-| `JNC  addr8`        | I8 | `0100 100 x iiiiiiii`  | if !C: PC = addr8   | —       |
-| `JN   addr8`        | I8 | `0100 101 x iiiiiiii`  | if N: PC = addr8    | —       |
-| `JV   addr8`        | I8 | `0100 110 x iiiiiiii`  | if V: PC = addr8    | —       |
-| `JR   Ra`           | R  | `0100 111 aaa xxxxxxx` | PC = Ra             | —       |
-| `PUSH Ra`           | R  | `0101 000 aaa xxxxxxx` | Stack ← Ra          | —       |
-| `POP  Rd`           | R  | `0101 001 ddd xxxxxxx` | Rd ← Stack          | —       |
-| `CALL addr8`        | I8 | `0101 010 x iiiiiiii`  | PUSH(PC+1); PC=addr | —       |
-| `RET`               | R  | `0101 011 xxx xxxxxxx` | PC ← Stack          | —       |
-| `CMP  Ra, Rb`       | R  | `0110 xxx aaa bbb xxx` | flags(Ra − Rb)      | Z C N V |
-| `CMPI Ra, imm6`     | I  | `0111 xxx aaa iiiiii`  | flags(Ra − imm6)    | Z C N V |
-| `IN   Rd, port`     | R  | `1000 ddd ppp xxxxxxxx` | Rd = peripheral[port] | —       |
-| `OUT  Ra, port`     | R  | `1001 aaa ppp xxxxxxxx` | peripheral[port] = Ra | —       |
-| `NOP`               | —  | `1110 xxxxxxxxxxxx`    | no operation        | —       |
-| `HALT`              | —  | `1111 xxxxxxxxxxxx`    | freeze CPU          | —       |
+| `ADD  Rd, Ra, Rb`   | ALU | `0000 0000 ddd aaa bbb 0000000`  | Rd = Ra + Rb            | Z C N V |
+| `SUB  Rd, Ra, Rb`   | ALU | `0000 0001 ddd aaa bbb 0000000`  | Rd = Ra − Rb            | Z C N V |
+| `AND  Rd, Ra, Rb`   | ALU | `0000 0010 ddd aaa bbb 0000000`  | Rd = Ra & Rb            | Z N     |
+| `OR   Rd, Ra, Rb`   | ALU | `0000 0011 ddd aaa bbb 0000000`  | Rd = Ra \| Rb           | Z N     |
+| `XOR  Rd, Ra, Rb`   | ALU | `0000 0100 ddd aaa bbb 0000000`  | Rd = Ra ^ Rb            | Z N     |
+| `NOT  Rd, Ra`       | ALU | `0000 0101 ddd aaa xxx 0000000`  | Rd = ~Ra                | Z N     |
+| `SHL  Rd, Ra`       | ALU | `0000 0110 ddd aaa xxx 0000000`  | Rd = Ra << 1            | Z C N   |
+| `SHR  Rd, Ra`       | ALU | `0000 0111 ddd aaa xxx 0000000`  | Rd = Ra >> 1            | Z C N   |
+| `ADC  Rd, Ra, Rb`   | ALU | `0000 1000 ddd aaa bbb 0000000`  | Rd = Ra + Rb + C        | Z C N V |
+| `ADDI Rd, Ra, imm8` | I8  | `0001 ddd aaa xxxxxx iiiiiiii`   | Rd = Ra + imm8 (0–255)  | Z C N V |
+| `LDI  Rd, imm8`     | I8  | `0010 000 ddd xxxxxx iiiiiiii`   | Rd = imm8 (0–255)       | —       |
+| `LD   Rd, [Ra]`     | R   | `0010 001 ddd aaa xxxxxxxxxx`    | Rd = RAM[Ra]            | —       |
+| `ST   [Ra], Rb`     | R   | `0010 010 xxx aaa bbb xxxxxxxx`  | RAM[Ra] = Rb            | —       |
+| `MOV  Rd, Ra`       | R   | `0011 ddd aaa 000000000000000`   | Rd = Ra                 | —       |
+| `JMP  addr16`       | I16 | `0100 000 x aaaaaaaaaaaaaaaa`    | PC = addr16             | —       |
+| `JZ   addr16`       | I16 | `0100 001 x aaaaaaaaaaaaaaaa`    | if Z: PC = addr16       | —       |
+| `JNZ  addr16`       | I16 | `0100 010 x aaaaaaaaaaaaaaaa`    | if !Z: PC = addr16      | —       |
+| `JC   addr16`       | I16 | `0100 011 x aaaaaaaaaaaaaaaa`    | if C: PC = addr16       | —       |
+| `JNC  addr16`       | I16 | `0100 100 x aaaaaaaaaaaaaaaa`    | if !C: PC = addr16      | —       |
+| `JN   addr16`       | I16 | `0100 101 x aaaaaaaaaaaaaaaa`    | if N: PC = addr16       | —       |
+| `JV   addr16`       | I16 | `0100 110 x aaaaaaaaaaaaaaaa`    | if V: PC = addr16       | —       |
+| `JR   Ra`           | R   | `0100 111 aaa 000000000000000`   | PC = Ra (zero-extended) | —       |
+| `PUSH Ra`           | R   | `0101 000 aaa 000000000000000`   | Stack ← Ra              | —       |
+| `POP  Rd`           | R   | `0101 001 ddd 000000000000000`   | Rd ← Stack              | —       |
+| `CALL addr16`       | I16 | `0101 010 x aaaaaaaaaaaaaaaa`    | PUSH(PC+1); PC = addr16 | —       |
+| `RET`               | R   | `0101 011 xxx 000000000000000`   | PC ← Stack              | —       |
+| `CMP  Ra, Rb`       | R   | `0110 xxx aaa bbb 00000000000`   | flags(Ra − Rb)          | Z C N V |
+| `CMPI Ra, imm8`     | I8  | `0111 xxx aaa xxxxxx iiiiiiii`   | flags(Ra − imm8)        | Z C N V |
+| `IN   Rd, port`     | I/O | `1000 ddd pppp 0000000000000`    | Rd = peripheral[port]   | —       |
+| `OUT  Ra, port`     | I/O | `1001 aaa pppp 0000000000000`    | peripheral[port] = Ra   | —       |
+| `NOP`               | —   | `1110 xxxxxxxxxxxxxxxxxxxx`      | no operation            | —       |
+| `HALT`              | —   | `1111 xxxxxxxxxxxxxxxxxxxx`      | freeze CPU              | —       |
 
 ### Register encoding
 
@@ -303,4 +309,4 @@ See [docs/ISA.md](docs/ISA.md) for the complete specification including flag beh
 | `5`  | GPIO data       | Read GPIO pin logic levels                             | Set GPIO output data register                    |
 | `6–7`| Reserved        | — (NOP)                                                | — (NOP)                                          |
 
-Port `ppp` occupies bits `[8:6]` of the instruction word for both `IN` and `OUT`. Undefined ports are treated as NOP.
+Port `pppp` occupies bits `[16:13]` of the instruction word for both `IN` and `OUT` (range 0–15). Undefined ports are treated as NOP.

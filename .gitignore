@@ -22,3 +22,4 @@ sim/
 
 # macOS
 .DS_Store
+quartus_output/
