@@ -201,3 +201,9 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_res_n
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_vbatc
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_vddc
 
+# Diagnostic: try alternate fitter seed to see if the OLED black-screen
+# regression is placement-sensitive (same RTL works with f129c86 surrounding
+# logic but fails with current display_bugs surrounding logic, suggesting
+# Quartus placement is marginal for the OLED SPI/power-on signals).
+set_global_assignment -name SEED 2
+
