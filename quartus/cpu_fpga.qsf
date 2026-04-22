@@ -201,9 +201,15 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_res_n
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_vbatc
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to pmod_vddc
 
-# Diagnostic: try alternate fitter seed to see if the OLED black-screen
-# regression is placement-sensitive (same RTL works with f129c86 surrounding
-# logic but fails with current display_bugs surrounding logic, suggesting
-# Quartus placement is marginal for the OLED SPI/power-on signals).
-set_global_assignment -name SEED 2
+# Pack OLED SPI output registers into the I/O cell (IOE flop) so that all
+# four signals come from pad-adjacent flip-flops with near-identical
+# clk-to-pad delays.  Without this, default placement may put the source
+# flops far from the pads with unbalanced routing, causing MOSI/DC/CS skew
+# relative to SCLK to exceed the SSD1306's setup/hold spec — which
+# manifested as a placement-sensitive black-screen regression where the
+# same RTL worked or failed depending on Quartus fitter seed.
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to pmod_sclk
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to pmod_mosi
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to pmod_cs_n
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to pmod_dc
 
