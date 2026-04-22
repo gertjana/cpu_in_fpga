@@ -903,11 +903,7 @@ always @(posedge clk) begin
 
             // --- Send one column byte of font data ---
             ST_COL_DATA: begin
-                `ifdef OLED_DIAG
-                spi_send(8'hFF, 1'b1);       // DIAG: force all pixels ON
-                `else
                 spi_send(font_byte, 1'b1);   // DC=1: data
-                `endif
                 state <= ST_COL_WAIT;
             end
 
@@ -954,44 +950,12 @@ always @(posedge clk) begin
     end
 end
 
-// ---------------------------------------------------------------------------
-// Data-path diagnostic sticky flags (active in OLED_DIAG builds only, but
-// always synthesised so they don't change the module port list).
-//
-//   font_nonzero   — 1 if font_byte was ever non-zero during ST_COL_DATA
-//   ascii_nonspace — 1 if cur_ascii was ever != 0x20 during ST_COL_DATA
-//
-// These flags tell us whether the OLED data path is producing valid pixel
-// data.  They set permanently once the condition is seen and never clear
-// (sticky).  They replace the spi_res_n and vbat_was_on bits in dbg_oled
-// when OLED_DIAG is active (we already confirmed power-up works).
-// ---------------------------------------------------------------------------
-(* preserve, noprune *) reg font_nonzero   = 1'b0;
-(* preserve, noprune *) reg ascii_nonspace = 1'b0;
-
-always @(posedge clk) begin
-    if (state == ST_COL_DATA) begin
-        if (font_byte != 8'h00)
-            font_nonzero <= 1'b1;
-        if (cur_ascii != 8'h20)
-            ascii_nonspace <= 1'b1;
-    end
-end
-
-// Debug: expose FSM state and data-path flags for LED probing.
-//
-// When OLED_DIAG is defined (diagnostic build):
-//   LED[7]   = font_nonzero   — 1 = font ROM produced non-zero pixel data
-//   LED[6]   = ascii_nonspace — 1 = cur_ascii was ever a non-space character
-//   LED[5]   = vdd_was_on     — 1 = VDD was ever turned on (sanity check)
-//   LED[4:0] = state[4:0]     — FSM state number
-//
-// Normal (non-diagnostic) builds still expose power/reset bits:
-//   LED[7]   = spi_res_n, LED[6] = vbat_was_on, LED[5] = vdd_was_on
-`ifdef OLED_DIAG
-assign dbg_oled = {font_nonzero, ascii_nonspace, vdd_was_on, state};
-`else
+// Debug: expose FSM state and key power/control signals for LED probing.
+// LED mapping (active-low on MAX1000, so complement for readability):
+//   LED[4:0] = state[4:0]    — FSM state (see localparam table above)
+//   LED[5]   = vdd_was_on    — 1 = VDD was ever turned on (sticky)
+//   LED[6]   = vbat_was_on   — 1 = VBAT was ever turned on (sticky)
+//   LED[7]   = spi_res_n      — 0 = display held in reset, 1 = released
 assign dbg_oled = {spi_res_n, vbat_was_on, vdd_was_on, state};
-`endif
 
 endmodule
