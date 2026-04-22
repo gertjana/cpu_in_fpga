@@ -69,6 +69,17 @@ jobs:
         uses: actions/checkout@v6
 
       # -----------------------------------------------------------------------
+      # 1b. Sanitize the branch name for use in artifact names.
+      # GitHub Actions disallows '/', ':', '*', '?', '"', '<', '>', '|', '\\'
+      # in artifact names; branch names like "fix/sdc-foo" must be flattened.
+      # -----------------------------------------------------------------------
+      - name: Compute safe ref name
+        run: |
+          SAFE="${GITHUB_REF_NAME//[\/:\*\?\"\<\>\|\\]/-}"
+          echo "REF_NAME_SAFE=${SAFE}" >> "$GITHUB_ENV"
+          echo "Sanitized ref name: ${GITHUB_REF_NAME} -> ${SAFE}"
+
+      # -----------------------------------------------------------------------
       # 2. Assemble the selected program into quartus/program.hex
       # -----------------------------------------------------------------------
       - name: Set up Python
@@ -177,7 +188,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v7
         with:
-          name: quartus-output-${{ github.ref_name }}-${{ inputs.name }}
+          name: quartus-output-${{ env.REF_NAME_SAFE }}-${{ inputs.name }}
           path: |
             quartus/output_files/cpu_fpga.sof
             quartus/output_files/cpu_fpga.pof
