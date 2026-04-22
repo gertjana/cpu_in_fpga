@@ -3,6 +3,10 @@
 # 12 MHz clock on pin H6 (period = 83.33 ns)
 create_clock -name clk_12m -period 83.333 [get_ports clk_12m]
 
+# Derive generated clocks from PLLs (silences the
+# "no user-defined or default constraints for PLL" TimeQuest warning).
+derive_pll_clocks
+
 # Apply jitter/uncertainty to all clock transfers.
 derive_clock_uncertainty
 

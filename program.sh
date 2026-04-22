@@ -19,6 +19,9 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
+# Sanitize branch name to match the artifact-naming convention used by
+# build_and_download.sh and the synthesize.yml workflow.
+BRANCH_SAFE="${BRANCH//[\/:\*\?\"\<\>\|\\]/-}"
 
 # Colour helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
@@ -38,7 +41,7 @@ done
 
 [[ -n "$NAME" ]] || die "Usage: $0 <name>\n  e.g. $0 fibonacci"
 
-OUTPUT_DIR="${SCRIPT_DIR}/quartus_output/quartus-output-${BRANCH}-${NAME}"
+OUTPUT_DIR="${SCRIPT_DIR}/quartus_output/quartus-output-${BRANCH_SAFE}-${NAME}"
 POF_FILE="${OUTPUT_DIR}/cpu_fpga.pof"
 
 # ---------------------------------------------------------------------------

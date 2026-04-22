@@ -20,6 +20,9 @@ set -euo pipefail
 REPO="gertjana/cpu_in_fpga"
 WORKFLOW="synthesize.yml"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
+# Sanitize branch name for use in artifact names — GitHub Actions disallows
+# '/', ':', '*', '?', '"', '<', '>', '|', '\' in artifact names. Replace with '-'.
+BRANCH_SAFE="${BRANCH//[\/:\*\?\"\<\>\|\\]/-}"
 
 # Colour helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
@@ -35,7 +38,7 @@ die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
 NAME="${1%.asm}"          # strip .asm suffix if accidentally included
 PROGRAM="examples/${NAME}.asm"
-ARTIFACT_NAME="quartus-output-${BRANCH}-${NAME}"
+ARTIFACT_NAME="quartus-output-${BRANCH_SAFE}-${NAME}"
 
 [[ -f "$PROGRAM" ]] || die "File not found: ${PROGRAM}"
 
