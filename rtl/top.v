@@ -390,39 +390,9 @@ cpu #(.ROM_INIT("program.hex")) u_cpu (
 );
 
 // ---------------------------------------------------------------------------
-// LED output — normally driven by led_reg (OUT Ra, 2).
-//
-// DIAGNOSTIC MODE (OLED_DIAG): route dbg_oled to LEDs so the OLED data
-// path and FSM state can be observed on a build where the display is
-// completely black.
-//
-//   dbg_oled (OLED_DIAG) = {font_nonzero, ascii_nonspace, vdd_was_on, state[4:0]}
-//
-//   LED[0] = font_nonzero   — 1 if font ROM ever produced non-zero pixel data
-//   LED[1] = ascii_nonspace — 1 if cur_ascii was ever a non-space character
-//   LED[2] = vdd_was_on     — 1 after VDD enabled (sanity check, should be 1)
-//   LED[3..7] = state[4:0]  — FSM state (see oled_monitor.v localparams)
-//
-// Expected on a WORKING build:  LEDs 0-2 all lit (font data present,
-// non-space chars found, VDD on), LEDs 3-7 appearing as 01111 (state 15
-// dominates at ~87% — ST_COL_WAIT).
-//
-// If LED[0]=0: font_byte is always 0x00 — font_lookup broken or optimised away
-// If LED[1]=0: cur_ascii is always space — data path before font ROM is dead
-// If LED[0]=1 but screen still black: SPI MOSI line or hardware issue
-//
-// To disable: comment out `define OLED_DIAG in build_config.vh and rebuild.
+// LED output — driven by led_reg (OUT Ra, 2). LEDs are active-low on the
+// MAX1000, so the bit order is reversed: led[0] shows the MSB of led_reg.
 // ---------------------------------------------------------------------------
-`ifdef OLED_DIAG
-assign led[0] = dbg_oled[7];  // font_nonzero
-assign led[1] = dbg_oled[6];  // ascii_nonspace
-assign led[2] = dbg_oled[5];  // vdd_was_on
-assign led[3] = dbg_oled[4];  // state[4]
-assign led[4] = dbg_oled[3];  // state[3]
-assign led[5] = dbg_oled[2];  // state[2]
-assign led[6] = dbg_oled[1];  // state[1]
-assign led[7] = dbg_oled[0];  // state[0]
-`else
 assign led[0] = led_reg[7];
 assign led[1] = led_reg[6];
 assign led[2] = led_reg[5];
@@ -431,9 +401,6 @@ assign led[4] = led_reg[3];
 assign led[5] = led_reg[2];
 assign led[6] = led_reg[1];
 assign led[7] = led_reg[0];
-`endif
-
-wire [7:0] dbg_oled;  // OLED debug (DIAG: {font_nz, ascii_nsp, vdd, state[4:0]})
 
 // ---------------------------------------------------------------------------
 // OLED Hardware Monitor — runs at 12 MHz, reads CPU state directly.
@@ -466,8 +433,7 @@ oled_monitor #(
     .spi_dc      (pmod_dc),
     .spi_res_n   (pmod_res_n),
     .vbat_en     (pmod_vbatc),
-    .vdd_en      (pmod_vddc),
-    .dbg_oled    (dbg_oled)
+    .vdd_en      (pmod_vddc)
 );
 
 endmodule
