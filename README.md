@@ -51,6 +51,18 @@ Three things happened:
 ### Block Diagram
 ![cpu-diagram.svg](./docs/cpu-diagram.png)
 
+### Module Connectivity
+
+How the RTL modules are wired together. `top.v` is the FPGA top level; `cpu.v` is the CPU core that contains the datapath modules.
+
+See [docs/modules.d2](docs/modules.d2) for the diagram source. Render it with [`d2`](https://d2lang.com):
+
+```sh
+d2 docs/modules.d2 docs/modules.svg
+```
+
+The `oled_monitor` taps internal CPU state through `input_barrier`, which prevents Quartus from optimising the debug signals away.
+
 ### Pipeline
 
 The CPU uses a simple 2-stage pipeline to hide the 1-cycle ROM read latency:
@@ -76,8 +88,11 @@ A 1-cycle flush NOP is inserted automatically after every taken branch or jump. 
 | [rtl/stack.v](rtl/stack.v) | 16-entry hardware stack (PUSH/POP/CALL/RET) |
 | [rtl/prng.v](rtl/prng.v) | 8-bit Galois LFSR hardware PRNG (period 255, tap mask 0xB8) |
 | [rtl/oled_monitor.v](rtl/oled_monitor.v) | SSD1306 OLED debug monitor — SPI driver + font ROM + display FSM |
-| [rtl/input_barrier.v](rtl/input_barrier.v) | Synthesis black-box register barrier (prevents Quartus ACE optimisation through oled_monitor) |
 | [rtl/top.v](rtl/top.v) | MAX1000 top-level (clock, reset, LED/GPIO/ADC logic) |
+| [quartus/alt_adc_ctrl/synthesis/alt_adc_ctrl.v](quartus/alt_adc_ctrl/synthesis/alt_adc_ctrl.v) | ADC Control, Altera IP, Installed from quartus prime IP Catalog |
+| [quartus/alt_pll/synthesis/alt_pll.v](quartus/alt_pll/synthesis/alt_pll.v) | 2Mhz PLL for ADC, Altera IP, Installed from quartus prime IP Catalog |
+
+![Modules Diagram](./docs/modules.png)
 
 ---
 
@@ -223,12 +238,6 @@ V <PROGRAM NAME>         ← flag V  + up to 19-char program name (injected at s
 | 8  | PIN_N2 | RES (Reset, active low) |
 | 9  | PIN_K2 | VBATC (display panel power, active low) |
 | 10 | PIN_K1 | VDDC (logic power, active low) |
-
-### Synthesis note — ACE optimisation workaround
-
-For simple programs whose register values are fully predictable at compile time (e.g. `infinite_counter`, where R0 counts 0–63 and R1–R7 are constant), Quartus performs global constant-propagation and then applies **Auto Clock Enable (ACE)** optimisation: it derives a CE signal from a proven-constant register bit and gates the input pipeline flip-flops with it — so they never load, and the font lookup chain is constant-folded to `0x00`, producing a blank display.
-
-The fix is `rtl/input_barrier.v`, a small registered module declared as `/* synthesis black_box */`. Quartus treats black-box outputs as completely unknown, which prevents both constant-propagation and ACE optimisation from reaching `oled_monitor`.
 
 ---
 

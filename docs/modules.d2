@@ -1,0 +1,143 @@
+vars: {
+  d2-config: {
+    layout-engine: elk
+    theme-id: 300
+  }
+}
+
+classes: {
+  module: {
+    style: {
+      fill: "#99CCFF"
+      stroke-width: 1
+    }
+  }
+  peripheral: {
+  }
+  extra: {
+    label: ""
+    style: {
+      fill: "#E4E9FD"
+      stroke-width: 0
+    }
+  }
+  dummy: {
+    label: ""
+    style: {
+      fill: "transparent"
+      stroke-width: 0
+    }
+  }
+}
+
+grid-columns: 1
+FPGA: "top.v" {
+  grid-columns: 1
+  grid-rows: 3
+  cpu: "cpu.v" {
+    grid-rows: 2
+    pc.class: module
+    pc.label: "pc.v"
+    pc.box: |md
+      Program Counter
+    |
+    dec.class: module
+    dec.label: "decoder.v"
+    dec.box: |md
+      Instruction decoder
+    |
+    rf.class: module
+    rf.label: "regfile.v"
+    rf.box: |md
+      8 general registers
+    |
+    alu.class: module
+    alu.label: "alu.v"
+    alu.box: |md
+      8-bit Arithmetic Logic Unit
+    |
+    rom.class: module
+    rom.label: "rom.v"
+    rom.box: |md
+      256 bytes ROM
+    |
+    ram.class: module
+    ram.label: "ram.v"
+    ram.box: |md
+      256 bytes RAM
+    |
+    stk.class: module
+    stk.label: "stack.v"
+    stk.box: |md
+      16 Byte Stack
+    |
+  }
+  
+  peripherals.class: "peripheral"
+  peripherals: {
+    grid-rows: 1
+    oled.class: module
+    oled.label: "oled_monitor.v"
+    oled.box: |md
+      SPI Master, Layout and fonts
+    |
+    prng.class: module
+    prng.label: "prng.v"
+    prng.box: |md
+      Random nr generator
+    |
+    alt_adc.class: ip
+    alt_adc.label: "alt_adc_ctrl.v"
+    alt_adc.box: |md
+      ADC control (Altera IP)
+    |
+    alt_pll.class: ip
+    alt_pll.label: "alt_pll.v"
+    alt_pll.box: |md
+      2 Mhz PLL control (Altera IP)
+    |
+
+  }
+}
+
+hardware: "MAX 1000 Hardware" {
+  pmod.class: peripheral
+  pmod.label: "OLED Display"
+  pmod.box: |md
+    OLED Display
+
+    SPI over PMOD connector
+  |
+  leds.class: peripheral
+  leds.label: "8 Onboard LEDs"
+  leds.box: |md
+    8 Onboard LEDs
+
+    Closest to USB port is MSB (D7)
+  |
+  adc.class: peripheral
+  adc.label: "ADC"
+  adc.box: |md
+    8-bit A/D Converter
+
+    Pin AIAN0 measures 0-3v3
+  |
+  gpio.class: peripheral
+  gpio.label: "GPIO — 8 pins"
+  gpio.box: |md
+    General Purpose I/O
+
+    pins D0-D7
+  |
+}
+
+FPGA <-> hardware.gpio
+FPGA --> hardware.leds
+
+FPGA.cpu <-> FPGA.peripherals.prng
+FPGA.cpu -> FPGA.peripherals.oled
+FPGA.peripherals.alt_adc -> FPGA.cpu
+FPGA.peripherals.alt_adc <- hardware.adc
+FPGA.peripherals.alt_pll -> FPGA.peripherals.alt_adc
+FPGA.peripherals.oled -> hardware.pmod
+
