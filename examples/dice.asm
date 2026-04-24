@@ -1,5 +1,5 @@
 ; dice.asm — roll a set of polyhedral dice and store results in registers
-; clk_div: 1
+; clk_div: 2
 ; name: Dice Roll
 ;
 ; Rolls one of each: d20, d12, d10, d8, d6, d4 using the hardware PRNG
