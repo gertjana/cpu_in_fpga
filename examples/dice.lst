@@ -1,12 +1,26 @@
 Addr    Word  Source
 --------------------------------------------------------------
               ; dice.asm — roll a set of polyhedral dice and store results in registers
-              ; clk_div: 11
+              ; clk_div: 8
               ; name: Dice Roll
               ;
               ; Rolls one of each: d20, d12, d10, d8, d6, d4 using the hardware PRNG
-              ; (port 1, Galois LFSR).  Each die value is reduced modulo N and biased by
-              ; +1 so the final result lies in the range 1..N (inclusive).
+              ; (port 1, Galois LFSR).  Each die is rolled with rejection sampling so
+              ; runtime per die is essentially flat regardless of N.
+              ;
+              ; ──────────────────────────────────────────────────────────────────────────
+              ; Companion programs
+              ; ──────────────────────────────────────────────────────────────────────────
+              ;   examples/dice_mod.asm — same dice, but uses the simpler "modulo by
+              ;                           repeated subtraction" approach with a `mod8`
+              ;                           subroutine.  That version is correct but has
+              ;                           variable runtime per die (d4 ~5× slower than
+              ;                           d20 in the worst case) and a slight bias
+              ;                           toward low values when 256 mod N ≠ 0.
+              ;
+              ;   This file (dice.asm) is the recommended version: rejection sampling
+              ;   gives essentially constant time per die (~1.0–1.6 attempts) and is
+              ;   unbiased.
               ;
               ; Final register layout (held until reset):
               ;   R0 = d20  (1..20)
@@ -22,62 +36,74 @@ Addr    Word  Source
               ; inspected via the debug interface after the CPU halts.
               ;
               ; ──────────────────────────────────────────────────────────────────────────
-              ; Modulo helper
+              ; Roll subroutine — `roll`
               ; ──────────────────────────────────────────────────────────────────────────
-              ; The CPU has no DIV/MOD, so modulo is implemented as repeated subtraction.
+              ; Samples one die value uniformly in 1..N using rejection sampling against
+              ; the smallest power-of-two ≥ N.  This gives roughly constant time per die
+              ; (~1.0–1.6 attempts on average) instead of the variable-length repeated
+              ; subtraction modulo used previously.
               ;
-              ; Calling convention for `mod8`:
-              ;   in : R6 = dividend (0..255)
-              ;        R7 = divisor  (1..255)
-              ;   out: R6 = R6 mod R7   (0 .. R7-1)
+              ; Calling convention:
+              ;   in : R6 = mask  (next power-of-two minus 1; e.g. 0x1F for d20)
+              ;        R7 = limit (N, the die's face count)
+              ;   out: R6 = die value in 1..N   (mask consumed, +1 already applied)
               ;        R7 unchanged
               ;
-              ; CMP performs Ra - Rb and sets C=1 on borrow (i.e. when Ra < Rb).  So we
-              ; loop while there is no borrow (Ra >= Rb) and subtract each iteration.
+              ;   CLOBBERS: R5  (used as the working sample register).
+              ;
+              ; ⚠  Because R5 is clobbered by every call, the caller must NOT rely on R5
+              ;    holding a previously-rolled die value during a later call.  This is
+              ;    why d4 is rolled LAST — once R5 is written with the d4 result, no
+              ;    further `roll` calls are made.
+              ;
+              ; CMP performs Ra - Rb and sets C=1 on borrow (i.e. when Ra < Rb).  We
+              ; therefore loop while there is no borrow (R5 >= limit) and accept once
+              ; R5 < limit.
               
               .equ PRNG_PORT,    0x01
               
               ; ── Roll d20 → R0 ─────────────────────────────────────────────────────────
               
-0000  8C2000          IN   R6, PRNG_PORT       ; R6 = raw random byte
-0001  21C014          LDI  R7, 20              ; divisor
-0002  54001B          CALL mod8                ; R6 = R6 mod 20  (0..19)
-0003  118001          ADDI R0, R6, 1           ; R0 = 1..20
+0000  21801F          LDI  R6, 0x1F            ; mask: next power-of-two − 1 (32−1)
+0001  21C014          LDI  R7, 20              ; limit
+0002  54001B          CALL roll
+0003  318000          MOV  R0, R6              ; R0 = d20 (1..20)
               
               ; ── Roll d12 → R1 ─────────────────────────────────────────────────────────
               
-0004  8C2000          IN   R6, PRNG_PORT
-0005  21C00C          LDI  R7, 12
-0006  54001B          CALL mod8
-0007  138001          ADDI R1, R6, 1           ; R1 = 1..12
+0004  21800F          LDI  R6, 0x0F            ; mask: 16−1
+0005  21C00C          LDI  R7, 12              ; limit
+0006  54001B          CALL roll
+0007  338000          MOV  R1, R6              ; R1 = d12 (1..12)
               
               ; ── Roll d10 → R2 ─────────────────────────────────────────────────────────
               
-0008  8C2000          IN   R6, PRNG_PORT
-0009  21C00A          LDI  R7, 10
-000A  54001B          CALL mod8
-000B  158001          ADDI R2, R6, 1           ; R2 = 1..10
+0008  21800F          LDI  R6, 0x0F            ; mask: 16−1
+0009  21C00A          LDI  R7, 10              ; limit
+000A  54001B          CALL roll
+000B  358000          MOV  R2, R6              ; R2 = d10 (1..10)
               
               ; ── Roll d8 → R3 ──────────────────────────────────────────────────────────
               
-000C  8C2000          IN   R6, PRNG_PORT
-000D  21C008          LDI  R7, 8
-000E  54001B          CALL mod8
-000F  178001          ADDI R3, R6, 1           ; R3 = 1..8
+000C  218007          LDI  R6, 0x07            ; mask: 8−1 (always accepts on first try)
+000D  21C008          LDI  R7, 8               ; limit
+000E  54001B          CALL roll
+000F  378000          MOV  R3, R6              ; R3 = d8 (1..8)
               
               ; ── Roll d6 → R4 ──────────────────────────────────────────────────────────
               
-0010  8C2000          IN   R6, PRNG_PORT
-0011  21C006          LDI  R7, 6
-0012  54001B          CALL mod8
-0013  198001          ADDI R4, R6, 1           ; R4 = 1..6
+0010  218007          LDI  R6, 0x07            ; mask: 8−1
+0011  21C006          LDI  R7, 6               ; limit
+0012  54001B          CALL roll
+0013  398000          MOV  R4, R6              ; R4 = d6 (1..6)
               
               ; ── Roll d4 → R5 ──────────────────────────────────────────────────────────
+              ; (must be LAST — `roll` clobbers R5 as its working register.)
               
-0014  8C2000          IN   R6, PRNG_PORT
-0015  21C004          LDI  R7, 4
-0016  54001B          CALL mod8
-0017  1B8001          ADDI R5, R6, 1           ; R5 = 1..4
+0014  218003          LDI  R6, 0x03            ; mask: 4−1 (always accepts on first try)
+0015  21C004          LDI  R7, 4               ; limit
+0016  54001B          CALL roll
+0017  3B8000          MOV  R5, R6              ; R5 = d4 (1..4)
               
               ; ── Clear scratch registers so only R0..R5 hold meaningful values ───────
               
@@ -89,12 +115,15 @@ Addr    Word  Source
 001A  F00000          HALT
               
               ; ──────────────────────────────────────────────────────────────────────────
-              ; mod8 — R6 = R6 mod R7   (subroutine)
+              ; roll — sample one die value in 1..N (rejection sampling)
+              ;   in : R6 = mask, R7 = limit
+              ;   out: R6 = result in 1..N
+              ;   clobbers: R5
               ; ──────────────────────────────────────────────────────────────────────────
-              mod8:
-001B  61B800          CMP  R6, R7              ; R6 - R7, sets C=1 if R6 < R7 (borrow)
-001C  46001F          JC   mod8_done           ; if R6 < R7, R6 already holds the remainder
-001D  01DB80          SUB  R6, R6, R7          ; otherwise subtract divisor
-001E  40001B          JMP  mod8                ; and try again
-              mod8_done:
-001F  560000          RET
+              roll:
+001B  8A2000          IN   R5, PRNG_PORT       ; raw random byte
+001C  02B700          AND  R5, R5, R6          ; mask down to next-power-of-two range
+001D  617800          CMP  R5, R7              ; R5 - limit; C=1 iff R5 < limit
+001E  48001B          JNC  roll                ; reject (R5 >= limit) → redraw
+001F  1D4001          ADDI R6, R5, 1           ; accept and bias to 1..N
+0020  560000          RET
